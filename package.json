@@ -5,7 +5,21 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "typegen": "wrangler types"
+    "typegen": "wrangler types",
+    "setup": "./scripts/setup-cloudflare.sh",
+    "deploy:production": "./scripts/deploy.sh",
+    "health-check": "./scripts/health-check.sh",
+    "build": "npx tsc --noEmit",
+    "lint": "npx tsc --noEmit",
+    "start": "npm run dev",
+    "cf:login": "wrangler login",
+    "cf:whoami": "wrangler whoami",
+    "cf:logs": "wrangler tail",
+    "db:list": "wrangler d1 list",
+    "db:create": "wrangler d1 create al-ummah-now-cms",
+    "r2:list": "wrangler r2 bucket list",
+    "r2:create": "wrangler r2 bucket create al-ummah-now-cms",
+    "secrets:list": "wrangler secret list"
   },
   "dependencies": {
     "bknd": "0.12.0",

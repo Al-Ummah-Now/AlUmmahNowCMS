@@ -52,22 +52,44 @@ A content management system for www.alummahnow.net running on Cloudflare Workers
    npm install
    ```
 
-2. **Configure Environment**
+2. **Configure Cloudflare Workers**
    ```bash
-   cp .env.example .dev.vars
-   # Edit .dev.vars with your configuration
+   npm run setup
    ```
+   This automated script will:
+   - Create D1 database and R2 bucket
+   - Update configuration with correct IDs
+   - Generate TypeScript types
+   - Set up development environment
 
 3. **Start Development Server**
    ```bash
    npm run dev
    ```
-   Access the CMS at http://localhost:8787
+   Access the CMS at http://127.0.0.1:8585
 
 4. **Access Admin Interface**
    - Navigate to `/data` for content management
    - Create and edit articles through the admin interface
    - Manage entities and database schema
+
+## Configuration & Setup
+
+For detailed Cloudflare Workers configuration, see [Cloudflare Setup Guide](docs/CLOUDFLARE_SETUP.md).
+
+### Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run setup` | Automated Cloudflare Workers setup |
+| `npm run dev` | Start development server (port 8585) |
+| `npm run deploy` | Deploy to Cloudflare Workers |
+| `npm run deploy:production` | Production deployment with validation |
+| `npm run typegen` | Generate TypeScript types |
+| `npm run cf:login` | Login to Cloudflare CLI |
+| `npm run cf:logs` | View real-time Worker logs |
+| `npm run db:create` | Create D1 database |
+| `npm run r2:create` | Create R2 bucket |
 
 ## API Endpoints
 
@@ -95,35 +117,44 @@ The CMS includes a complete admin interface for:
 
 1. **Cloudflare Account**: Set up a Cloudflare account and get your Account ID
 2. **Domain Setup**: Configure www.alummahnow.net in Cloudflare
-3. **D1 Database**: Create a D1 database instance
-4. **R2 Bucket**: Create an R2 bucket for media storage
+3. **Automated Setup**: Run `npm run setup` to create D1 database and R2 bucket
 
-### Deployment Steps
+### Quick Deployment
+
+1. **Run Setup** (if not already done)
+   ```bash
+   npm run setup
+   ```
+
+2. **Deploy to Production**
+   ```bash
+   npm run deploy:production
+   ```
+
+### Manual Deployment Steps
 
 1. **Configure Cloudflare Credentials**
    ```bash
-   npx wrangler login
+   npm run cf:login
    ```
 
-2. **Create D1 Database**
+2. **Create Infrastructure** (alternative to setup script)
    ```bash
-   npx wrangler d1 create al-ummah-now-cms
+   npm run db:create
+   npm run r2:create
    ```
    Update the `database_id` in `wrangler.json` with the returned ID.
 
-3. **Create R2 Bucket**
-   ```bash
-   npx wrangler r2 bucket create al-ummah-now-cms
-   ```
-
-4. **Deploy to Production**
+3. **Deploy to Production**
    ```bash
    npm run deploy
    ```
 
-5. **Configure Custom Domain**
+4. **Configure Custom Domain**
    - Add www.alummahnow.net as a custom domain in Cloudflare Workers
    - Update DNS records to point to your Worker
+
+For detailed configuration instructions, see [Cloudflare Setup Guide](docs/CLOUDFLARE_SETUP.md).
 
 ## Authentication Setup
 
@@ -138,9 +169,12 @@ To integrate with auth.alummahnow.net:
 | Command           | Action                                                   |
 |:------------------|:---------------------------------------------------------|
 | `npm install`     | Install dependencies                                     |
-| `npm run dev`     | Start local development server at `localhost:8787`      |
+| `npm run dev`     | Start local development server at `localhost:8585`      |
+| `npm run setup`   | Automated Cloudflare Workers setup                      |
 | `npm run typegen` | Generate TypeScript types for Cloudflare bindings       |
 | `npm run deploy`  | Deploy to Cloudflare Workers                             |
+| `npm run deploy:production` | Production deployment with validation          |
+| `npm run cf:logs` | View real-time Worker logs                               |
 
 ## Technology Stack
 
