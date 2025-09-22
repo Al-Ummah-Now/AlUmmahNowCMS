@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bknd",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-02-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "minify": true,
+  "assets": {
+    "directory": "node_modules/bknd/dist/static"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "al-ummah-now-cms",
+      "database_id": "ad825428-5f0d-4d0b-878b-45b94e3c9c63"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "bucket_name": "al-ummah-now-cms",
+      "binding": "al_ummah_now_cms"
+    }
+  ],
+	"dev": {
+		"ip": "127.0.0.1",
+		"port": 8585,
+		"local_protocol": "http"
+	}
+}
