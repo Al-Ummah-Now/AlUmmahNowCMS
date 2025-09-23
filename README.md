@@ -32,6 +32,13 @@ A content management system for www.alummahnow.net running on Cloudflare Workers
 - Configured for OpenAuth integration with auth.alummahnow.net
 - Extensible authentication system
 
+✅ **AI-Powered Features**
+- Claude AI integration for content assistance
+- Model Context Protocol (MCP) support for structured AI communication
+- Intelligent content analysis, generation, and moderation
+- Multi-language translation capabilities
+- SEO optimization and enhancement tools
+
 ## Project Structure
 
 ```
@@ -62,26 +69,41 @@ A content management system for www.alummahnow.net running on Cloudflare Workers
    - Generate TypeScript types
    - Set up development environment
 
-3. **Start Development Server**
+3. **Configure AI Integration** (Optional)
+   ```bash
+   npm run mcp:setup
+   ```
+   This will:
+   - Set up Claude AI integration
+   - Configure Model Context Protocol (MCP)
+   - Install AI dependencies
+   - Create AI configuration files
+
+4. **Start Development Server**
    ```bash
    npm run dev
    ```
    Access the CMS at http://127.0.0.1:8585
 
-4. **Access Admin Interface**
+5. **Access Admin Interface**
    - Navigate to `/data` for content management
    - Create and edit articles through the admin interface
    - Manage entities and database schema
+   - Use AI tools for content assistance (if configured)
 
 ## Configuration & Setup
 
-For detailed Cloudflare Workers configuration, see [Cloudflare Setup Guide](docs/CLOUDFLARE_SETUP.md).
+For detailed setup instructions:
+- [Cloudflare Workers Setup Guide](docs/CLOUDFLARE_SETUP.md)
+- [Claude AI & MCP Integration Guide](docs/CLAUDE_MCP_GUIDE.md)
 
 ### Available Scripts
 
 | Script | Description |
 |--------|-------------|
 | `npm run setup` | Automated Cloudflare Workers setup |
+| `npm run mcp:setup` | Configure Claude AI and MCP integration |
+| `npm run mcp:test` | Test AI/MCP configuration |
 | `npm run dev` | Start development server (port 8585) |
 | `npm run deploy` | Deploy to Cloudflare Workers |
 | `npm run deploy:production` | Production deployment with validation |

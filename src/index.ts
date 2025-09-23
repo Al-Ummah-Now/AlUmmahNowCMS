@@ -1,10 +1,23 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { serve } from "bknd/adapter/cloudflare";
+import { ClaudeService } from "./services/claude";
+import { MCPServer } from "./services/mcp";
 
 export default serve({
    mode: "warm",
    onBuilt: async (app) => {
+      // Initialize Claude AI service
+      const claude = new ClaudeService({
+         apiKey: process.env.CLAUDE_API_KEY || '',
+         model: 'claude-3-haiku-20240307',
+         maxTokens: 1000,
+         temperature: 0.7
+      });
+
+      // Initialize MCP server
+      const mcpServer = new MCPServer();
+
       // Custom API endpoint
       app.modules.server.get("/custom", (c) => c.json({ hello: "world" }));
       
@@ -15,6 +28,136 @@ export default serve({
             data: app.modules.data ? Object.keys(app.modules.data) : null,
             entities: app.modules.data?.entities ? Object.keys(app.modules.data.entities) : null
          });
+      });
+
+      // MCP capabilities endpoint
+      app.modules.server.get("/api/mcp/capabilities", (c) => {
+         return c.json(mcpServer.getCapabilities());
+      });
+
+      // MCP tools execution endpoint
+      app.modules.server.post("/api/mcp/tools/:toolName", async (c) => {
+         try {
+            const toolName = c.req.param("toolName");
+            const parameters = await c.req.json();
+            
+            let result;
+            switch (toolName) {
+               case "analyze_content":
+                  result = await claude.analyzeContent(parameters.content);
+                  break;
+               case "generate_content":
+                  result = await claude.generateContentSuggestion(
+                     parameters.topic, 
+                     parameters.contentType || 'article'
+                  );
+                  break;
+               case "enhance_content":
+                  result = await claude.enhanceContent(
+                     parameters.title, 
+                     parameters.content
+                  );
+                  break;
+               case "translate_content":
+                  result = await claude.translateContent(
+                     parameters.content, 
+                     parameters.targetLanguage
+                  );
+                  break;
+               case "generate_seo_metadata":
+                  result = await claude.generateMetaDescription(
+                     parameters.title, 
+                     parameters.content
+                  );
+                  break;
+               default:
+                  result = await mcpServer.executeTool(toolName, parameters);
+            }
+            
+            return c.json({ success: true, result });
+         } catch (error) {
+            console.error("MCP tool execution error:", error);
+            return c.json({ 
+               success: false, 
+               error: error.message || "Tool execution failed" 
+            }, 500);
+         }
+      });
+
+      // Claude AI content analysis endpoint
+      app.modules.server.post("/api/claude/analyze", async (c) => {
+         try {
+            const { content } = await c.req.json();
+            if (!content) {
+               return c.json({ error: "Content is required" }, 400);
+            }
+
+            const analysis = await claude.analyzeContent(content);
+            return c.json({ success: true, analysis });
+         } catch (error) {
+            console.error("Claude analysis error:", error);
+            return c.json({ 
+               success: false, 
+               error: "Content analysis failed" 
+            }, 500);
+         }
+      });
+
+      // Claude AI content generation endpoint
+      app.modules.server.post("/api/claude/generate", async (c) => {
+         try {
+            const { topic, type = 'article' } = await c.req.json();
+            if (!topic) {
+               return c.json({ error: "Topic is required" }, 400);
+            }
+
+            const suggestion = await claude.generateContentSuggestion(topic, type);
+            return c.json({ success: true, suggestion });
+         } catch (error) {
+            console.error("Claude generation error:", error);
+            return c.json({ 
+               success: false, 
+               error: "Content generation failed" 
+            }, 500);
+         }
+      });
+
+      // Claude AI content enhancement endpoint
+      app.modules.server.post("/api/claude/enhance", async (c) => {
+         try {
+            const { title, content } = await c.req.json();
+            if (!title || !content) {
+               return c.json({ error: "Title and content are required" }, 400);
+            }
+
+            const enhancement = await claude.enhanceContent(title, content);
+            return c.json({ success: true, enhancement });
+         } catch (error) {
+            console.error("Claude enhancement error:", error);
+            return c.json({ 
+               success: false, 
+               error: "Content enhancement failed" 
+            }, 500);
+         }
+      });
+
+      // Claude AI translation endpoint
+      app.modules.server.post("/api/claude/translate", async (c) => {
+         try {
+            const { content, targetLanguage } = await c.req.json();
+            if (!content || !targetLanguage) {
+               return c.json({ error: "Content and target language are required" }, 400);
+            }
+
+            const translation = await claude.translateContent(content, targetLanguage);
+            return c.json({ success: true, translation });
+         } catch (error) {
+            console.error("Claude translation error:", error);
+            return c.json({ 
+               success: false, 
+               error: "Translation failed" 
+            }, 500);
+         }
       });
       
       // Public API for articles - simplified approach
@@ -280,6 +423,25 @@ export default serve({
             background: #667eea;
             transform: translateY(-2px);
         }
+
+        .ai-features {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 3rem 0;
+        }
+
+        .ai-feature-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            margin: 1rem;
+            text-align: center;
+        }
+
+        .ai-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
         
         @media (max-width: 768px) {
             .hero h1 {
@@ -323,23 +485,53 @@ export default serve({
         </div>
     </section>
 
+    <section class="ai-features">
+        <div class="container">
+            <h2 class="section-title">AI-Powered Content Management</h2>
+            <div class="articles-grid">
+                <div class="ai-feature-card">
+                    <div class="ai-icon">🤖</div>
+                    <h3>Claude AI Integration</h3>
+                    <p>Advanced AI assistance for content creation, moderation, and enhancement using Claude 3.</p>
+                </div>
+                <div class="ai-feature-card">
+                    <div class="ai-icon">🔧</div>
+                    <h3>Model Context Protocol</h3>
+                    <p>Structured AI communication through MCP for consistent and reliable content processing.</p>
+                </div>
+                <div class="ai-feature-card">
+                    <div class="ai-icon">🌐</div>
+                    <h3>Smart Translation</h3>
+                    <p>Automatic content translation to serve our diverse community in multiple languages.</p>
+                </div>
+                <div class="ai-feature-card">
+                    <div class="ai-icon">📊</div>
+                    <h3>Content Analysis</h3>
+                    <p>Intelligent content moderation and categorization aligned with Islamic community values.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="articles-section">
         <div class="container">
             <h2 class="section-title">Content Management System</h2>
             <p style="text-align: center; margin-bottom: 2rem; color: #666;">
-                This CMS is powered by bknd framework running on Cloudflare Workers with D1 database and R2 storage.
+                This CMS is powered by bknd framework running on Cloudflare Workers with D1 database, R2 storage, and Claude AI integration.
             </p>
             
             <div class="cta-section">
                 <a href="/data" class="api-link">📊 Admin Dashboard</a>
                 <a href="/api/articles" class="api-link">📖 Articles API</a>
+                <a href="/api/claude/analyze" class="api-link">🤖 AI Analysis</a>
+                <a href="/api/mcp/capabilities" class="api-link">🔧 MCP Tools</a>
                 <a href="/media" class="api-link">📸 Media Manager</a>
                 <a href="/auth" class="api-link">🔐 Authentication</a>
             </div>
             
             <div class="article-card" style="max-width: 600px; margin: 2rem auto;">
                 <div class="article-content">
-                    <h3 class="article-title">CMS Features</h3>
+                    <h3 class="article-title">Enhanced CMS Features</h3>
                     <ul style="text-align: left; color: #666; line-height: 1.8;">
                         <li>✅ Content management with Articles entity</li>
                         <li>✅ REST API for public content delivery</li>
@@ -349,6 +541,10 @@ export default serve({
                         <li>✅ Al Ummah Now themed design</li>
                         <li>✅ Admin interface for content management</li>
                         <li>✅ Responsive design</li>
+                        <li>🆕 <strong>Claude AI integration for content assistance</strong></li>
+                        <li>🆕 <strong>Model Context Protocol (MCP) support</strong></li>
+                        <li>🆕 <strong>AI-powered content analysis and moderation</strong></li>
+                        <li>🆕 <strong>Smart translation and enhancement tools</strong></li>
                     </ul>
                 </div>
             </div>
@@ -358,7 +554,7 @@ export default serve({
     <footer class="footer">
         <div class="container">
             <p>&copy; 2024 Al Ummah Now. All rights reserved.</p>
-            <p style="margin-top: 0.5rem; opacity: 0.8;">Powered by bknd on Cloudflare Workers</p>
+            <p style="margin-top: 0.5rem; opacity: 0.8;">Powered by bknd on Cloudflare Workers with Claude AI</p>
         </div>
     </footer>
 

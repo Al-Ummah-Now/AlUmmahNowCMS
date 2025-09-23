@@ -19,15 +19,20 @@
     "db:create": "wrangler d1 create al-ummah-now-cms",
     "r2:list": "wrangler r2 bucket list",
     "r2:create": "wrangler r2 bucket create al-ummah-now-cms",
-    "secrets:list": "wrangler secret list"
+    "secrets:list": "wrangler secret list",
+    "mcp:setup": "./scripts/setup-mcp.sh",
+    "mcp:test": "node scripts/test-mcp.js"
   },
   "dependencies": {
     "bknd": "0.12.0",
-    "kysely-d1": "^0.3.0"
+    "kysely-d1": "^0.3.0",
+    "@anthropic-ai/sdk": "^0.27.0",
+    "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240620.0",
     "typescript": "^5.5.3",
-    "wrangler": "^4.4.0"
+    "wrangler": "^4.4.0",
+    "@types/node": "^20.0.0"
   }
 }
