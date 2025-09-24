@@ -280,7 +280,7 @@ compatibility_date = "2025-02-04"
 [[d1_databases]]
 binding = "DB"
 database_name = "al-ummah-now-cms"
-database_id = "ad825428-5f0d-4d0b-878b-45b94e3c9c63"
+database_id = "00000000-0000-0000-0000-000000000000" # Replace with your actual database ID
 
 # Storage bindings
 [[r2_buckets]]

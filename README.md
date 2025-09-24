@@ -61,7 +61,7 @@ For detailed architecture information, see [ARCHITECTURE.md](./ARCHITECTURE.md).
    npm run dev
    ```
    
-   The CMS will be available at `http://127.0.0.1:8585`
+   The CMS will be available at `http://localhost:8585`
 
 ## Project Structure
 
