@@ -80,8 +80,8 @@ describe("searchVideos / lookupItem (proxy)", () => {
 
 describe("embeds adapter (placeholder contract)", () => {
    it("builds video and playlist embed URLs with lang/start", () => {
-      expect(embedUrl("https://videos.test/", "video", "v1", { lang: "ar", start: 12.7 })).toBe("https://videos.test/embed/v1?lang=ar&start=12");
-      expect(embedUrl("https://videos.test", "playlist", "p1", { lang: "en", start: 5 })).toBe("https://videos.test/embed/playlist/p1?lang=en");
+      expect(embedUrl("https://videos.test/", "video", "v1", { lang: "ar", start: 12.7 })).toBe("https://videos.test/embed/v/v1?lang=ar&start=12");
+      expect(embedUrl("https://videos.test", "playlist", "p1", { lang: "en", start: 5 })).toBe("https://videos.test/embed/p/p1?lang=en");
    });
    it("has no embed for channels or unsafe ids", () => {
       expect(embedUrl("https://videos.test", "channel", "c1")).toBeNull();

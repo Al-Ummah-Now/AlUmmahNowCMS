@@ -44,7 +44,7 @@ describe("picker", () => {
       expect(res.status).toBe(200);
       const { items } = (await res.json()) as { items: { id: string; embed_url: string }[] };
       expect(items.map((i) => i.id)).toEqual(["v1"]);
-      expect(items[0].embed_url).toBe("https://videos.test/embed/v1");
+      expect(items[0].embed_url).toBe("https://videos.test/embed/v/v1");
    });
 
    it("validates the query", async () => {

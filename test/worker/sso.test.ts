@@ -150,4 +150,20 @@ describe("callback", () => {
       expect(loc.searchParams.get("return")).toBe("https://www.test/");
       expect(res.headers.getSetCookie().some((c) => c.startsWith("auth=") && /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c))).toBe(true);
    });
+   it("front-channel logout hop: clears the session and hands back to auth's next step", async () => {
+      const next = `${ISSUER}/logout?step=2&return=${encodeURIComponent("https://www.test/")}`;
+      const res = await makeWorker()(`/sso/logout?next=${encodeURIComponent(next)}`);
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe(next);
+      expect(res.headers.getSetCookie().some((c) => c.startsWith("auth=") && /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c))).toBe(true);
+   });
+
+   it("ignores a next that is not the auth server's /logout (no open redirect)", async () => {
+      for (const next of ["https://evil.example/logout", `${ISSUER}/authorize`, "//evil.example/logout", "javascript:alert(1)"]) {
+         const res = await makeWorker()(`/sso/logout?next=${encodeURIComponent(next)}`);
+         const loc = new URL(res.headers.get("location")!);
+         expect(`${loc.origin}${loc.pathname}`).toBe(`${ISSUER}/logout`);
+         expect(loc.searchParams.get("return")).toBe("https://www.test/");
+      }
+   });
 });

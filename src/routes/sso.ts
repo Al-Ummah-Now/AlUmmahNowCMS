@@ -130,6 +130,11 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       const app = await deps.getApp(c);
       const headers = await app.module.auth.authenticator.removeAuthCookieHeader(new Headers());
       for (const cookie of headers.getSetCookie()) c.header("Set-Cookie", cookie, { append: true });
+      // Front-channel hop of auth's single sign-out: auth calls
+      // /sso/logout?next=<auth>/logout?step=..., we clear our session and hand
+      // back. `next` is followed only when it points at the auth server itself.
+      const next = frontChannelNext(c.req.query("next"), cfg.issuer);
+      if (next) return c.redirect(next, 302);
       const target = new URL(`${cfg.issuer}/logout`);
       target.searchParams.set("return", `${cfg.wwwUrl}/`);
       return c.redirect(target.toString(), 302);
@@ -138,4 +143,17 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
    sso.get("/logged-out", (c) => renderStatus(c, "logged_out", 200));
 
    return sso;
+}
+
+/** `next` for a front-channel logout hop: only an https URL on the auth issuer's origin. */
+export function frontChannelNext(next: string | undefined, issuer: string): string | null {
+   if (!next) return null;
+   try {
+      const url = new URL(next);
+      const auth = new URL(issuer);
+      if (url.origin !== auth.origin || url.pathname !== "/logout") return null;
+      return url.toString();
+   } catch {
+      return null;
+   }
 }
