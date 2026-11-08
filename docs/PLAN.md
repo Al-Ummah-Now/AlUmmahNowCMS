@@ -16,9 +16,8 @@ prod only via stage-then-promote; out-of-scope work becomes `queue` issues.
    KV `al-ummah-now-www-snapshot{,-qa,-stage}`. Created with wrangler. Their ids go in the wrangler configs.
 4. **CMS implementation PR** (this repo), then **www implementation PR** (AlUmmahNowUI). The www PR's
    E2E needs a QA CMS.
-5. **Secrets:** `BKND_JWT_SECRET` (openssl) per CMS Worker; `CMS_CLIENT_SECRET` per env via auth
-   `rotate-client-secret.ts --worker al-ummah-now-cms[-qa|-stage]:CMS_CLIENT_SECRET`; `SESSION_SECRET`
-   per www Worker. GitHub: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `QA_SEED_PASSWORD`,
+5. **Secrets:** `BKND_JWT_SECRET` (openssl) per CMS Worker (no `CMS_CLIENT_SECRET`: the CMS is a public
+   PKCE client, SPEC §3); `SESSION_SECRET` per www Worker. GitHub: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `QA_SEED_PASSWORD`,
    `STAGE_SEED_PASSWORD` in both repos.
 6. **QA** deploys on merge to main (`deploy-qa.yml`) → QA E2E.
 7. **Release** (`release.yml`): stage → prod for both. www before CMS is fine (www falls back).

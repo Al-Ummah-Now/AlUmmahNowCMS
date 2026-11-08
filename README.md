@@ -1,207 +1,64 @@
-# AlUmmahNowCMS
+# AlUmmahNowCMS — cms.alummahnow.net
 
-A modern, cloud-native content management system built on the Cloudflare ecosystem. AlUmmahNowCMS leverages Cloudflare Workers for edge computing, D1 for database operations, and R2 for file storage to provide a fast, globally distributed CMS solution.
+The staff-only content admin for **www.alummahnow.net**. A Cloudflare Worker running
+[bknd](https://bknd.io) 0.21 in **code mode** (schema from `src/schema.ts`, never edited in the UI),
+wrapped by a small Hono app that adds SSO, a public read API for www, and a video picker.
 
-## Features
+- Spec: [`docs/SPEC.md`](docs/SPEC.md) · Plan: [`docs/PLAN.md`](docs/PLAN.md) ·
+  Public API contract: [`docs/PUBLIC_API.md`](docs/PUBLIC_API.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
-🌍 **Global Edge Deployment** - Content delivered from 200+ Cloudflare edge locations worldwide  
-⚡ **Sub-100ms Response Times** - Edge-cached responses for lightning-fast content delivery  
-🔒 **Enterprise Security** - Built-in authentication, authorization, and security best practices  
-📊 **Flexible Content Types** - Define custom content structures with validation  
-📁 **File Management** - Integrated media upload and management with R2 storage  
-🔄 **RESTful APIs** - Clean, documented APIs for headless CMS usage  
-🛠️ **Developer Experience** - TypeScript-first with excellent tooling and documentation
+| Env | URL | Worker | D1 | R2 |
+|---|---|---|---|---|
+| prod | https://cms.alummahnow.net | `al-ummah-now-cms` | `al-ummah-now-cms` | `al-ummah-now-cms` |
+| stage | https://cms.stage.alummahnow.net | `al-ummah-now-cms-stage` | `al-ummah-now-cms-stage` | `al-ummah-now-cms-stage` |
+| QA | https://cms.qa.alummahnow.net | `al-ummah-now-cms-qa` | `al-ummah-now-cms-qa` | `al-ummah-now-cms-qa` |
 
-## Architecture Overview
+## Access
 
-AlUmmahNowCMS is built on a modern serverless architecture:
+SSO only, through auth.alummahnow.net (public PKCE client, no client secret). Roles from the
+access token: **Super Admin / Admin → bknd `admin`**, **Moderator → bknd `editor`** (create/edit/
+publish content, upload images; no deletes, no settings). Everyone else gets a 403 page. bknd's own
+password login and registration are disabled.
 
-- **Cloudflare Workers**: Serverless compute platform for global edge execution
-- **Cloudflare D1**: SQLite-compatible serverless database
-- **Cloudflare R2**: S3-compatible object storage for files and media
-- **bknd Framework**: Type-safe backend framework with built-in CMS functionality
-
-For detailed architecture information, see [ARCHITECTURE.md](./ARCHITECTURE.md).
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js 18+ installed
-- Cloudflare account with Workers and D1 enabled
-- Wrangler CLI installed (`npm install -g wrangler`)
-
-### Installation
-
-1. **Clone and install dependencies**
-   ```bash
-   git clone https://github.com/meywd/AlUmmahNowCMS.git
-   cd AlUmmahNowCMS
-   npm install
-   ```
-
-2. **Configure Cloudflare services**
-   ```bash
-   # Authenticate with Cloudflare
-   wrangler login
-   
-   # Create D1 database (if not exists)
-   npx wrangler d1 create al-ummah-now-cms
-   
-   # Create R2 bucket (if not exists)
-   npx wrangler r2 bucket create al-ummah-now-cms
-   ```
-
-3. **Update configuration**
-   - Update `wrangler.json` with your database ID and bucket name
-   - Configure environment variables if needed
-
-4. **Start development server**
-   ```bash
-   npm run dev
-   ```
-   
-   The CMS will be available at `http://localhost:8585`
-
-## Project Structure
-
-```text
-AlUmmahNowCMS/
-├── src/
-│   └── index.ts          # Main application entry point
-├── .github/
-│   └── ISSUE_TEMPLATE/   # GitHub issue templates
-├── package.json          # Dependencies and scripts
-├── wrangler.json         # Cloudflare Workers configuration
-├── tsconfig.json         # TypeScript configuration
-├── ARCHITECTURE.md       # Detailed architecture documentation
-├── ROADMAP.md           # Project roadmap and planned features
-└── README.md            # This file
-```
-
-## Development Commands
-
-| Command           | Action                                                   |
-|:------------------|:---------------------------------------------------------|
-| `npm install`     | Install dependencies                                     |
-| `npm run dev`     | Start local development server at `localhost:8585`      |
-| `npm run deploy`  | Deploy to Cloudflare Workers                            |
-| `npm run typegen` | Generate TypeScript types for Wrangler                  |
-
-## Configuration
-
-### Environment Variables
-
-The CMS can be configured through environment variables in `wrangler.json`:
-
-```json
-{
-  "vars": {
-    "DB_URL": "your-database-url",
-    "DB_TOKEN": "your-database-token"
-  }
-}
-```
-
-### Database Setup
-
-Initialize your D1 database with the required schema:
+## Develop
 
 ```bash
-# Run database migrations
-npx wrangler d1 migrations apply al-ummah-now-cms --remote
-
-# Or for local development
-npx wrangler d1 migrations apply al-ummah-now-cms --local
+npm ci
+cp .dev.vars.example .dev.vars        # local vars (QA auth issuer; no secrets needed locally)
+npm run db:migrate:local              # apply migrations/ to the local D1
+npm run dev                           # http://localhost:8585
 ```
 
-## API Documentation
+Signing in locally needs the QA auth client to allow `http://localhost:8585/sso/callback` (it does).
 
-The CMS provides RESTful APIs for content management:
+```bash
+npm run lint && npm run typecheck && npm test   # unit + Workers-runtime tests (miniflare D1/R2)
+npm run check:schema                            # migrations == src/schema.ts
+npm run check:migrations                        # expand-only, append-only vs origin/main
+npm run check:config                            # wrangler.jsonc matches the env table
+CMS_URL=http://localhost:8585 npm run e2e       # Playwright (signed-in tests need QA_SEED_PASSWORD)
+```
 
-### Content Management
-- `GET /api/v1/content` - List content items
-- `POST /api/v1/content` - Create new content
-- `PUT /api/v1/content/{id}` - Update content
-- `DELETE /api/v1/content/{id}` - Delete content
+## Changing the content model
 
-### File Management
-- `POST /api/v1/files/upload` - Upload files
-- `GET /api/v1/files` - List files
-- `DELETE /api/v1/files/{id}` - Delete file
+1. Edit `src/schema.ts` (add only — never remove or rename a field; stop reading it instead).
+2. `npm run check:schema` prints the SQL bknd wants; save it as the next `migrations/NNNN_name.sql`.
+3. CI rejects drift, destructive SQL, and edits to merged migrations. bknd never changes the schema
+   at runtime; deploys run `wrangler d1 migrations apply`.
 
-### Authentication
-- `POST /api/v1/auth/login` - User authentication
-- `GET /api/v1/auth/me` - Current user info
+## Deploy
 
-For complete API documentation, visit `/api/docs` when running the development server.
+- **QA:** every push to `main` → `deploy-qa.yml` (migrate QA D1, deploy, smoke, secrets check, E2E).
+- **Release:** after QA succeeds → `release.yml`: build once → stage (migrate, 0 % + override smoke,
+  100 %, E2E) → production (head-of-main guard, migrate, 0 % smoke, 100 %, auto-rollback) → rollback
+  dry run. Manual rollback: `rollback.yml`.
 
-## Deployment
+### Secrets
 
-### Production Deployment
+| Where | Name | Notes |
+|---|---|---|
+| Worker (each env) | `BKND_JWT_SECRET` | `openssl rand -hex 32` → `wrangler secret put BKND_JWT_SECRET [--env qa\|stage]`. Required; the Worker serves 503 without it. |
+| GitHub | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Workers, D1 and R2 edit on account `0e4b6e7f…` |
+| GitHub | `QA_SEED_PASSWORD`, `STAGE_SEED_PASSWORD` | E2E test accounts (`qa-admin`, `qa-moderator`, `qa-viewer`) |
 
-1. **Configure production environment**
-   ```bash
-   # Set production environment variables
-   wrangler secret put DB_TOKEN
-   wrangler secret put ADMIN_PASSWORD
-   ```
-
-2. **Deploy to Cloudflare Workers**
-   ```bash
-   npm run deploy
-   ```
-
-3. **Configure custom domain (optional)**
-   ```bash
-   wrangler route add "cms.yourdomain.com/*" your-worker-name
-   ```
-
-### Environment Management
-
-- **Development**: Local Wrangler dev server with local D1/R2
-- **Staging**: Dedicated Cloudflare Workers environment
-- **Production**: Production Cloudflare Workers with live D1/R2
-
-## Contributing
-
-We welcome contributions! Please see our contributing guidelines:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Setup
-
-1. Follow the installation steps above
-2. Create a new branch for your feature
-3. Make your changes and test locally
-4. Ensure all tests pass
-5. Submit a pull request
-
-## Roadmap
-
-See [ROADMAP.md](./ROADMAP.md) for our development roadmap and planned features.
-
-## Support
-
-- 📖 **Documentation**: [Architecture](./ARCHITECTURE.md) | [Roadmap](./ROADMAP.md)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/meywd/AlUmmahNowCMS/issues)
-- 💡 **Feature Requests**: [GitHub Issues](https://github.com/meywd/AlUmmahNowCMS/issues)
-- 📧 **Contact**: Create an issue for questions and support
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Built with [bknd](https://docs.bknd.io/) framework
-- Powered by [Cloudflare Workers](https://workers.cloudflare.com/)
-- Uses [Cloudflare D1](https://developers.cloudflare.com/d1/) and [R2](https://developers.cloudflare.com/r2/)
-
----
-
-**Project Status**: Active Development | **Latest Version**: 0.1.0 | **Project Board**: [GitHub Projects](https://github.com/users/meywd/projects/1/views/1)
+Names live in `scripts/secrets-manifest.ts`; `scripts/check-secrets.ts` checks the deployed Workers.
