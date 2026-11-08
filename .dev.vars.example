@@ -1,0 +1,10 @@
+# Copy to .dev.vars for `npm run dev` (local only; never commit .dev.vars).
+ENVIRONMENT=local
+PUBLIC_URL=http://localhost:8585
+AUTH_ISSUER=https://auth.qa.alummahnow.net
+AUTH_CLIENT_ID=0e613f49-674b-490a-93e5-97a35d586da1
+VIDEOS_API_URL=https://videos.api.qa.alummahnow.net
+VIDEOS_WEB_URL=https://videos.qa.alummahnow.net
+WWW_URL=http://localhost:4321
+WWW_ORIGINS=http://localhost:4321
+# BKND_JWT_SECRET may be omitted locally (a dev-only fallback is used when ENVIRONMENT=local).
