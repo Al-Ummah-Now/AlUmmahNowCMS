@@ -15,5 +15,8 @@ export function safeReturnPath(input: string | null | undefined): string {
    }
    if (url.origin !== "https://cms.invalid") return "/";
    if (url.pathname.startsWith("/sso/")) return "/";
-   return `${url.pathname}${url.search}${url.hash}`;
+   // Re-check AFTER normalization: "/.//evil.com" and "/a/..//evil.com" normalize to "//evil.com".
+   const result = `${url.pathname}${url.search}${url.hash}`;
+   if (!result.startsWith("/") || result.startsWith("//") || result.includes("\\")) return "/";
+   return result;
 }

@@ -33,6 +33,18 @@ export function validNavUrl(url: unknown): boolean {
    }
 }
 
+/** Absolute https URL (social links, thumbnails). */
+export function validHttpsUrl(url: unknown): boolean {
+   if (typeof url !== "string" || url.length === 0 || url.length > 2048) return false;
+   try {
+      return new URL(url).protocol === "https:";
+   } catch {
+      return false;
+   }
+}
+
+export const REF_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
 type Row = Record<string, unknown>;
 
 /** Applies the rules to `data` in place. `current` is the stored row for updates. */
@@ -51,6 +63,23 @@ export function applyRules(entity: string, data: Row, mode: "create" | "update",
    }
    // bknd 0.21 does not apply an enum's default_value before its required check.
    if (mode === "create" && WITH_STATUS.has(entity) && (data.status === undefined || data.status === null)) data.status = "draft";
+   if (entity === "site_settings" && "social" in data && data.social != null) {
+      const social = data.social;
+      const ok = Array.isArray(social) && social.every((x) => !!x && typeof x === "object" && typeof (x as Row).kind === "string" && validHttpsUrl((x as Row).url));
+      if (!ok) throw new ContentRuleError("site_settings.social must be a list of { kind, url } with https:// URLs");
+   }
+   if (entity === "curated_videos") {
+      if ("ref_id" in data && (typeof data.ref_id !== "string" || !REF_ID.test(data.ref_id))) {
+         throw new ContentRuleError("curated_videos.ref_id must be a videos-platform id");
+      }
+      if ("snapshot" in data && data.snapshot != null) {
+         const snap = data.snapshot as Row;
+         const thumb = snap?.thumbnail_url;
+         if (typeof snap !== "object" || typeof snap.title !== "string" || (thumb != null && !validHttpsUrl(thumb))) {
+            throw new ContentRuleError("curated_videos.snapshot must be { title, thumbnail_url (https or null), channel_name }");
+         }
+      }
+   }
    if (PUBLISHABLE.has(entity)) {
       const status = data.status ?? current?.status ?? (mode === "create" ? "draft" : undefined);
       const alreadyPublished = current?.published_at != null && current.published_at !== "";

@@ -16,7 +16,7 @@ beforeAll(async () => {
       db.prepare("DELETE FROM media"),
       db.prepare(
          `INSERT INTO site_settings (locale, site_title, tagline, hero_title, hero_body, social) VALUES
-          ('en', 'Al Ummah Now', 'Tag', 'Hero', 'Body', '[{"kind":"x","url":"https://x.com/a"},{"bad":1}]')`,
+          ('en', 'Al Ummah Now', 'Tag', 'Hero', 'Body', '[{"kind":"x","url":"https://x.com/a"},{"bad":1},{"kind":"js","url":"javascript:alert(1)"}]')`,
       ),
       db.prepare(
          `INSERT INTO pages (id, slug, locale, translation_key, title, summary, body, status, published_at, show_in_sitemap, created_at, updated_at) VALUES

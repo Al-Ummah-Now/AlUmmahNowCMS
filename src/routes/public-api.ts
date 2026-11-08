@@ -51,6 +51,16 @@ export function toIso(v: unknown): string | null {
    return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/** Defence in depth for rows written before validation existed: only https URLs are served. */
+function isHttps(v: unknown): boolean {
+   if (typeof v !== "string") return false;
+   try {
+      return new URL(v).protocol === "https:";
+   } catch {
+      return false;
+   }
+}
+
 const strOrNull = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 
 function parseJson<T>(v: unknown, fallback: T): T {
@@ -104,7 +114,7 @@ function settingsOf(row: Row | null) {
       hero_body: strOrNull(row.hero_body),
       social: Array.isArray(social)
          ? social
-              .filter((s): s is { kind: string; url: string } => !!s && typeof s.kind === "string" && typeof s.url === "string")
+              .filter((s): s is { kind: string; url: string } => !!s && typeof s.kind === "string" && isHttps(s.url))
               .map((s) => ({ kind: s.kind, url: s.url }))
          : [],
    };
@@ -132,7 +142,7 @@ function curatedOf(r: Row) {
       title_override: strOrNull(r.title_override),
       snapshot:
          snap && typeof snap.title === "string"
-            ? { title: snap.title, thumbnail_url: strOrNull(snap.thumbnail_url), channel_name: strOrNull(snap.channel_name) }
+            ? { title: snap.title, thumbnail_url: isHttps(snap.thumbnail_url) ? (snap.thumbnail_url as string) : null, channel_name: strOrNull(snap.channel_name) }
             : null,
       sort: Number(r.sort ?? 0),
    };

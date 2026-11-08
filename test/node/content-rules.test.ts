@@ -45,6 +45,14 @@ describe("content rules", () => {
       expect(() => applyRules("posts", { tags: ["a", 1] }, "create")).toThrow(/tags/);
       expect(() => applyRules("posts", { tags: "a" }, "create")).toThrow(/tags/);
    });
+   it("validates social links, curated ref ids and snapshot thumbnails", () => {
+      expect(() => applyRules("site_settings", { social: [{ kind: "x", url: "https://x.com/a" }] }, "create")).not.toThrow();
+      expect(() => applyRules("site_settings", { social: [{ kind: "x", url: "javascript:alert(1)" }] }, "create")).toThrow(/social/);
+      expect(() => applyRules("site_settings", { social: "https://x.com" }, "create")).toThrow(/social/);
+      expect(() => applyRules("curated_videos", { ref_id: "../x" }, "create")).toThrow(/ref_id/);
+      expect(() => applyRules("curated_videos", { ref_id: "abc-123", snapshot: { title: "t", thumbnail_url: "javascript:x" } }, "create")).toThrow(/snapshot/);
+      expect(() => applyRules("curated_videos", { ref_id: "abc-123", snapshot: { title: "t", thumbnail_url: null, channel_name: null } }, "create")).not.toThrow();
+   });
    it("does not touch non-content entities", () => {
       const d: Record<string, unknown> = { email: "x" };
       applyRules("users", d, "create", null, now);

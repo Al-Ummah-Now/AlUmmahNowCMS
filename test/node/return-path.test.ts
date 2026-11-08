@@ -25,6 +25,9 @@ describe("safeReturnPath", () => {
       ["/sso/login?return=/"],
       ["/sso/callback"],
       ["/" + "a".repeat(3000)],
+      ["/.//evil.example"],
+      ["/a/..//evil.example"],
+      ["/%2e//evil.example"],
    ])("rejects %s", (input) => {
       const out = safeReturnPath(input as string | null | undefined);
       expect(out === "/" || (out.startsWith("/") && !out.startsWith("//"))).toBe(true);
