@@ -62,6 +62,7 @@ test.describe("signed in", () => {
          const page = await context.newPage();
          const res = await browserSignIn(context, page, ACCOUNTS.viewer);
          expect(res?.status()).toBe(403);
+         expect(new URL(page.url()).pathname).toBe("/sso/no-access");
          await expect(page.locator("html")).toHaveAttribute("lang", locale);
          await expect(page.locator("html")).toHaveAttribute("dir", locale === "ar" ? "rtl" : "ltr");
          await expect(page.getByRole("heading", { level: 1 })).toHaveText(locale === "ar" ? "لا تملك صلاحية الوصول" : "No access");

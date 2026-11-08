@@ -72,8 +72,11 @@ describe("callback", () => {
    it("a user without an allowed role gets the 403 page and nothing is created", async () => {
       const before = await usersCount();
       const { callback } = await signIn(["Viewer"], { id: "viewer-1", email: "viewer@example.com" });
-      expect(callback.status).toBe(403);
-      const html = await callback.text();
+      expect(callback.status).toBe(303);
+      expect(callback.headers.get("location")).toBe("/sso/no-access");
+      const denied = await makeWorker()("/sso/no-access");
+      expect(denied.status).toBe(403);
+      const html = await denied.text();
       expect(html).toContain("No access");
       expect(callback.headers.getSetCookie().some((c) => c.startsWith("auth="))).toBe(false);
       expect(await usersCount()).toBe(before);
@@ -81,7 +84,8 @@ describe("callback", () => {
 
    it("a user with no roles at all is denied too", async () => {
       const { callback } = await signIn(undefined, { id: "nobody", email: "nobody@example.com" });
-      expect(callback.status).toBe(403);
+      expect(callback.status).toBe(303);
+      expect(callback.headers.get("location")).toBe("/sso/no-access");
    });
 
    it("an admin gets a session cookie and lands on the return path", async () => {

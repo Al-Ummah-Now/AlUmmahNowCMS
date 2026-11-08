@@ -113,7 +113,8 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       const role = mapRoles(identity.roles);
       if (!role) {
          // No allowed role: show the 403 page and create nothing (no user row, no session).
-         return renderStatus(c, "no_access", 403);
+         // Redirect to a stable URL so a reload does not replay the spent authorization code.
+         return c.redirect("/sso/no-access", 303);
       }
 
       const user = await upsertSsoUser(c.env.DB, identity, role);
@@ -140,6 +141,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       return c.redirect(target.toString(), 302);
    });
 
+   sso.get("/no-access", (c) => renderStatus(c, "no_access", 403));
    sso.get("/logged-out", (c) => renderStatus(c, "logged_out", 200));
 
    return sso;

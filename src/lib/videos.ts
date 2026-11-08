@@ -23,6 +23,8 @@ export function isPublicItem(kind: VideoKind, o: Obj | null | undefined): boolea
    if (typeof o.visibility === "string" && o.visibility.toLowerCase() !== "public") return false;
    if (typeof o.privacy === "string" && o.privacy.toLowerCase() !== "public") return false;
    if (o.deleted === true || o.isDeleted === true || o.removed === true) return false;
+   const scheduled = o.scheduledAt ?? o.scheduled_at;
+   if (typeof scheduled === "string" && Date.parse(scheduled) > Date.now()) return false;
    if (kind === "video" && typeof o.uploadStatus === "string" && o.uploadStatus !== "ready") return false;
    return true;
 }

@@ -44,6 +44,14 @@ describe("picker: public filter", () => {
    it("isPublicItem treats missing objects as not public", () => {
       expect(isPublicItem("video", null)).toBe(false);
    });
+   it("isPublicItem hides items scheduled for the future", () => {
+      const future = new Date(Date.now() + 86_400_000).toISOString();
+      const past = new Date(Date.now() - 86_400_000).toISOString();
+      expect(isPublicItem("video", { scheduledAt: future, uploadStatus: "ready" })).toBe(false);
+      expect(isPublicItem("playlist", { scheduled_at: future })).toBe(false);
+      expect(isPublicItem("video", { scheduledAt: past, uploadStatus: "ready" })).toBe(true);
+      expect(isPublicItem("video", { scheduledAt: null, uploadStatus: "ready" })).toBe(true);
+   });
 });
 
 describe("searchVideos / lookupItem (proxy)", () => {
