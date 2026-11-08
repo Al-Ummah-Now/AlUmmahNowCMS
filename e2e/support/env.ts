@@ -10,12 +10,13 @@ export interface Account {
    password: string;
 }
 
-// Seeded accounts by default; E2E_*_EMAIL point the suite at other accounts (e.g. dedicated,
-// short-lived test users) that share SEED_PASSWORD.
+// Dedicated CMS E2E accounts by default, on QA and on stage (each env's auth has its own copy;
+// QA_SEED_PASSWORD / STAGE_SEED_PASSWORD hold their passwords, roles are granted in that env's
+// auth D1). E2E_*_EMAIL point the suite at other accounts that share SEED_PASSWORD.
 export const ACCOUNTS = {
-   admin: { email: process.env.E2E_ADMIN_EMAIL || "qa-admin@delivered.resend.dev", password: SEED_PASSWORD },
-   moderator: { email: process.env.E2E_MODERATOR_EMAIL || "qa-moderator@delivered.resend.dev", password: SEED_PASSWORD },
-   viewer: { email: process.env.E2E_VIEWER_EMAIL || "qa-viewer@delivered.resend.dev", password: SEED_PASSWORD },
+   admin: { email: process.env.E2E_ADMIN_EMAIL || "delivered+cms-e2e-admin@resend.dev", password: SEED_PASSWORD },
+   moderator: { email: process.env.E2E_MODERATOR_EMAIL || "delivered+cms-e2e-moderator@resend.dev", password: SEED_PASSWORD },
+   viewer: { email: process.env.E2E_VIEWER_EMAIL || "delivered+cms-e2e-viewer@resend.dev", password: SEED_PASSWORD },
 } satisfies Record<string, Account>;
 
 export const hasCredentials = SEED_PASSWORD.length > 0;

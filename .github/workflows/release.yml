@@ -1,19 +1,22 @@
 name: Release
 
 # Stage-then-promote, modelled on AlUmmahNowAuth (docs/PLAN.md "Release mechanics"):
-#   build once → stage (migrate, promote rehearsal, E2E) → production (head-of-main guard,
-#   secrets check, migrate expand-only, candidate at 0 % + override smoke, 100 %, smoke,
+#   resolve (tag on main?) → build once → stage (migrate, promote rehearsal, E2E) → production
+#   (tag-still-here guard, secrets check, migrate expand-only, candidate at 0 % + override smoke, 100 %, smoke,
 #   auto-rollback) → rollback dry run.
-# Starts when "Deploy QA" succeeds on main (so QA always goes first), or by hand from main only.
-# Repo settings this relies on: the stage and production environments allow deployments from
-# main only, and production has required reviewers.
+# When production moves is decided by a tag (monorepo CLAUDE.md "Deploy Rules"):
+#   - push a tag vYYYY.MM.DD (vYYYY.MM.DD.N, N >= 2, for a later release that day) on a commit on
+#     main -> stage -> stage E2E -> production. Merging to main deploys QA only (deploy-qa.yml).
+#   - workflow_dispatch on main -> stage and stage E2E only; it never touches production.
+# A tag with a bad name, or on a commit that is not on main, is refused before anything deploys.
+# To re-run a failed release, re-run that tag's workflow run; never move a tag.
+# Repo settings this relies on: the stage environment allows main and v* tags, production allows
+# v* tags only, and a tag ruleset restricts who may create v* tags.
 # Rollback: .github/workflows/rollback.yml or `npm run release:rollback -- --env production`.
 
 on:
-  workflow_run:
-    workflows: [Deploy QA]
-    types: [completed]
-    branches: [main]
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -25,20 +28,65 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The commit QA validated (workflow_run) or the dispatched ref.
-  RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  # The tagged commit (tag push) or main's head (dispatch).
+  RELEASE_SHA: ${{ github.sha }}
 
 # The Cloudflare token is set only on the steps that call Cloudflare, never on install/build
 # steps (dependency lifecycle scripts run there).
 jobs:
+  # Decides what this run is: a tag release (stage -> production) or a stage-only run from main.
+  # Refuses anything else before a single build minute is spent.
+  resolve:
+    name: Resolve release (tag on main?)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.kind.outputs.tag }}
+      production: ${{ steps.kind.outputs.production }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # all tags and origin/main, for the ancestry check and the changelog
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Tag release or stage-only run?
+        id: kind
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            { echo "tag=$GITHUB_REF_NAME"; echo "production=true"; } >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_REF" = refs/heads/main ]; then
+            echo "production=false" >> "$GITHUB_OUTPUT"
+            echo "### Stage-only run of main@${GITHUB_SHA::7}. Production is released by pushing a tag." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Releases run from a tag (production) or from main (stage only), not from $GITHUB_REF."
+            exit 1
+          fi
+
+      - name: Valid tag on main?
+        id: check
+        if: steps.kind.outputs.production == 'true'
+        run: node --experimental-strip-types --no-warnings scripts/release/release-tag.ts check "$GITHUB_REF_NAME" "$GITHUB_SHA"
+
+      - name: Changes in this release
+        if: steps.kind.outputs.production == 'true'
+        env:
+          PREV: ${{ steps.check.outputs.previous }}
+        run: |
+          {
+            echo "### Release $GITHUB_REF_NAME (${GITHUB_SHA::7})"
+            if [ -n "$PREV" ]; then
+              echo "Changes since $PREV:"; echo '```'; git log --oneline --no-decorate "$PREV..$GITHUB_SHA"; echo '```'
+            else
+              echo "First tagged release."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build:
     name: Build once
-    # Only main is ever released: a dispatch from another branch, or a QA run for anything but a
-    # push to main, does nothing.
-    if: >-
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
+    needs: resolve
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -140,51 +188,44 @@ jobs:
 
   production:
     name: Production (migrate, 0% smoke, promote)
-    needs: stage
+    needs: [resolve, stage]
+    if: needs.resolve.outputs.production == 'true'
     runs-on: ubuntu-24.04
     environment:
       name: production
       url: https://cms.alummahnow.net
-    outputs:
-      current: ${{ steps.head.outputs.current }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_SHA }}
           fetch-depth: 0
 
-      # A newer commit on main means a newer release is queued behind this one. Never promote a
-      # stale candidate (e.g. a build from before a migration-carrying merge). Applies to
-      # dispatched runs too.
-      - name: Still the head of main?
-        id: head
+      # The release deploys exactly the tagged commit, so later merges to main don't matter. A tag
+      # that was deleted or moved while stage ran is not promoted.
+      - name: Tag still points at this commit?
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
         run: |
-          head=$(git ls-remote origin refs/heads/main | cut -f1)
-          if [ "$head" != "$RELEASE_SHA" ]; then
-            echo "current=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::main moved to ${head::7} while releasing ${RELEASE_SHA::7}; not promoting."
-            echo "### Superseded: main is at ${head::7}; ${RELEASE_SHA::7} was not promoted" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "current=true" >> "$GITHUB_OUTPUT"
+          now=$(git ls-remote origin "refs/tags/$TAG^{}" | cut -f1)
+          [ -n "$now" ] || now=$(git ls-remote origin "refs/tags/$TAG" | cut -f1)
+          if [ "$now" != "$RELEASE_SHA" ]; then
+            echo "::error::$TAG now points at '${now::7}', not ${RELEASE_SHA::7}; not promoting. Tags are never moved: cut a new tag."
+            exit 1
           fi
 
       - uses: actions/setup-node@v6
-        if: steps.head.outputs.current == 'true'
         with:
           node-version: '22'
           cache: npm
 
       - run: npm ci
-        if: steps.head.outputs.current == 'true'
 
       - uses: actions/download-artifact@v4
-        if: steps.head.outputs.current == 'true'
         with:
           name: release-bundle
           path: dist/
 
       - name: Secrets check (production)
-        if: steps.head.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -196,7 +237,6 @@ jobs:
       # history), not HEAD^, so every migration since then is checked. First release: no base,
       # the destructive-SQL rules still apply to every file.
       - name: Migration guard (vs the last production release)
-        if: steps.head.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -212,28 +252,26 @@ jobs:
           CLOUDFLARE_API_TOKEN= node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base "$base"
 
       - name: Migrate production D1 (expand-only)
-        if: steps.head.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler d1 migrations apply DB --remote --env=""
 
       - name: Promote (0 % + override smoke → 100 % → smoke, auto-rollback)
-        if: steps.head.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env production --message "release ${RELEASE_SHA}"
 
       - name: Summary
-        if: always() && steps.head.outputs.current == 'true'
+        if: always()
         run: |
           if [ -f release-result.json ]; then
             { echo '### Production release'; echo '```json'; cat release-result.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - uses: actions/upload-artifact@v4
-        if: always() && steps.head.outputs.current == 'true'
+        if: always()
         with:
           name: release-result
           path: release-result.json
@@ -243,7 +281,6 @@ jobs:
   rollback-dry-run:
     name: Rollback dry run
     needs: production
-    if: needs.production.outputs.current == 'true'
     runs-on: ubuntu-24.04
     # Uses the production-scoped Cloudflare token, so it runs under the production environment.
     environment: production

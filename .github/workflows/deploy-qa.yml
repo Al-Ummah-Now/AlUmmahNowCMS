@@ -1,7 +1,7 @@
 name: Deploy QA
 
 # Every push to main: migrate the QA D1 (expand-only), deploy al-ummah-now-cms-qa, smoke,
-# secrets check, then E2E. release.yml (stage → production) starts when this succeeds.
+# secrets check, then E2E. Production is released separately, by a vYYYY.MM.DD tag (release.yml).
 on:
   push:
     branches: [main]
