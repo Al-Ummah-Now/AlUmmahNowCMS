@@ -22,7 +22,9 @@
     "build:dry": "wrangler deploy --dry-run --env= --outdir dist/production && wrangler deploy --dry-run --env stage --outdir dist/stage && wrangler deploy --dry-run --env qa --outdir dist/qa",
     "e2e": "playwright test",
     "release:smoke": "node --experimental-strip-types --no-warnings scripts/release/smoke.ts",
-    "release:rollback": "node --experimental-strip-types --no-warnings scripts/release/rollback.ts"
+    "release:rollback": "node --experimental-strip-types --no-warnings scripts/release/rollback.ts",
+    "cf-typegen": "wrangler types --env-file .dev.vars.example --strict-vars=false",
+    "check:committed-secrets": "node scripts/check-committed-secrets.mjs"
   },
   "dependencies": {
     "bknd": "0.21.0",
