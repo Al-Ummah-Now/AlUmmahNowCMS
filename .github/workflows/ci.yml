@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# No Cloudflare credentials here: everything runs locally (miniflare, local D1, dry-run bundles).
+jobs:
+  checks:
+    name: Lint, typecheck, tests, schema, guard, bundles
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # the migration guard compares with origin/main
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and Workers-runtime tests
+        run: npm test
+
+      - name: Schema check (migrations == src/schema.ts)
+        run: npm run check:schema
+
+      - name: Migration guard (expand-only, append-only)
+        run: node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base origin/main
+
+      - name: wrangler.jsonc check
+        run: npm run check:config
+
+      - name: Bundle every env (wrangler deploy --dry-run)
+        run: npm run build:dry

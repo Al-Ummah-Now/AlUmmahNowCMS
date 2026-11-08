@@ -1,0 +1,74 @@
+name: Deploy QA
+
+# Every push to main: migrate the QA D1 (expand-only), deploy al-ummah-now-cms-qa, smoke,
+# secrets check, then E2E. release.yml (stage → production) starts when this succeeds.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cms-qa
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migrate, deploy, smoke (QA)
+    runs-on: ubuntu-24.04
+    environment:
+      name: qa
+      url: https://cms.qa.alummahnow.net
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Pre-flight (schema check, guard vs the previous main, config)
+        run: |
+          npm run check:schema
+          node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base HEAD^
+          npm run check:config
+
+      # The Cloudflare token is only on steps that call Cloudflare.
+      - name: Migrate QA D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply DB --remote --env qa
+
+      - name: Deploy al-ummah-now-cms-qa
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --env qa --message "qa ${GITHUB_SHA::7}"
+
+      - name: Secrets check (QA)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/check-secrets.ts --env qa
+
+      - name: Smoke /healthz and friends
+        run: |
+          for i in $(seq 1 20); do
+            curl -fsS https://cms.qa.alummahnow.net/healthz && break
+            sleep 6
+          done
+          node --experimental-strip-types --no-warnings scripts/release/smoke.ts --env qa
+
+  e2e:
+    name: E2E (QA)
+    needs: deploy
+    uses: ./.github/workflows/e2e-qa.yml
+    secrets:
+      QA_SEED_PASSWORD: ${{ secrets.QA_SEED_PASSWORD }}
