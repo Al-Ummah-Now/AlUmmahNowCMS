@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global console, process */
 // Fails if committed files could leak secrets. Never prints a value: findings show
 // the file, line, key and a fingerprint (first 12 hex chars of sha256).
 //
@@ -50,8 +51,7 @@ export function looksLikeSecret(v) {
 export function envLiterals(text) {
 	const out = [];
 	const head = /interface\s+(\w*Env)\b[^{]*\{/g; // Env, CloudflareEnv, StageEnv, __BaseEnv_Env, ...
-	let m;
-	while ((m = head.exec(text))) {
+	while (head.exec(text)) {
 		let depth = 1;
 		let i = head.lastIndex;
 		const start = i;
