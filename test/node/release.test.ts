@@ -4,6 +4,7 @@ import { checkBindings } from "../../scripts/check-secrets.ts";
 import { checkWranglerConfig } from "../../scripts/check-wrangler-config.ts";
 import { parseJsonc } from "../../scripts/lib/jsonc.ts";
 import { currentVersion, isNotDeployed, parseVersionId, promote, type PromoteDeps } from "../../scripts/release/promote.ts";
+import { lastReleasedSha } from "../../scripts/release/last-released.ts";
 import { parseRollbackArgs, rollbackArgv, rollbackTarget, targetFromResult } from "../../scripts/release/rollback.ts";
 import { overrideHeader, runSmoke } from "../../scripts/release/smoke.ts";
 import { SECRETS_MANIFEST } from "../../scripts/secrets-manifest.ts";
@@ -177,5 +178,21 @@ describe("wrangler config", () => {
    });
    it("parseJsonc handles comments, trailing commas and // inside strings", () => {
       expect(parseJsonc('{ // c\n "a": "http://x", /* b */ "b": [1,2,], }')).toEqual({ a: "http://x", b: [1, 2] });
+   });
+});
+
+describe("last released", () => {
+   const sha = (c: string) => c.repeat(40);
+   it("returns the newest deployment whose message is a release", () => {
+      const json = JSON.stringify([
+         { created_on: "2026-11-01T00:00:00Z", annotations: { "workers/message": `release ${sha("a")}` } },
+         { created_on: "2026-11-03T00:00:00Z", annotations: { "workers/message": "auto-rollback: smoke failed" } },
+         { created_on: "2026-11-02T00:00:00Z", annotations: { "workers/message": `release ${sha("b")}` } },
+         { created_on: "2026-11-02T01:00:00Z", annotations: { "workers/message": `release ${sha("c")} (0%)` } },
+      ]);
+      expect(lastReleasedSha(json)).toBe(sha("c"));
+   });
+   it("ignores short SHAs and returns undefined when nothing was released", () => {
+      expect(lastReleasedSha(JSON.stringify([{ created_on: "1", annotations: { "workers/message": "release abc1234" } }, { created_on: "2" }]))).toBeUndefined();
    });
 });

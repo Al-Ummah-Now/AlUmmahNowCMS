@@ -15,7 +15,8 @@ export default defineConfig({
    outputDir: "test-results",
    use: {
       baseURL: process.env.CMS_URL ?? "https://cms.qa.alummahnow.net",
-      trace: "retain-on-failure",
+      // Traces hold session cookies of the signed-in suite: local debugging only, never in CI.
+      trace: process.env.CI ? "off" : "retain-on-failure",
       screenshot: "only-on-failure",
    },
    projects: [

@@ -17,6 +17,8 @@ concurrency:
 jobs:
   deploy:
     name: Migrate, deploy, smoke (QA)
+    # Only main reaches QA (also set the qa environment to allow deployments from main only).
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment:
       name: qa
@@ -33,10 +35,16 @@ jobs:
 
       - run: npm ci
 
+      # The guard compares with the main tip before this push (all commits of a multi-commit
+      # push are checked); a dispatch re-deploys the current main, so HEAD^ is enough there.
       - name: Pre-flight (schema check, guard vs the previous main, config)
+        env:
+          BEFORE: ${{ github.event.before }}
         run: |
           npm run check:schema
-          node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base HEAD^
+          base=HEAD^
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then base=$BEFORE; fi
+          node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base "$base"
           npm run check:config
 
       # The Cloudflare token is only on steps that call Cloudflare.

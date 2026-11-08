@@ -43,9 +43,7 @@ jobs:
         if: always()
         with:
           name: e2e-qa
-          path: |
-            e2e-artifacts/
-            playwright-report/
-            test-results/
+          # Screenshots only: traces/reports of the signed-in suite hold session cookies.
+          path: e2e-artifacts/
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 7

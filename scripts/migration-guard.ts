@@ -89,6 +89,12 @@ function readHead(root: string): MigrationFile[] {
 
 function readBase(root: string, ref: string): MigrationFile[] {
    const git = (...args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+   // An unknown base ref is an error, never "no migrations" (that would skip the append-only rules).
+   try {
+      git("rev-parse", "--verify", "--quiet", `${ref}^{tree}`);
+   } catch {
+      throw new Error(`unknown base ref: ${ref}`);
+   }
    let names: string[];
    try {
       names = git("ls-tree", "--name-only", `${ref}:${MIGRATIONS_DIR}`).split("\n").filter((n) => n.endsWith(".sql"));

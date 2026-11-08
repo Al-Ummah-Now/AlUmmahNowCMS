@@ -4,7 +4,9 @@ name: Release
 #   build once → stage (migrate, promote rehearsal, E2E) → production (head-of-main guard,
 #   secrets check, migrate expand-only, candidate at 0 % + override smoke, 100 %, smoke,
 #   auto-rollback) → rollback dry run.
-# Starts when "Deploy QA" succeeds on main (so QA always goes first), or by hand.
+# Starts when "Deploy QA" succeeds on main (so QA always goes first), or by hand from main only.
+# Repo settings this relies on: the stage and production environments allow deployments from
+# main only, and production has required reviewers.
 # Rollback: .github/workflows/rollback.yml or `npm run release:rollback -- --env production`.
 
 on:
@@ -31,7 +33,12 @@ env:
 jobs:
   build:
     name: Build once
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # Only main is ever released: a dispatch from another branch, or a QA run for anything but a
+    # push to main, does nothing.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -105,7 +112,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env stage --message "release ${RELEASE_SHA::7}"
+        run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env stage --message "release ${RELEASE_SHA}"
 
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
@@ -119,17 +126,17 @@ jobs:
           SEED_PASSWORD: ${{ secrets.STAGE_SEED_PASSWORD }}
         run: npx playwright test
 
+      # Screenshots and the release result only: Playwright traces and reports of the signed-in
+      # suite hold session cookies, so they are never uploaded (trace is off in CI anyway).
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: stage-e2e
           path: |
             e2e-artifacts/
-            playwright-report/
-            test-results/
             release-result.json
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 7
 
   production:
     name: Production (migrate, 0% smoke, promote)
@@ -147,12 +154,13 @@ jobs:
           fetch-depth: 0
 
       # A newer commit on main means a newer release is queued behind this one. Never promote a
-      # stale candidate (e.g. a build from before a migration-carrying merge).
+      # stale candidate (e.g. a build from before a migration-carrying merge). Applies to
+      # dispatched runs too.
       - name: Still the head of main?
         id: head
         run: |
           head=$(git ls-remote origin refs/heads/main | cut -f1)
-          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] && [ "$head" != "$RELEASE_SHA" ]; then
+          if [ "$head" != "$RELEASE_SHA" ]; then
             echo "current=false" >> "$GITHUB_OUTPUT"
             echo "::warning::main moved to ${head::7} while releasing ${RELEASE_SHA::7}; not promoting."
             echo "### Superseded: main is at ${head::7}; ${RELEASE_SHA::7} was not promoted" >> "$GITHUB_STEP_SUMMARY"
@@ -184,9 +192,24 @@ jobs:
 
       # Expand-only (migration guard in CI), so the version still serving keeps working and a
       # rollback never needs to undo a migration.
-      - name: Migration guard (vs the last released main)
+      # Compared with the commit production last released (from the Cloudflare deployment
+      # history), not HEAD^, so every migration since then is checked. First release: no base,
+      # the destructive-SQL rules still apply to every file.
+      - name: Migration guard (vs the last production release)
         if: steps.head.outputs.current == 'true'
-        run: node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base HEAD^
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          last=$(node --experimental-strip-types --no-warnings scripts/release/last-released.ts --env production)
+          if [ -z "$last" ]; then
+            base=4b825dc642cb6eb9a060e54bf8d69288fbee4904  # git's empty tree
+          elif git merge-base --is-ancestor "$last" "$RELEASE_SHA"; then
+            base=$last
+          else
+            echo "::error::production runs ${last::7}, which is not an ancestor of ${RELEASE_SHA::7}"; exit 1
+          fi
+          CLOUDFLARE_API_TOKEN= node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base "$base"
 
       - name: Migrate production D1 (expand-only)
         if: steps.head.outputs.current == 'true'
@@ -200,7 +223,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env production --message "release ${RELEASE_SHA::7}"
+        run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env production --message "release ${RELEASE_SHA}"
 
       - name: Summary
         if: always() && steps.head.outputs.current == 'true'
@@ -222,6 +245,8 @@ jobs:
     needs: production
     if: needs.production.outputs.current == 'true'
     runs-on: ubuntu-24.04
+    # Uses the production-scoped Cloudflare token, so it runs under the production environment.
+    environment: production
     steps:
       - uses: actions/checkout@v6
         with:
