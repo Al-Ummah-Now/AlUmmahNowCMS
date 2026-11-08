@@ -49,9 +49,14 @@ CMS_URL=http://localhost:8585 npm run e2e       # Playwright (signed-in tests ne
 ## Deploy
 
 - **QA:** every push to `main` → `deploy-qa.yml` (migrate QA D1, deploy, smoke, secrets check, E2E).
-- **Release:** after QA succeeds → `release.yml`: build once → stage (migrate, 0 % + override smoke,
-  100 %, E2E) → production (head-of-main guard, migrate, 0 % smoke, 100 %, auto-rollback) → rollback
-  dry run. Manual rollback: `rollback.yml`.
+- **Production:** push a tag `vYYYY.MM.DD` (`vYYYY.MM.DD.N`, N ≥ 2, for a later release that day) on a
+  commit on `main` → `release.yml`: resolve (valid tag on `main`?) → build once → stage (migrate, 0 % +
+  override smoke, 100 %, E2E) → production (tag still on that commit?, migrate, 0 % smoke, 100 %,
+  auto-rollback) → rollback dry run. Merging to `main` deploys QA only.
+- **Stage only:** run `release.yml` by hand on `main` (workflow_dispatch); it never touches production.
+- Never move a tag; to retry, re-run that tag's run, or cut `vYYYY.MM.DD.N`. Manual rollback: `rollback.yml`.
+- First release of a new Worker: its secrets check fails until the Worker exists. Create it once (an
+  owner-approved bootstrap), set its secrets, then release through the tag.
 
 ### Secrets
 
