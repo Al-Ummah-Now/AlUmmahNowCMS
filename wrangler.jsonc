@@ -36,7 +36,7 @@
     }
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms" }],
-  "dev": { "ip": "127.0.0.1", "port": 8585, "local_protocol": "http" },
+  "dev": { "ip": "localhost", "port": 8585, "local_protocol": "http" },
   "env": {
     "stage": {
       "name": "al-ummah-now-cms-stage",
