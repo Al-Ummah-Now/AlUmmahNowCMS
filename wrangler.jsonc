@@ -1,0 +1,94 @@
+{
+  // Top level = production. `--env stage` and `--env qa` override name, routes, bindings and vars.
+  // Bindings are not inherited by envs, so every env lists them in full.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "al-ummah-now-cms",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "minify": true,
+  "keep_vars": false,
+  "observability": { "enabled": true },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  "assets": {
+    // bknd admin UI bundle (/assets/*, /favicon.ico). Served before the Worker only when the file exists.
+    "directory": "node_modules/bknd/dist/static"
+  },
+  "routes": [{ "pattern": "cms.alummahnow.net", "custom_domain": true }],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "PUBLIC_URL": "https://cms.alummahnow.net",
+    "AUTH_ISSUER": "https://auth.alummahnow.net",
+    "AUTH_CLIENT_ID": "d06fd65a-5b79-45bc-8bfd-a856b8502330",
+    "VIDEOS_API_URL": "https://videos.api.alummahnow.net",
+    "VIDEOS_WEB_URL": "https://videos.alummahnow.net",
+    "WWW_URL": "https://www.alummahnow.net",
+    "WWW_ORIGINS": "https://www.alummahnow.net"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "al-ummah-now-cms",
+      "database_id": "ad825428-5f0d-4d0b-878b-45b94e3c9c63",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms" }],
+  "dev": { "ip": "localhost", "port": 8585, "local_protocol": "http" },
+  "env": {
+    "stage": {
+      "name": "al-ummah-now-cms-stage",
+      "workers_dev": false,
+      "preview_urls": false,
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "routes": [{ "pattern": "cms.stage.alummahnow.net", "custom_domain": true }],
+      "vars": {
+        "ENVIRONMENT": "stage",
+        "PUBLIC_URL": "https://cms.stage.alummahnow.net",
+        "AUTH_ISSUER": "https://auth.stage.alummahnow.net",
+        "AUTH_CLIENT_ID": "d06fd65a-5b79-45bc-8bfd-a856b8502330",
+        "VIDEOS_API_URL": "https://videos.api.stage.alummahnow.net",
+        "VIDEOS_WEB_URL": "https://videos.stage.alummahnow.net",
+        "WWW_URL": "https://www.stage.alummahnow.net",
+        "WWW_ORIGINS": "https://www.stage.alummahnow.net"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "al-ummah-now-cms-stage",
+          "database_id": "1c882ccb-d894-494d-81bf-90ec80e32d73",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-stage" }]
+    },
+    "qa": {
+      "name": "al-ummah-now-cms-qa",
+      "workers_dev": false,
+      "preview_urls": false,
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "routes": [{ "pattern": "cms.qa.alummahnow.net", "custom_domain": true }],
+      "vars": {
+        "ENVIRONMENT": "qa",
+        "PUBLIC_URL": "https://cms.qa.alummahnow.net",
+        "AUTH_ISSUER": "https://auth.qa.alummahnow.net",
+        "AUTH_CLIENT_ID": "0e613f49-674b-490a-93e5-97a35d586da1",
+        "VIDEOS_API_URL": "https://videos.api.qa.alummahnow.net",
+        "VIDEOS_WEB_URL": "https://videos.qa.alummahnow.net",
+        "WWW_URL": "https://www.qa.alummahnow.net",
+        "WWW_ORIGINS": "https://www.qa.alummahnow.net"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "al-ummah-now-cms-qa",
+          "database_id": "29b338a0-db34-4480-a510-16680fe67441",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-qa" }]
+    }
+  }
+}

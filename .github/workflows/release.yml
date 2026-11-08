@@ -1,0 +1,278 @@
+name: Release
+
+# Stage-then-promote, modelled on AlUmmahNowAuth (docs/PLAN.md "Release mechanics"):
+#   build once → stage (migrate, promote rehearsal, E2E) → production (head-of-main guard,
+#   secrets check, migrate expand-only, candidate at 0 % + override smoke, 100 %, smoke,
+#   auto-rollback) → rollback dry run.
+# Starts when "Deploy QA" succeeds on main (so QA always goes first), or by hand from main only.
+# Repo settings this relies on: the stage and production environments allow deployments from
+# main only, and production has required reviewers.
+# Rollback: .github/workflows/rollback.yml or `npm run release:rollback -- --env production`.
+
+on:
+  workflow_run:
+    workflows: [Deploy QA]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release at a time, and never cancel one half-way through a promote.
+concurrency:
+  group: cms-release
+  cancel-in-progress: false
+
+env:
+  # The commit QA validated (workflow_run) or the dispatched ref.
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+# The Cloudflare token is set only on the steps that call Cloudflare, never on install/build
+# steps (dependency lifecycle scripts run there).
+jobs:
+  build:
+    name: Build once
+    # Only main is ever released: a dispatch from another branch, or a QA run for anything but a
+    # push to main, does nothing.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Checks
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run check:schema
+          npm run check:config
+
+      # One bundle per env (vars differ, code does not); the same files go to stage and production.
+      - name: Bundle (wrangler deploy --dry-run)
+        run: npm run build:dry
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: dist/
+          retention-days: 30
+
+  stage:
+    name: Stage (migrate, promote, E2E)
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: stage
+      url: https://cms.stage.alummahnow.net
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: dist/
+
+      - name: Secrets check (stage)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/check-secrets.ts --env stage
+
+      - name: Migrate stage D1 (expand-only)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply DB --remote --env stage
+
+      # Same mechanics as production, so every release also rehearses the promote.
+      - name: Promote on stage (0 % + override smoke → 100 % → smoke)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env stage --message "release ${RELEASE_SHA}"
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E on stage
+        env:
+          CMS_URL: https://cms.stage.alummahnow.net
+          AUTH_URL: https://auth.stage.alummahnow.net
+          CMS_CLIENT_ID: d06fd65a-5b79-45bc-8bfd-a856b8502330
+          WWW_URL: https://www.stage.alummahnow.net
+          SEED_PASSWORD: ${{ secrets.STAGE_SEED_PASSWORD }}
+        run: npx playwright test
+
+      # Screenshots and the release result only: Playwright traces and reports of the signed-in
+      # suite hold session cookies, so they are never uploaded (trace is off in CI anyway).
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage-e2e
+          path: |
+            e2e-artifacts/
+            release-result.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production:
+    name: Production (migrate, 0% smoke, promote)
+    needs: stage
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+      url: https://cms.alummahnow.net
+    outputs:
+      current: ${{ steps.head.outputs.current }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+
+      # A newer commit on main means a newer release is queued behind this one. Never promote a
+      # stale candidate (e.g. a build from before a migration-carrying merge). Applies to
+      # dispatched runs too.
+      - name: Still the head of main?
+        id: head
+        run: |
+          head=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$head" != "$RELEASE_SHA" ]; then
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::main moved to ${head::7} while releasing ${RELEASE_SHA::7}; not promoting."
+            echo "### Superseded: main is at ${head::7}; ${RELEASE_SHA::7} was not promoted" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v6
+        if: steps.head.outputs.current == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+        if: steps.head.outputs.current == 'true'
+
+      - uses: actions/download-artifact@v4
+        if: steps.head.outputs.current == 'true'
+        with:
+          name: release-bundle
+          path: dist/
+
+      - name: Secrets check (production)
+        if: steps.head.outputs.current == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/check-secrets.ts --env production
+
+      # Expand-only (migration guard in CI), so the version still serving keeps working and a
+      # rollback never needs to undo a migration.
+      # Compared with the commit production last released (from the Cloudflare deployment
+      # history), not HEAD^, so every migration since then is checked. First release: no base,
+      # the destructive-SQL rules still apply to every file.
+      - name: Migration guard (vs the last production release)
+        if: steps.head.outputs.current == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          last=$(node --experimental-strip-types --no-warnings scripts/release/last-released.ts --env production)
+          if [ -z "$last" ]; then
+            base=4b825dc642cb6eb9a060e54bf8d69288fbee4904  # git's empty tree
+          elif git merge-base --is-ancestor "$last" "$RELEASE_SHA"; then
+            base=$last
+          else
+            echo "::error::production runs ${last::7}, which is not an ancestor of ${RELEASE_SHA::7}"; exit 1
+          fi
+          CLOUDFLARE_API_TOKEN= node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base "$base"
+
+      - name: Migrate production D1 (expand-only)
+        if: steps.head.outputs.current == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply DB --remote --env=""
+
+      - name: Promote (0 % + override smoke → 100 % → smoke, auto-rollback)
+        if: steps.head.outputs.current == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env production --message "release ${RELEASE_SHA}"
+
+      - name: Summary
+        if: always() && steps.head.outputs.current == 'true'
+        run: |
+          if [ -f release-result.json ]; then
+            { echo '### Production release'; echo '```json'; cat release-result.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.head.outputs.current == 'true'
+        with:
+          name: release-result
+          path: release-result.json
+          if-no-files-found: ignore
+          retention-days: 90
+
+  rollback-dry-run:
+    name: Rollback dry run
+    needs: production
+    if: needs.production.outputs.current == 'true'
+    runs-on: ubuntu-24.04
+    # Uses the production-scoped Cloudflare token, so it runs under the production environment.
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-result
+
+      # Resolves the version a rollback would deploy and prints the command; moves no traffic.
+      # (A first release has no previous version; the dry run then resolves from the history.)
+      - name: Rollback dry run (production)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          node --experimental-strip-types --no-warnings scripts/release/rollback.ts --env production --from-result release-result.json --dry-run | tee rollback-dry-run.txt
+          status=${PIPESTATUS[0]}
+          { echo '### Rollback dry run'; echo '```'; cat rollback-dry-run.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if grep -q '"firstDeploy": true' release-result.json; then exit 0; fi
+          exit "$status"

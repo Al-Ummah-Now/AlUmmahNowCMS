@@ -1,0 +1,49 @@
+name: E2E (QA)
+
+# Playwright against the deployed QA CMS. Called by deploy-qa.yml after every QA deploy;
+# can also be run by hand.
+on:
+  workflow_call:
+    secrets:
+      QA_SEED_PASSWORD:
+        required: true
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright vs QA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E
+        env:
+          CMS_URL: https://cms.qa.alummahnow.net
+          AUTH_URL: https://auth.qa.alummahnow.net
+          CMS_CLIENT_ID: 0e613f49-674b-490a-93e5-97a35d586da1
+          WWW_URL: https://www.qa.alummahnow.net
+          QA_SEED_PASSWORD: ${{ secrets.QA_SEED_PASSWORD }}
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-qa
+          # Screenshots only: traces/reports of the signed-in suite hold session cookies.
+          path: e2e-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
