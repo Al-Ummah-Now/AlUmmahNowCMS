@@ -5,7 +5,7 @@ export function nonce(): string {
    return base64url(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-export function contentSecurityPolicy(opts: { nonce: string; frameSrc?: string[] }): string {
+export function contentSecurityPolicy(opts: { nonce: string; frameSrc?: string[]; connectSrc?: string[] }): string {
    return [
       "default-src 'self'",
       `script-src 'self' 'nonce-${opts.nonce}'`,
@@ -13,7 +13,7 @@ export function contentSecurityPolicy(opts: { nonce: string; frameSrc?: string[]
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      `connect-src ${["'self'", ...(opts.connectSrc ?? [])].join(" ")}`,
       `frame-src ${opts.frameSrc?.length ? opts.frameSrc.join(" ") : "'none'"}`,
       "object-src 'none'",
       "base-uri 'none'",

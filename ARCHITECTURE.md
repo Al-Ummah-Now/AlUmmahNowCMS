@@ -6,6 +6,7 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
                       ├─ /healthz                     liveness (+ ?deep=1: config, D1, version id)
                       ├─ /api/public/v1/*             public read API (D1 SQL, published rows only) ◄── www (service binding CMS)
                       ├─ /sso/login|callback|logout   PKCE → auth.alummahnow.net, bknd session cookie
+                      ├─ /sso/no-access, /sso/accounts account chooser (browser reads auth's accounts API)
                       ├─ /picker, /picker/api/*       video picker → videos.api.alummahnow.net (server-side)
                       ├─ /, /data/*, /media/*, …      bknd admin UI   ┐ session required
                       └─ /api/*                       bknd API        ┘ guard on, same-origin mutations
@@ -19,7 +20,8 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
 | `src/schema.ts` | Content model (bknd code mode). Single source of truth; `migrations/` must match it. |
 | `src/bknd-config.ts` | bknd module config: roles (guest: nothing, admin: all, editor: content CRUD minus delete), auth (password off), media (R2), CORS pinned to own origin. Merged onto bknd defaults. |
 | `src/app.ts` | Builds the bknd app once per isolate. `syncSchema: false` — bknd never alters D1. |
-| `src/routes/sso.ts`, `src/lib/oidc.ts` | SSO: state + PKCE in a signed `__Host-cms_sso` cookie, token exchange, JWKS verification (`jose`), role mapping, user upsert, bknd session via `authenticator.jwt` + `getAuthCookieHeader`. |
+| `src/routes/sso.ts`, `src/lib/oidc.ts` | SSO: state + PKCE in a signed `__Host-cms_sso` cookie, token exchange, JWKS verification (`jose`), role mapping, user upsert, bknd session via `authenticator.jwt` + `getAuthCookieHeader`. See "Signed in everywhere" below. |
+| `src/lib/accounts.ts`, `src/lib/admin-ui.ts` | Account chooser on /sso/no-access and /sso/accounts; links + session watcher injected into bknd's admin UI. |
 | `src/lib/content-rules.ts` | bknd plugin: timestamps, `published_at` on first publish, URL/slug/tag validation. |
 | `src/routes/public-api.ts` | `docs/PUBLIC_API.md`. Every query has `status = 'published'`. ETag + `s-maxage=60`. |
 | `src/routes/picker.ts`, `src/lib/videos.ts`, `src/lib/embeds.ts` | Picker page (en/ar), videos-API proxy that drops non-public items, embed URL adapter. |
@@ -36,5 +38,26 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
 - An enum's `default_value` is not applied before the required check → the plugin defaults `status`.
 - The default CORS reflects any origin with credentials → pinned to the CMS origin.
 - The session cookie is named `auth` by bknd; it is Secure, HttpOnly, SameSite=Lax, Path=/, 8 h.
-- The admin UI has no custom menu links in code mode; the wrapper injects a fixed "Video picker"
-  link into the admin HTML (HTMLRewriter), which also adds the CSP nonce to bknd's inline script.
+- The admin UI has no custom menu links in code mode (bknd's `userMenu` option exists only when
+  the admin is bundled from source); the wrapper injects fixed "Accounts" and "Video picker" links
+  into the admin HTML (HTMLRewriter), which also adds the CSP nonce to bknd's inline script.
+
+## Signed in everywhere (SSO behaviour)
+
+- `/sso/login` sends **no `prompt`**: auth signs the browser's active account in silently, or shows
+  its form when there is no browser session. Only `?prompt=login` (add account) and `?prompt=none`
+  (silent re-auth after a switch) are forwarded; nothing else.
+- An error on the callback after `prompt=none` (e.g. `login_required`) falls back to the normal
+  sign-in (no prompt), so there is no error page and no loop. Other errors show "Sign-in failed".
+- Auth tokens are not kept after the callback: the CMS needs the identity and roles once; the
+  picker calls the public videos API server-side without a user token. So nothing is refreshed.
+  When the 8 h bknd session ends, the gate (full page loads) or the injected session watcher (open
+  admin SPA: focus / every 5 min, or a client-side hop to bknd's /auth/login) sends the browser to
+  `/sso/login`, which is silent while auth has a browser session.
+- Account chooser (`/sso/no-access`, `/sso/accounts`, linked from the picker and the admin UI): the
+  browser reads `GET {AUTH}/session/accounts` (credentialed; auth's CORS must allow the CMS origin,
+  and these pages' CSP allows `connect-src` to the auth origin). Switch = `POST /session/switch` then
+  `/sso/login?prompt=none`; sign out of one account = `DELETE /session/accounts/:id` then a silent
+  sign-in; the last account = `/sso/logout` (single sign-out). A switch to an account without a CMS
+  role also clears the CMS session held for the previous account.
+- After single sign-out, auth has no browser session, so the next CMS visit shows auth's sign-in form.

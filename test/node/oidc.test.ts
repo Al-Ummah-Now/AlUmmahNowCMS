@@ -1,6 +1,6 @@
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { beforeAll, describe, expect, it } from "vitest";
-import { buildAuthorizeUrl, exchangeCode, OidcError, verifyAccessToken } from "../../src/lib/oidc.ts";
+import { buildAuthorizeUrl, exchangeCode, OidcError, parsePrompt, verifyAccessToken } from "../../src/lib/oidc.ts";
 import { pkceChallenge } from "../../src/lib/pkce.ts";
 
 const ISSUER = "https://auth.test";
@@ -67,6 +67,20 @@ describe("buildAuthorizeUrl", () => {
          code_challenge: "c",
          code_challenge_method: "S256",
       });
+   });
+});
+
+describe("prompt", () => {
+   const base = { issuer: ISSUER, clientId: CLIENT, redirectUri: "https://cms.test/sso/callback", state: "s", codeChallenge: "c" };
+   it("parsePrompt accepts only login and none", () => {
+      expect(parsePrompt("login")).toBe("login");
+      expect(parsePrompt("none")).toBe("none");
+      for (const v of ["select_account", "consent", "Login", " none", "", null, undefined]) expect(parsePrompt(v)).toBeUndefined();
+   });
+   it("buildAuthorizeUrl adds prompt only when one is given", () => {
+      expect(new URL(buildAuthorizeUrl(base)).searchParams.has("prompt")).toBe(false);
+      expect(new URL(buildAuthorizeUrl({ ...base, prompt: "login" })).searchParams.get("prompt")).toBe("login");
+      expect(new URL(buildAuthorizeUrl({ ...base, prompt: "none" })).searchParams.get("prompt")).toBe("none");
    });
 });
 

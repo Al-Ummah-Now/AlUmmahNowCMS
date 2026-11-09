@@ -77,6 +77,7 @@ function pickerHtml(o: { lang: Lang; nonce: string; current: CurrentRow[]; isAdm
 <nav class="top" aria-label="${o.lang === "ar" ? "التنقل" : "Navigation"}">
 <a href="/">${esc(t.backToAdmin)}</a>
 <a href="/picker?lang=${other}" lang="${other}" hreflang="${other}">${esc(s.switchLang)}</a>
+<a href="/sso/accounts?return=%2Fpicker">${esc(s.accounts.nav)}</a>
 <a href="/sso/logout">${esc(s.signOut)}</a>
 </nav>
 </header>

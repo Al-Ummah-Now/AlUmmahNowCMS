@@ -1,7 +1,8 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { pkceChallenge } from "../../src/lib/pkce.ts";
-import { CLIENT, CMS, cookiesOf, ISSUER, makeWorker, signIn, usersCount } from "./helpers.ts";
+import { callbackErrorRedirect } from "../../src/routes/sso.ts";
+import { accessToken, CLIENT, CMS, cookiesOf, ISSUER, makeWorker, signIn, usersCount } from "./helpers.ts";
 
 describe("unauthenticated", () => {
    it("/ redirects to /sso/login with the return path", async () => {
@@ -22,6 +23,8 @@ describe("unauthenticated", () => {
       expect(loc.searchParams.get("code_challenge_method")).toBe("S256");
       expect(loc.searchParams.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
       expect(loc.searchParams.get("state")).toBeTruthy();
+      // The normal sign-in never forces a prompt: auth signs the active account in silently.
+      expect(loc.searchParams.has("prompt")).toBe(false);
       const cookie = res.headers.getSetCookie().find((c) => c.startsWith("__Host-cms_sso="));
       expect(cookie).toMatch(/HttpOnly/i);
       expect(cookie).toMatch(/Secure/i);
@@ -115,6 +118,8 @@ describe("callback", () => {
       expect(res.status).toBe(200);
       const html = await res.text();
       expect(html).toContain('href="/picker"');
+      expect(html).toContain('href="/sso/accounts?return=%2F"');
+      expect(html).toContain('"/sso/login?return=" + encodeURIComponent');
       const csp = res.headers.get("content-security-policy")!;
       expect(csp).toContain("frame-ancestors 'none'");
       const nonce = csp.match(/'nonce-([^']+)'/)![1];
@@ -169,5 +174,111 @@ describe("callback", () => {
          expect(`${loc.origin}${loc.pathname}`).toBe(`${ISSUER}/logout`);
          expect(loc.searchParams.get("return")).toBe("https://www.test/");
       }
+   });
+});
+
+describe("prompt handling", () => {
+   const authorizeOf = async (path: string) => {
+      const res = await makeWorker()(path);
+      expect(res.status).toBe(302);
+      return { res, url: new URL(res.headers.get("location")!) };
+   };
+
+   it("?prompt=login (add account) and ?prompt=none (silent re-auth after a switch) are forwarded", async () => {
+      expect((await authorizeOf("/sso/login?prompt=login")).url.searchParams.get("prompt")).toBe("login");
+      expect((await authorizeOf("/sso/login?prompt=none")).url.searchParams.get("prompt")).toBe("none");
+   });
+
+   it("no other prompt value is ever forwarded", async () => {
+      for (const p of ["select_account", "consent", "login none", "LOGIN", ""]) {
+         expect((await authorizeOf(`/sso/login?prompt=${encodeURIComponent(p)}`)).url.searchParams.has("prompt"), p).toBe(false);
+      }
+   });
+
+   it("login_required after prompt=none falls back to the normal sign-in (no prompt), keeping the return path", async () => {
+      const f = makeWorker();
+      const { res: login, url } = await authorizeOf("/sso/login?prompt=none&return=%2Fpicker");
+      const cb = await f(`/sso/callback?error=login_required&state=${url.searchParams.get("state")}`, { headers: { cookie: cookiesOf(login) } });
+      expect(cb.status).toBe(302);
+      expect(cb.headers.get("location")).toBe("/sso/login?return=%2Fpicker");
+      // The fallback is a plain sign-in: auth shows its form, so there is no prompt=none loop.
+      const again = await f(cb.headers.get("location")!);
+      expect(new URL(again.headers.get("location")!).searchParams.has("prompt")).toBe(false);
+   });
+
+   it("any error on the normal or add-account sign-in shows the sign-in failed page", async () => {
+      for (const path of ["/sso/login", "/sso/login?prompt=login"]) {
+         const f = makeWorker();
+         const login = await f(path);
+         const state = new URL(login.headers.get("location")!).searchParams.get("state");
+         const cb = await f(`/sso/callback?error=access_denied&state=${state}`, { headers: { cookie: cookiesOf(login) } });
+         expect(cb.status, path).toBe(400);
+         expect(await cb.text()).toContain("Sign-in failed");
+      }
+   });
+
+   it("an error after prompt=none with a wrong or missing state does not redirect", async () => {
+      const f = makeWorker();
+      const login = await f("/sso/login?prompt=none");
+      expect((await f("/sso/callback?error=login_required&state=nope", { headers: { cookie: cookiesOf(login) } })).status).toBe(400);
+      expect((await f("/sso/callback?error=login_required&state=x")).status).toBe(400);
+   });
+
+   it("callbackErrorRedirect only accepts a live prompt=none transaction with the matching state", () => {
+      const tx = { s: "st", v: "v", r: "/data?x=1", e: 2000, p: "none" as const };
+      expect(callbackErrorRedirect(tx, "st", 1000)).toBe("/sso/login?return=%2Fdata%3Fx%3D1");
+      expect(callbackErrorRedirect(tx, "st", 3000)).toBeNull();
+      expect(callbackErrorRedirect(tx, "other", 1000)).toBeNull();
+      expect(callbackErrorRedirect(tx, undefined, 1000)).toBeNull();
+      expect(callbackErrorRedirect({ ...tx, p: "login" }, "st", 1000)).toBeNull();
+      expect(callbackErrorRedirect({ ...tx, p: undefined }, "st", 1000)).toBeNull();
+      expect(callbackErrorRedirect(null, "st", 1000)).toBeNull();
+   });
+
+   it("switching to an account without access drops the CMS session held for the previous account", async () => {
+      const admin = await signIn(["Admin"], { id: "sw-admin", email: "sw-admin@example.com" });
+      const cookie = cookiesOf(admin.callback);
+      expect(cookie).toMatch(/auth=/);
+      const token = await accessToken({ id: "sw-viewer", email: "sw-viewer@example.com", roles: ["Viewer"] });
+      const f = makeWorker((url) => (url.toString() === `${ISSUER}/token` ? Response.json({ access_token: token }) : new Response("no", { status: 404 })));
+      const login = await f("/sso/login?prompt=none", { headers: { cookie } });
+      const state = new URL(login.headers.get("location")!).searchParams.get("state");
+      const cb = await f(`/sso/callback?code=c&state=${state}`, { headers: { cookie: `${cookie}; ${cookiesOf(login)}` } });
+      expect(cb.status).toBe(303);
+      expect(cb.headers.get("location")).toBe("/sso/no-access");
+      expect(cb.headers.getSetCookie().some((c) => c.startsWith("auth=") && /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c))).toBe(true);
+   });
+});
+
+describe("account chooser", () => {
+   it("the no-access page lists auth's accounts from the browser: switch, add account, sign out", async () => {
+      const res = await makeWorker()("/sso/no-access");
+      expect(res.status).toBe(403);
+      const html = await res.text();
+      expect(html).toContain('id="accounts-list"');
+      expect(html).toContain('href="/sso/login?prompt=login&amp;return=%2F"');
+      expect(html).toContain('href="/sso/logout"');
+      expect(html).toContain('"auth":"https://auth.test"');
+      expect(html).toContain('"/sso/login?prompt=none&return=%2F"');
+      const csp = res.headers.get("content-security-policy")!;
+      expect(csp).toContain("connect-src 'self' https://auth.test");
+      expect(html).toContain(`<script nonce="${csp.match(/'nonce-([^']+)'/)![1]}">`);
+   });
+
+   it("/sso/accounts needs no CMS session and keeps only a safe return path", async () => {
+      const f = makeWorker();
+      const res = await f("/sso/accounts?return=%2Fpicker");
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain('href="/sso/login?prompt=login&amp;return=%2Fpicker"');
+      expect(res.headers.get("content-security-policy")).toContain("connect-src 'self' https://auth.test");
+      const evil = await (await f("/sso/accounts?return=https%3A%2F%2Fevil.example")).text();
+      expect(evil).not.toContain("evil.example");
+      expect(evil).toContain('href="/sso/login?prompt=login&amp;return=%2F"');
+   });
+
+   it("other pages keep connect-src 'self' only", async () => {
+      const res = await makeWorker()("/sso/logged-out");
+      expect(res.headers.get("content-security-policy")).toContain("connect-src 'self';");
    });
 });
