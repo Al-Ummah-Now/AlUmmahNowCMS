@@ -10,13 +10,14 @@ AlUmmahNow #492 (`site.theme`), AlUmmahNowAuth #257 (sign-in follows `site.theme
 
 ## 0. Verdict
 
-bknd's HTTP API covers every staff case. Three cases need a small endpoint in our Worker because
+bknd's HTTP API covers every staff case. Four cases need a small endpoint in our Worker because
 bknd's permissions or data flow don't fit a browser client; none needs a bknd change or fork:
 
 | Gap | Why bknd alone isn't enough | Our endpoint |
 |---|---|---|
 | Cover alt text | The alt lives in `media.metadata.alt` (`src/routes/public-api.ts:98`). Editors may not update the `media` entity (`src/bknd-config.ts:34-35` limits create/update to content entities), and widening that would let editors repoint any file's `path`. | `PATCH /admin/api/media/:id/alt` — session role admin or editor, validates ≤ 300 chars, writes `metadata.alt` only through `app.em.mutator("media")`. |
 | Re-picking the video of an existing curated row | The `snapshot` must be taken server-side from the public videos API (`src/routes/picker.ts:249-268`); a browser PATCH could write any snapshot. | `PUT /picker/api/items/:id` — same validation and server snapshot as `POST /picker/api/items`, then `updateOne`. |
+| Replacing a cover leaves a stale row (found while building) | bknd 0.21's `?overwrite=true` entity upload deletes the old file from R2 but keeps the old `media` row; the public API reads the first `<entity>.cover` row, so www would point at a deleted file. | After a successful entity upload the Worker keeps only the newest `max_items` rows and their files (`src/admin/media-cleanup.ts`). |
 | The site theme | `site.theme` is owned by the videos admin (AlUmmahNow #492, `GET <ADMIN_API_URL>/public/site-theme`), not by the CMS. | Server-side read in the Worker (30 s cache, 500 ms timeout, Fawanees on any failure). No CMS endpoint. |
 
 Schema editing (bknd's schema builder, `/data/schema`, `/api/data/sync`) stays code-only: the model is
@@ -121,8 +122,8 @@ content-rules plugin runs on every write (`src/lib/content-rules.ts:97-124`).
 | X6 | Live preview on www | "View on site" link for published rows (`${WWW_URL}/${locale}/${slug}` for pages, `/${locale}/posts/${slug}` for posts). Draft preview on www is out of scope (www has no draft API). |
 | X7 | Unsaved changes | `beforeunload` guard and a "You have unsaved changes" bar. |
 
-Nothing in the inventory needs a bknd change. **Exceptions: none blocking**; the three Worker
-endpoints in §0 are the only additions to the server.
+Nothing in the inventory needs a bknd change. **Exceptions: none blocking**; the Worker additions
+in §0 are the only server changes.
 
 ## 2. Screens and routes
 

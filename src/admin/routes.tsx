@@ -12,10 +12,12 @@ import { ADMIN_STRINGS } from "./i18n.ts";
 import { resolvePrefs } from "./prefs.ts";
 import { overviewScreen } from "./screens/overview.tsx";
 import { peopleScreen } from "./screens/people.tsx";
+import { contentEditor, contentList, parseListParams, type ContentKind } from "./screens/content.tsx";
+import { mediaAltRoute } from "./api.ts";
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
-export const ADMIN_SCREENS = ["/pages", "/posts", "/navigation", "/videos", "/site", "/library", "/people"];
+export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/navigation", "/videos", "/site", "/library", "/people"];
 export const isStaffScreen = (p: string) => p === "/" || ADMIN_SCREENS.some((x) => p === x || p.startsWith(`${x}/`));
 
 export async function buildView(c: Ctx, deps: Deps): Promise<View> {
@@ -56,6 +58,26 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       const v = await buildView(c, deps);
       return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps)));
    });
+
+   for (const kind of ["pages", "posts"] as ContentKind[]) {
+      r.get(`/${kind}`, async (c) => {
+         const v = await buildView(c, deps);
+         return render(c, v, v.t.entities[kind].many, await contentList(v, new Data(c, deps), kind, parseListParams(new URL(c.req.url))));
+      });
+      r.get(`/${kind}/new`, async (c) => {
+         const v = await buildView(c, deps);
+         const locale = c.req.query("locale") === "ar" ? "ar" : c.req.query("locale") === "en" ? "en" : v.prefs.lang;
+         return render(c, v, kind === "pages" ? v.t.content.newPage : v.t.content.newPost, await contentEditor(v, new Data(c, deps), kind, null, locale));
+      });
+      r.get(`/${kind}/:id{[0-9]+}`, async (c) => {
+         const v = await buildView(c, deps);
+         const body = await contentEditor(v, new Data(c, deps), kind, Number(c.req.param("id")), v.prefs.lang);
+         if (!body) return render(c, v, v.t.common.notFound, <p class="notice">{v.t.common.notFound}</p>, 404);
+         return render(c, v, v.t.entities[kind].one, body);
+      });
+   }
+
+   r.route("/admin/api", mediaAltRoute(deps));
 
    r.get("/people", async (c) => {
       const v = await buildView(c, deps);

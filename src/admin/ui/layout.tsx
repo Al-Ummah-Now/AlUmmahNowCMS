@@ -238,6 +238,19 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                </div>
             </dialog>
             <div class="toasts" id="toasts" role="status" aria-live="polite" />
+            <script type="application/json" id="i18n-shell" nonce={v.nonce}>
+               {raw(
+                  JSON.stringify({
+                     published: t.content.published,
+                     unpublished: t.content.unpublished,
+                     draft: t.content.draftSaved,
+                     created: t.common.saved,
+                     saved: t.common.saved,
+                     deleted: t.content.deleted,
+                     reordered: t.common.reordered,
+                  }).replace(/</g, "\\u003c"),
+               )}
+            </script>
          </body>
       </html>
    );
