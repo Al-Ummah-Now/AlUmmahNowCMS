@@ -5,6 +5,7 @@
  * - nav_items.url is a www-relative path ("/…", not "//") or an absolute https URL.
  * - the page slug "home" is reserved (www's home page is not a CMS page).
  * - posts.tags is an array of strings.
+ * - curated_videos.locale is never NULL (NULL means "all"; stored as 'all').
  *
  * bknd limitation (0.21.0): a listener's *returned* data is validated with `entity.isValidData`,
  * and JsonField.isValid(undefined) is false, so any return on an entity with a JSON field whose
@@ -69,6 +70,9 @@ export function applyRules(entity: string, data: Row, mode: "create" | "update",
       if (!ok) throw new ContentRuleError("site_settings.social must be a list of { kind, url } with https:// URLs");
    }
    if (entity === "curated_videos") {
+      // NULL means "all" everywhere; store it as 'all' so the unique (kind, ref_id, placement, locale)
+      // index (migrations/0002) also covers it (SQLite treats NULLs as distinct).
+      if (mode === "create" ? data.locale == null : "locale" in data && data.locale == null) data.locale = "all";
       if ("ref_id" in data && (typeof data.ref_id !== "string" || !REF_ID.test(data.ref_id))) {
          throw new ContentRuleError("curated_videos.ref_id must be a videos-platform id");
       }

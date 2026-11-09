@@ -148,13 +148,17 @@ function curatedOf(r: Row) {
    };
 }
 
+/** Most curated rows served per placement: www resolves each one, so the list must stay bounded (audit CMS-4/UI-1). */
+export const CURATED_MAX = 48;
+
 async function curated(env: Env, l: Locale, placement: "home" | "videos") {
    const { results } = await env.DB.prepare(
       `SELECT id, kind, ref_id, title_override, snapshot, sort FROM curated_videos
        WHERE placement = ?1 AND status = 'published' AND (locale = ?2 OR locale = 'all' OR locale IS NULL)
-       ORDER BY sort, id`,
+       ORDER BY sort, id
+       LIMIT ?3`,
    )
-      .bind(placement, l)
+      .bind(placement, l, CURATED_MAX)
       .all<Row>();
    return results.map(curatedOf);
 }

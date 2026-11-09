@@ -117,6 +117,8 @@ export const schema = em(
       index(e.users).on(["sso_sub"], true);
       index(e.posts).on(["status", "locale", "published_at"]);
       index(e.curated_videos).on(["placement", "status"]);
+      // One row per video per placement and locale (migrations/0002): the picker inserts ON CONFLICT DO NOTHING.
+      index(e.curated_videos).on(["kind", "ref_id", "placement", "locale"], true);
       index(e.nav_items).on(["menu", "locale"]);
    },
 );

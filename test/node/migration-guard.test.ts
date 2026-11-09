@@ -23,6 +23,17 @@ describe("destructive statements", () => {
       ["insert into site_settings (locale, site_title) values ('en', 'Drop the beat; rename it');"],
    ])("allows %s", (sql) => expect(destructiveStatements("m.sql", sql)).toEqual([]));
 
+   it("an allow-data-rewrite header allows DELETE/UPDATE on that one table only", () => {
+      const header = "-- migration-guard: allow-data-rewrite curated_videos\n";
+      expect(destructiveStatements("m.sql", `${header}delete from "curated_videos" where id in (select id from b);\nupdate curated_videos set locale = 'all' where locale is null;`)).toEqual([]);
+      expect(destructiveStatements("m.sql", `${header}delete from pages;`).length).toBe(1);
+      expect(destructiveStatements("m.sql", `${header}UPDATE posts SET title = 'x';`).length).toBe(1);
+      expect(destructiveStatements("m.sql", `${header}drop table curated_videos;`).length).toBe(1);
+      expect(destructiveStatements("m.sql", `${header}alter table curated_videos rename to x;`).length).toBe(1);
+      // The marker must be a whole comment line, not text inside a string.
+      expect(destructiveStatements("m.sql", "select '-- migration-guard: allow-data-rewrite pages';\ndelete from pages;").length).toBe(1);
+   });
+
    it("strips comments and string literals", () => {
       expect(stripSql("/* drop */ select 'drop table x' -- drop\n")).not.toMatch(/drop/i);
    });
