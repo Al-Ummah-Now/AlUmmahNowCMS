@@ -282,3 +282,67 @@ describe("account chooser", () => {
       expect(res.headers.get("content-security-policy")).toContain("connect-src 'self';");
    });
 });
+
+describe("the previous CMS session never survives an unfinished sign-in", () => {
+   const cleared = (res: Response) => res.headers.getSetCookie().some((c) => c.startsWith("auth=") && /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c));
+   const adminSession = async () => cookiesOf((await signIn(["Admin"], { id: "keep-admin", email: "keep-admin@example.com" })).callback);
+   const startLogin = async (f: ReturnType<typeof makeWorker>, session: string, query = "") => {
+      const login = await f(`/sso/login${query}`, { headers: { cookie: session } });
+      return { login, state: new URL(login.headers.get("location")!).searchParams.get("state")!, cookie: `${session}; ${cookiesOf(login)}` };
+   };
+
+   it("/sso/login?prompt=none and ?prompt=login clear the session before going to auth; the normal sign-in does not", async () => {
+      const session = await adminSession();
+      const f = makeWorker();
+      expect(cleared((await startLogin(f, session, "?prompt=none")).login)).toBe(true);
+      expect(cleared((await startLogin(f, session, "?prompt=login")).login)).toBe(true);
+      expect(cleared((await startLogin(f, session)).login)).toBe(false);
+      expect(cleared((await startLogin(f, session, "?prompt=select_account")).login)).toBe(false);
+   });
+
+   it("an auth error on a flow this browser started clears it (also before the prompt=none fallback)", async () => {
+      const session = await adminSession();
+      const f = makeWorker();
+      const normal = await startLogin(f, session);
+      const res = await f(`/sso/callback?error=access_denied&state=${normal.state}`, { headers: { cookie: normal.cookie } });
+      expect(res.status).toBe(400);
+      expect(cleared(res)).toBe(true);
+      // prompt=none: simulate a browser that still carries the old session cookie at the callback.
+      const silent = await startLogin(f, session, "?prompt=none");
+      const fb = await f(`/sso/callback?error=login_required&state=${silent.state}`, { headers: { cookie: silent.cookie } });
+      expect(fb.status).toBe(302);
+      expect(cleared(fb)).toBe(true);
+   });
+
+   it("a state mismatch on a flow this browser started clears it", async () => {
+      const session = await adminSession();
+      const f = makeWorker();
+      const { cookie } = await startLogin(f, session);
+      const res = await f("/sso/callback?code=c&state=wrong", { headers: { cookie } });
+      expect(res.status).toBe(400);
+      expect(cleared(res)).toBe(true);
+   });
+
+   it("a failed token exchange or a rejected token clears it", async () => {
+      const session = await adminSession();
+      for (const upstream of [() => new Response("no", { status: 400 }), () => Response.json({ access_token: "not.a.jwt" })]) {
+         const f = makeWorker(upstream);
+         const { state, cookie } = await startLogin(f, session);
+         const res = await f(`/sso/callback?code=c&state=${state}`, { headers: { cookie } });
+         expect(res.status).toBeGreaterThanOrEqual(400);
+         expect(cleared(res)).toBe(true);
+      }
+   });
+
+   it("an unsolicited callback (no tx cookie: not started by this browser) cannot sign the user out", async () => {
+      const session = await adminSession();
+      const f = makeWorker();
+      for (const path of ["/sso/callback?error=login_required&state=x", "/sso/callback?code=c&state=x", "/sso/callback"]) {
+         const res = await f(path, { headers: { cookie: session } });
+         expect(res.status, path).toBe(400);
+         expect(cleared(res), path).toBe(false);
+      }
+      // The session still opens the admin UI.
+      expect((await f("/", { headers: { cookie: session } })).status).toBe(200);
+   });
+});
