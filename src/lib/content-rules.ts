@@ -6,6 +6,9 @@
  * - the page slug "home" is reserved (www's home page is not a CMS page).
  * - posts.tags is an array of strings.
  * - curated_videos.locale is never NULL (NULL means "all"; stored as 'all').
+ * - optimistic lock: an update that carries `updated_at` only applies if the row still has that
+ *   `updated_at`; otherwise it fails with 409 (two editors saving the same row: the second, stale
+ *   save no longer silently overwrites the first). Updates without `updated_at` are unchanged.
  *
  * bknd limitation (0.21.0): a listener's *returned* data is validated with `entity.isValidData`,
  * and JsonField.isValid(undefined) is false, so any return on an entity with a JSON field whose
@@ -13,7 +16,7 @@
  * posts/curated_videos/site_settings). Workaround: mutate `event.params.data` IN PLACE and return
  * nothing — the mutator then uses that same object (`returned ? params.data : data`).
  */
-import { DatabaseEvents, type AppPlugin } from "bknd";
+import { DatabaseEvents, Exception, type AppPlugin } from "bknd";
 import { CONTENT_ENTITIES } from "../schema.ts";
 
 const CONTENT = new Set<string>(CONTENT_ENTITIES);
@@ -22,6 +25,49 @@ const WITH_STATUS = new Set(["pages", "posts", "nav_items", "curated_videos"]);
 
 export class ContentRuleError extends Error {
    readonly status = 400;
+}
+
+/** 409: the row changed since the editor loaded it (bknd serializes an Exception with its code). */
+export class StaleWriteError extends Exception {
+   constructor() {
+      super("This item was changed by someone else after you opened it. Reload it, then apply your changes again.", 409);
+      this.name = "StaleWriteError";
+   }
+}
+
+/** The stored forms the client's `updated_at` may match (as sent, and as bknd's ISO string). */
+export function versionCandidates(expected: unknown): string[] | null {
+   if (expected === null || expected === undefined || expected === "") return null;
+   const out = new Set<string>();
+   if (typeof expected === "string") out.add(expected);
+   const d = expected instanceof Date ? expected : typeof expected === "string" || typeof expected === "number" ? new Date(expected) : null;
+   if (d && !Number.isNaN(d.getTime())) out.add(d.toISOString());
+   if (out.size === 0) throw new ContentRuleError("updated_at must be the value the item was loaded with");
+   return [...out];
+}
+
+/**
+ * The new `updated_at` for a locked save: now, but always later than the version it replaces.
+ * The Workers clock does not advance inside a request (and two saves can share a millisecond), so
+ * without this a save could write back the very value the next stale save is compared against.
+ */
+export function nextVersion(expected: unknown, now = new Date()): Date {
+   const prev = expected === null || expected === undefined || expected === "" ? NaN : new Date(expected as string | number).getTime();
+   return Number.isNaN(prev) || now.getTime() > prev ? now : new Date(prev + 1);
+}
+
+export async function claimVersion(db: D1Database, table: string, id: number | string, expected: unknown, now: Date): Promise<void> {
+   if (!CONTENT.has(table)) throw new Error(`no optimistic lock for ${table}`);
+   const candidates = versionCandidates(expected);
+   const match = candidates ? `updated_at IN (${candidates.map((_, i) => `?${i + 3}`).join(", ")})` : "updated_at IS NULL";
+   const claimed = await db
+      .prepare(`UPDATE "${table}" SET updated_at = ?1 WHERE id = ?2 AND ${match} RETURNING id`)
+      .bind(now.toISOString(), Number(id), ...(candidates ?? []))
+      .first();
+   if (claimed) return;
+   const exists = await db.prepare(`SELECT id FROM "${table}" WHERE id = ?1`).bind(Number(id)).first();
+   if (exists) throw new StaleWriteError();
+   // No such row: let bknd answer as it does for any missing id.
 }
 
 export function validNavUrl(url: unknown): boolean {
@@ -98,7 +144,8 @@ export function applyRules(entity: string, data: Row, mode: "create" | "update",
    }
 }
 
-export function contentRulesPlugin(): AppPlugin {
+/** @param db the D1 binding, for the optimistic-lock compare-and-set (without it, no lock). */
+export function contentRulesPlugin(db?: D1Database): AppPlugin {
    return (app) => ({
       name: "aun-content-rules",
       onBuilt: async () => {
@@ -114,12 +161,20 @@ export function contentRulesPlugin(): AppPlugin {
             DatabaseEvents.MutatorUpdateBefore,
             async (event) => {
                const { entity, entityId, data } = event.params as { entity: { name: string }; entityId: number | string; data: Row };
+               const locked = !!db && CONTENT.has(entity.name) && "updated_at" in data;
+               const expected = data.updated_at;
                let current: Row | null = null;
                if (PUBLISHABLE.has(entity.name)) {
                   const { data: row } = await app.em.repo(entity.name).findId(entityId);
                   current = (row ?? null) as Row | null;
                }
-               applyRules(entity.name, data, "update", current);
+               const now = locked ? nextVersion(expected) : new Date();
+               applyRules(entity.name, data, "update", current, now);
+               if (locked) {
+                  // Validate before claiming, so an invalid save does not move updated_at.
+                  await (app.em.mutator(entity.name) as unknown as { getValidatedData(d: Row, m: "update"): Promise<unknown> }).getValidatedData({ ...data }, "update");
+                  await claimVersion(db!, entity.name, entityId, expected, now);
+               }
             },
             { mode: "sync", id: "aun-content-update" },
          );

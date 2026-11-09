@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyRules, ContentRuleError, validNavUrl } from "../../src/lib/content-rules.ts";
+import { applyRules, ContentRuleError, nextVersion, validNavUrl, versionCandidates } from "../../src/lib/content-rules.ts";
 
 const now = new Date("2026-11-08T10:00:00Z");
 
@@ -57,5 +57,22 @@ describe("content rules", () => {
       const d: Record<string, unknown> = { email: "x" };
       applyRules("users", d, "create", null, now);
       expect(d).toEqual({ email: "x" });
+   });
+});
+
+describe("optimistic lock helpers", () => {
+   it("nextVersion is now, but always after the version it replaces", () => {
+      const t = "2026-11-08T10:00:00.000Z";
+      expect(nextVersion(t, new Date("2026-11-08T10:00:05.000Z")).toISOString()).toBe("2026-11-08T10:00:05.000Z");
+      expect(nextVersion(t, new Date(t)).toISOString()).toBe("2026-11-08T10:00:00.001Z");
+      expect(nextVersion(t, new Date("2026-11-08T09:00:00.000Z")).toISOString()).toBe("2026-11-08T10:00:00.001Z");
+      expect(nextVersion(null, now)).toBe(now);
+   });
+   it("versionCandidates accepts the stored string and its ISO form; null means a row never stamped", () => {
+      expect(versionCandidates("2026-11-08T10:00:00.000Z")).toEqual(["2026-11-08T10:00:00.000Z"]);
+      expect(versionCandidates(Date.parse("2026-11-08T10:00:00Z"))).toEqual(["2026-11-08T10:00:00.000Z"]);
+      expect(versionCandidates(null)).toBeNull();
+      expect(versionCandidates("")).toBeNull();
+      expect(() => versionCandidates({})).toThrow(ContentRuleError);
    });
 });
