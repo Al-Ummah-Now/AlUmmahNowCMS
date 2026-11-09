@@ -11,9 +11,9 @@
  *   /data/*, /media, /bknd   bknd's retired admin UI → redirects to the staff screens
  */
 import { Hono } from "hono";
-import { getBkndApp } from "./app.ts";
+import { getBkndApp, MediaExistsError } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
-import { ALLOWED_UPLOAD, blockedApiPath, isRetiredBkndAdminPath, uploadAllowed } from "./lib/paths.ts";
+import { ALLOWED_UPLOAD, blockedApiPath, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
 import { ConfigError, runtimeConfig, type Env } from "./env.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
@@ -37,6 +37,15 @@ async function multipartAllowed(request: Request): Promise<boolean> {
       if (!exts || !exts.includes(ext) || file.size > MEDIA_MAX_BYTES) return false;
    }
    return true;
+}
+
+/** A media object or row already uses this name. */
+async function mediaExists(env: Env, name: string): Promise<boolean> {
+   const [object, row] = await Promise.all([
+      env.MEDIA.head(name),
+      env.DB.prepare("SELECT 1 AS x FROM media WHERE path = ?1 LIMIT 1").bind(name).first(),
+   ]);
+   return object !== null || row !== null;
 }
 
 function withHeaders(res: Response, csp?: string, ownOrigin?: string): Response {
@@ -163,6 +172,11 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          if (type.startsWith("multipart/form-data") && !(await multipartAllowed(c.req.raw))) {
             return c.json({ error: "unsupported_media", message: "Only JPEG, PNG, WebP and AVIF images up to 10 MB" }, 415);
          }
+      }
+      const named = c.req.method === "POST" ? uploadName(p) : null;
+      if (named && (await mediaExists(c.env, named))) {
+         // Fast path before the body is read; the create-only R2 put (src/app.ts) is the atomic guarantee.
+         return c.json({ error: "conflict", message: new MediaExistsError(named).message }, 409);
       }
       const bknd = await deps.getApp(c);
       const res = await bknd.fetch(c.req.raw, c.env, c.executionCtx);
