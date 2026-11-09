@@ -31,7 +31,7 @@ describe("curated videos under concurrency", () => {
       expect(statuses.filter((s) => s === 200)).toHaveLength(99);
       const datas = await Promise.all(out.map((r) => r.json() as Promise<{ data: { id: number; snapshot: unknown } }>));
       expect(new Set(datas.map((d) => d.data.id)).size).toBe(1);
-      expect(datas[0].data.snapshot).toEqual({ title: "Public talk", thumbnail_url: "https://cdn/1.jpg", channel_name: "Ch" });
+      expect(datas[0].data.snapshot).toMatchObject({ title: "Public talk", thumbnail_url: "https://cdn/1.jpg", channel_name: "Ch", public: true });
       expect(await count()).toBe(1);
       const row = await env.DB.prepare("SELECT status, sort, created_at, updated_at FROM curated_videos").first<Record<string, unknown>>();
       expect(row).toMatchObject({ status: "published", sort: 1 });

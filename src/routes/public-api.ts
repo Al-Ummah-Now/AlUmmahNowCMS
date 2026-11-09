@@ -133,17 +133,52 @@ async function nav(env: Env, l: Locale) {
    return { header: pick("header"), footer: pick("footer") };
 }
 
+const positiveOrNull = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
+function localizedOf(v: unknown): Partial<Record<Locale, string>> {
+   const out: Partial<Record<Locale, string>> = {};
+   if (v && typeof v === "object") {
+      for (const l of ["en", "ar"] as const) {
+         const t = strOrNull((v as Row)[l]);
+         if (t) out[l] = t;
+      }
+   }
+   return out;
+}
+
+/**
+ * The stored snapshot as served. The first three fields are the original contract; the rest are
+ * filled by the snapshot refresh (src/lib/snapshots.ts) and are absent on rows not yet refreshed.
+ */
+function snapshotOf(snap: Row | null) {
+   if (!snap || typeof snap.title !== "string") return null;
+   const out: Record<string, unknown> = {
+      title: snap.title,
+      thumbnail_url: isHttps(snap.thumbnail_url) ? (snap.thumbnail_url as string) : null,
+      channel_name: strOrNull(snap.channel_name),
+   };
+   const refreshed = toIso(snap.refreshed_at);
+   if (refreshed) {
+      Object.assign(out, {
+         refreshed_at: refreshed,
+         handle: strOrNull(snap.handle),
+         description: strOrNull(snap.description),
+         titles: localizedOf(snap.titles),
+         descriptions: localizedOf(snap.descriptions),
+         duration_seconds: positiveOrNull(snap.duration_seconds),
+         upload_date: toIso(snap.upload_date),
+         video_count: positiveOrNull(snap.video_count),
+      });
+   }
+   return out;
+}
+
 function curatedOf(r: Row) {
-   const snap = parseJson<Row | null>(r.snapshot, null);
    return {
       id: Number(r.id),
       kind: r.kind as "video" | "playlist" | "channel",
       ref_id: String(r.ref_id),
       title_override: strOrNull(r.title_override),
-      snapshot:
-         snap && typeof snap.title === "string"
-            ? { title: snap.title, thumbnail_url: isHttps(snap.thumbnail_url) ? (snap.thumbnail_url as string) : null, channel_name: strOrNull(snap.channel_name) }
-            : null,
+      snapshot: snapshotOf(parseJson<Row | null>(r.snapshot, null)),
       sort: Number(r.sort ?? 0),
    };
 }
@@ -155,6 +190,8 @@ async function curated(env: Env, l: Locale, placement: "home" | "videos") {
    const { results } = await env.DB.prepare(
       `SELECT id, kind, ref_id, title_override, snapshot, sort FROM curated_videos
        WHERE placement = ?1 AND status = 'published' AND (locale = ?2 OR locale = 'all' OR locale IS NULL)
+         -- the snapshot refresh found the item no longer public (src/lib/snapshots.ts)
+         AND NOT (json_valid(snapshot) AND json_extract(snapshot, '$.public') IS 0)
        ORDER BY sort, id
        LIMIT ?3`,
    )

@@ -13,6 +13,8 @@
   "observability": { "enabled": true },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "routes": [{ "pattern": "cms.alummahnow.net", "custom_domain": true }],
+  // Curated snapshot refresh (src/lib/snapshots.ts). Not inherited by envs: each env repeats it.
+  "triggers": { "crons": ["*/30 * * * *"] },
   "vars": {
     "ENVIRONMENT": "production",
     "PUBLIC_URL": "https://cms.alummahnow.net",
@@ -42,6 +44,7 @@
       "preview_urls": false,
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
       "routes": [{ "pattern": "cms.stage.alummahnow.net", "custom_domain": true }],
+      "triggers": { "crons": ["*/30 * * * *"] },
       "vars": {
         "ENVIRONMENT": "stage",
         "PUBLIC_URL": "https://cms.stage.alummahnow.net",
@@ -70,6 +73,7 @@
       "preview_urls": false,
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
       "routes": [{ "pattern": "cms.qa.alummahnow.net", "custom_domain": true }],
+      "triggers": { "crons": ["*/30 * * * *"] },
       "vars": {
         "ENVIRONMENT": "qa",
         "PUBLIC_URL": "https://cms.qa.alummahnow.net",
