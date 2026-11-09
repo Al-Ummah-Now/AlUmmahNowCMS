@@ -3,6 +3,7 @@
  * Picking creates a `curated_videos` row (draft or published) with a snapshot taken server-side.
  */
 import { Hono } from "hono";
+import { applyRules, ContentRuleError } from "../lib/content-rules.ts";
 import { embedUrl } from "../lib/embeds.ts";
 import { esc, page } from "../lib/html.ts";
 import { pickLang, STRINGS, type Lang } from "../lib/i18n.ts";
@@ -187,6 +188,20 @@ $("add-form").addEventListener("submit", async (ev) => {
    return page({ lang: o.lang, nonce: o.nonce, title: `${t.title} · ${s.cms}`, body, extraCss: CSS, script });
 }
 
+const CURATED_COLS = "id, kind, ref_id, placement, locale, title_override, sort, status, snapshot, created_at, updated_at";
+type StoredRow = Record<string, unknown> & { snapshot: string | null };
+
+/** The row as bknd's data API returns it (snapshot as JSON, not text). */
+function hydrate(r: StoredRow): Record<string, unknown> {
+   let snapshot: unknown = null;
+   try {
+      snapshot = r.snapshot ? JSON.parse(r.snapshot) : null;
+   } catch {
+      /* keep null */
+   }
+   return { ...r, snapshot };
+}
+
 const PLACEMENTS = ["home", "videos"];
 const LOCALES = ["en", "ar", "all"];
 const STATUSES = ["draft", "published"];
@@ -255,8 +270,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       }
       if (!item) return c.json({ error: "not_found", message: "not found or not public" }, 404);
 
-      const app = await deps.getApp(c);
-      const { data } = await app.em.mutator("curated_videos").insertOne({
+      const row: Record<string, unknown> = {
          kind,
          ref_id: item.id,
          placement,
@@ -265,8 +279,28 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
          status,
          title_override: titleOverride,
          snapshot: { title: item.title, thumbnail_url: item.thumbnail_url, channel_name: item.channel_name },
-      } as never);
-      return c.json({ data }, 201);
+      };
+      try {
+         applyRules("curated_videos", row, "create");
+      } catch (error) {
+         if (error instanceof ContentRuleError) return c.json({ error: "bad_request", message: error.message }, 400);
+         throw error;
+      }
+      // Idempotent: a double-click (or two editors) adding the same video to the same placement and
+      // locale creates one row. The unique index (migrations/0002) makes this atomic across isolates.
+      const inserted = await c.env.DB.prepare(
+         `INSERT INTO curated_videos (kind, ref_id, placement, locale, title_override, sort, status, snapshot, created_at, updated_at)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+          ON CONFLICT (kind, ref_id, placement, locale) DO NOTHING
+          RETURNING ${CURATED_COLS}`,
+      )
+         .bind(row.kind, row.ref_id, row.placement, row.locale, row.title_override, row.sort, row.status, JSON.stringify(row.snapshot), (row.created_at as Date).toISOString())
+         .first<StoredRow>();
+      if (inserted) return c.json({ data: hydrate(inserted) }, 201);
+      const existing = await c.env.DB.prepare(`SELECT ${CURATED_COLS} FROM curated_videos WHERE kind = ?1 AND ref_id = ?2 AND placement = ?3 AND locale = ?4`)
+         .bind(row.kind, row.ref_id, row.placement, row.locale)
+         .first<StoredRow>();
+      return c.json({ data: existing ? hydrate(existing) : null, existing: true }, 200);
    });
 
    return picker;

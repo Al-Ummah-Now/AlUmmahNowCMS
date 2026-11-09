@@ -5,7 +5,10 @@
  *
  * Fails when
  *   - any migration contains a destructive statement (DROP …, RENAME, ALTER TABLE … DROP),
- *     or a DELETE/UPDATE without being explicitly allowed (data rewrites are not expand-only);
+ *     or a DELETE/UPDATE without being explicitly allowed (data rewrites are not expand-only).
+ *     A migration may allow DELETE/UPDATE on ONE named table with a comment line
+ *     `-- migration-guard: allow-data-rewrite <table>` (e.g. removing duplicates before a unique
+ *     index); it must copy what it removes to a backup table first. DROP/RENAME stay forbidden;
  *   - a migration that exists on the base ref was modified, deleted or renamed;
  *   - a new migration sorts before the latest one on the base ref (wrangler applies by name and
  *     would skip it where the later one already ran), or its name is not NNNN_snake_case.sql.
@@ -34,14 +37,26 @@ const RULES: { re: RegExp; why: string }[] = [
    { re: /\breplace\s+into\b/i, why: "REPLACE INTO deletes rows; not allowed" },
 ];
 
+const ALLOW = /^--\s*migration-guard:\s*allow-data-rewrite\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*$/gm;
+const DATA_REWRITE = /^\s*(?:delete\s+from|update)\s+["`[]?([A-Za-z_][A-Za-z0-9_]*)["`\]]?(?:\s|$)/i;
+
+/** Tables a migration explicitly allows DELETE/UPDATE on (see the header). */
+export function allowedRewrites(sql: string): Set<string> {
+   return new Set([...sql.matchAll(ALLOW)].map((m) => m[1].toLowerCase()));
+}
+
 /** Destructive statements in one migration file. */
 export function destructiveStatements(file: string, sql: string): string[] {
+   const allowed = allowedRewrites(sql);
    const clean = stripSql(sql);
    const errors: string[] = [];
    for (const stmt of clean.split(";")) {
       const s = stmt.trim();
       if (!s) continue;
+      const rewrite = s.match(DATA_REWRITE);
+      const allowedRewrite = !!rewrite && allowed.has(rewrite[1].toLowerCase());
       for (const rule of RULES) {
+         if (allowedRewrite && /^(DELETE|UPDATE) /.test(rule.why)) continue;
          if (rule.re.test(s)) errors.push(`${file}: ${rule.why}: ${s.replace(/\s+/g, " ").slice(0, 120)}`);
       }
    }
