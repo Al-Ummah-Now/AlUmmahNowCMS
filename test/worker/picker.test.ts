@@ -24,19 +24,15 @@ async function session() {
 }
 
 describe("picker", () => {
-   it("the page renders en and ar (rtl) for a signed-in editor, with the embed origin allowed to frame", async () => {
+   it("/picker now redirects to the Videos screen, which may frame the embed origin", async () => {
       const cookie = await session();
       const f = makeWorker(videosApi);
-      const en = await f("/picker", { headers: { cookie } });
-      expect(en.status).toBe(200);
-      const html = await en.text();
-      expect(html).toContain('<html lang="en" dir="ltr">');
-      expect(html).toContain('<label for="q">');
-      expect(html).toContain('href="/sso/accounts?return=%2Fpicker"');
-      expect(en.headers.get("content-security-policy")).toContain("frame-src https://videos.test");
-      const ar = await (await f("/picker?lang=ar", { headers: { cookie } })).text();
-      expect(ar).toContain('<html lang="ar" dir="rtl">');
-      expect(ar).toContain("منتقي الفيديو");
+      const res = await f("/picker", { headers: { cookie } });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/videos");
+      const videos = await f("/videos", { headers: { cookie } });
+      expect(videos.status).toBe(200);
+      expect(videos.headers.get("content-security-policy")).toContain("frame-src https://videos.test");
    });
 
    it("search proxies the videos API and drops non-public items", async () => {

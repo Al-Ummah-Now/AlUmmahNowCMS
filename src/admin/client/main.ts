@@ -6,11 +6,13 @@
 import { $$, strings, toast } from "./dom.ts";
 import { initEditor } from "./editor.ts";
 import { initPicker } from "./picker.ts";
+import { initRows } from "./rows.ts";
 import { initShell } from "./shell.ts";
 
 initShell();
 initPicker();
 initEditor();
+initRows();
 
 // <select data-autosubmit> submits its form (list sort).
 for (const s of $$<HTMLSelectElement>("select[data-autosubmit]")) s.addEventListener("change", () => s.form?.requestSubmit());
