@@ -14,6 +14,7 @@ import { overviewScreen } from "./screens/overview.tsx";
 import { peopleScreen } from "./screens/people.tsx";
 import { contentEditor, contentList, parseListParams, type ContentKind } from "./screens/content.tsx";
 import { mediaAltRoute } from "./api.ts";
+import { libraryScreen, navigationScreen, siteScreen, videosScreen } from "./screens/site.tsx";
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
@@ -78,6 +79,30 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    }
 
    r.route("/admin/api", mediaAltRoute(deps));
+
+   const loc = (v: string | undefined, fallback: "en" | "ar") => (v === "en" || v === "ar" ? v : fallback);
+
+   r.get("/navigation", async (c) => {
+      const v = await buildView(c, deps);
+      const menu = c.req.query("menu") === "footer" ? "footer" : "header";
+      return render(c, v, v.t.menus.title, await navigationScreen(v, new Data(c, deps), menu, loc(c.req.query("locale"), v.prefs.lang)));
+   });
+
+   r.get("/videos", async (c) => {
+      const v = await buildView(c, deps);
+      const placement = c.req.query("placement") === "videos" ? "videos" : "home";
+      return render(c, v, v.t.videos.title, await videosScreen(v, new Data(c, deps), placement, c.get("cfg").videosWebUrl, c.req.query("add") === "1"));
+   });
+
+   r.get("/site", async (c) => {
+      const v = await buildView(c, deps);
+      return render(c, v, v.t.site.title, await siteScreen(v, new Data(c, deps), loc(c.req.query("locale"), v.prefs.lang)));
+   });
+
+   r.get("/library", async (c) => {
+      const v = await buildView(c, deps);
+      return render(c, v, v.t.library.title, await libraryScreen(v, new Data(c, deps)));
+   });
 
    r.get("/people", async (c) => {
       const v = await buildView(c, deps);
