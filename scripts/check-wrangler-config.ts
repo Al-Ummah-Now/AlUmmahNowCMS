@@ -17,10 +17,13 @@ interface EnvConfig {
    vars?: Record<string, string>;
    d1_databases?: { binding: string; database_name: string; database_id: string; migrations_dir?: string }[];
    r2_buckets?: { binding: string; bucket_name: string }[];
+   triggers?: { crons?: string[] };
 }
 interface WranglerConfig extends EnvConfig {
    env?: Record<string, EnvConfig>;
 }
+
+export const SNAPSHOT_CRON = "*/30 * * * *";
 
 export function checkWranglerConfig(config: WranglerConfig): string[] {
    const errors: string[] = [];
@@ -54,6 +57,8 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
       if (d1.length !== 1 || d1[0].binding !== "DB" || d1[0].database_name !== want.d1.name || d1[0].database_id !== want.d1.id) {
          errors.push(`${where}: d1_databases must be [DB → ${want.d1.name} (${want.d1.id})]`);
       } else if (d1[0].migrations_dir !== "migrations") errors.push(`${where}: D1 migrations_dir must be "migrations"`);
+      // Curated snapshot refresh (src/lib/snapshots.ts); triggers are not inherited by envs.
+      if (!(c.triggers?.crons ?? []).includes(SNAPSHOT_CRON)) errors.push(`${where}: triggers.crons must include "${SNAPSHOT_CRON}"`);
       const r2 = c.r2_buckets ?? [];
       if (r2.length !== 1 || r2[0].binding !== "MEDIA" || r2[0].bucket_name !== want.r2) {
          errors.push(`${where}: r2_buckets must be [MEDIA → ${want.r2}]`);

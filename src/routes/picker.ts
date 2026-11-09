@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import { applyRules, ContentRuleError } from "../lib/content-rules.ts";
 import { embedUrl } from "../lib/embeds.ts";
+import { snapshotOf } from "../lib/snapshots.ts";
 import { lookupItem, searchVideos, VIDEO_KINDS, type VideoKind } from "../lib/videos.ts";
 import type { AppEnv, Deps } from "../types.ts";
 
@@ -92,7 +93,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
          sort,
          status,
          title_override: titleOverride,
-         snapshot: { title: item.title, thumbnail_url: item.thumbnail_url, channel_name: item.channel_name },
+         snapshot: snapshotOf(item, new Date()),
       };
       try {
          applyRules("curated_videos", row, "create");

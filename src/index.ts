@@ -16,6 +16,7 @@ import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
 import { ALLOWED_UPLOAD, blockedApiPath, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
 import { ConfigError, runtimeConfig, type Env } from "./env.ts";
 import { remoteJwks } from "./lib/oidc.ts";
+import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
 import { legacyAdminRedirect } from "./admin/legacy.ts";
@@ -206,4 +207,13 @@ const worker = createWorker({
 
 export default {
    fetch: (request: Request, env: Env, ctx: ExecutionContext) => worker.fetch(request, env, ctx),
+   // Cron (wrangler.jsonc triggers): refresh curated snapshots so www renders without per-item calls.
+   scheduled: async (_event: ScheduledController, env: Env, ctx: ExecutionContext) => {
+      ctx.waitUntil(
+         refreshCuratedSnapshots(env.DB, env.VIDEOS_API_URL.replace(/\/+$/, "")).then(
+            (r) => console.log(JSON.stringify({ msg: "curated snapshots refreshed", ...r })),
+            (error) => console.error("curated snapshot refresh failed", String(error)),
+         ),
+      );
+   },
 } satisfies ExportedHandler<Env>;

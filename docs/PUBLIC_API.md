@@ -48,19 +48,32 @@ interface CuratedVideo {
   kind: 'video' | 'playlist' | 'channel';
   ref_id: string;               // videos-platform id
   title_override: string | null;
-  snapshot: { title: string; thumbnail_url: string | null; channel_name: string | null } | null;
+  snapshot: CuratedSnapshot | null;
   sort: number;
+}
+
+// Taken by the picker and refreshed by the CMS every 30 minutes (src/lib/snapshots.ts), so www can
+// render a curated item without calling the videos API. Fields after channel_name are present only
+// once a row has been refreshed (refreshed_at set). Rows the refresh finds no longer public are
+// not served at all.
+interface CuratedSnapshot {
+  title: string; thumbnail_url: string | null; channel_name: string | null;
+  refreshed_at?: string;          // ISO; thumbnail_url is a signed URL valid ≥ 6 h after this
+  handle?: string | null;         // channels
+  description?: string | null;
+  titles?: { en?: string; ar?: string }; descriptions?: { en?: string; ar?: string };
+  duration_seconds?: number | null; upload_date?: string | null; video_count?: number | null;
 }
 ```
 
 | GET | Query | Response |
 |---|---|---|
 | `/site` | `locale` | `{ settings: SiteSettings \| null, nav: { header: NavItem[], footer: NavItem[] } }` |
-| `/home` | `locale` | `{ settings: SiteSettings \| null, videos: CuratedVideo[], posts: PostSummary[] }` (videos: placement `home`, locale = l or `all`, by sort; posts: latest 3) |
+| `/home` | `locale` | `{ settings: SiteSettings \| null, videos: CuratedVideo[], posts: PostSummary[] }` (videos: placement `home`, locale = l or `all`, by sort, at most 48; posts: latest 3) |
 | `/pages/:slug` | `locale` | `Page` or 404 |
 | `/posts` | `locale`, `page` (1-based, default 1), `limit` (1–20, default 10) | `{ items: PostSummary[], page: number, limit: number, total: number }` newest first |
 | `/posts/:slug` | `locale` | `Post` or 404 |
-| `/videos` | `locale`, `placement` (`home` \| `videos`, default `videos`) | `{ items: CuratedVideo[] }` |
+| `/videos` | `locale`, `placement` (`home` \| `videos`, default `videos`) | `{ items: CuratedVideo[] }` (by sort, at most 48) |
 | `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string }[] }` (pages with show_in_sitemap only) |
 | `/media/*` | — | the R2 object, `Cache-Control: public, max-age=31536000, immutable` |
 

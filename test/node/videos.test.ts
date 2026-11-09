@@ -82,7 +82,7 @@ describe("searchVideos / lookupItem (proxy)", () => {
          expect(url).toBe("https://v/api/playlists/p1");
          return Response.json({ id: "p1", name: "List", isPublic: true, channelName: "Ch" });
       }) as unknown as typeof fetch;
-      expect(await lookupItem("https://v", "playlist", "p1", ok)).toEqual({ kind: "playlist", id: "p1", title: "List", thumbnail_url: null, channel_name: "Ch" });
+      expect(await lookupItem("https://v", "playlist", "p1", ok)).toMatchObject({ kind: "playlist", id: "p1", title: "List", thumbnail_url: null, channel_name: "Ch", video_count: null });
    });
 });
 

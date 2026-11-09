@@ -60,7 +60,7 @@ describe("picker", () => {
       expect(res.status).toBe(201);
       const row = await env.DB.prepare("SELECT kind, ref_id, placement, locale, sort, status, snapshot FROM curated_videos WHERE ref_id = 'v1'").first<Record<string, unknown>>();
       expect(row).toMatchObject({ kind: "video", placement: "home", locale: "all", sort: 3, status: "published" });
-      expect(JSON.parse(String(row!.snapshot))).toEqual({ title: "Public talk", thumbnail_url: "https://cdn/1.jpg", channel_name: "Ch" });
+      expect(JSON.parse(String(row!.snapshot))).toMatchObject({ title: "Public talk", thumbnail_url: "https://cdn/1.jpg", channel_name: "Ch", public: true, refreshed_at: expect.any(String) });
 
       const priv = await f("/picker/api/items", { method: "POST", headers, body: JSON.stringify({ ...body, ref_id: "v2" }) });
       expect(priv.status).toBe(404);
