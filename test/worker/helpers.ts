@@ -25,7 +25,7 @@ export async function accessToken(props: { id: string; email: string; roles?: st
 export type Upstream = (url: URL, init?: RequestInit) => Response | Promise<Response>;
 
 /** A Worker instance with the network replaced by `upstream` (auth /token, videos API). */
-export function makeWorker(upstream: Upstream = () => new Response("unexpected", { status: 599 })) {
+export function makeWorker(upstream: Upstream = () => new Response("unexpected", { status: 599 }), envOverride: Partial<typeof env> = {}) {
    resetBkndApp();
    const deps: Deps = {
       fetch: (async (input: RequestInfo | URL, init?: RequestInit) => upstream(new URL(String(input instanceof Request ? input.url : input)), init)) as typeof fetch,
@@ -35,7 +35,7 @@ export function makeWorker(upstream: Upstream = () => new Response("unexpected",
    const app = createWorker(deps);
    return async (path: string, init: RequestInit = {}) => {
       const ctx = createExecutionContext();
-      const res = await app.fetch(new Request(`${CMS}${path}`, { redirect: "manual", ...init }), env, ctx);
+      const res = await app.fetch(new Request(`${CMS}${path}`, { redirect: "manual", ...init }), { ...env, ...envOverride }, ctx);
       await waitOnExecutionContext(ctx);
       return res;
    };

@@ -14,7 +14,10 @@
     "noUnusedLocals": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "e2e/**/*.ts", "bknd.config.ts", "vitest.config.ts", "playwright.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "scripts/**/*.ts", "e2e/**/*.ts", "bknd.config.ts", "vitest.config.ts", "playwright.config.ts"],
+  "exclude": ["src/admin/client/**"]
 }

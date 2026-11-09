@@ -46,7 +46,7 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
       if (v.AUTH_ISSUER !== want.authIssuer) errors.push(`${where}: AUTH_ISSUER ${v.AUTH_ISSUER} ≠ ${want.authIssuer}`);
       if (v.AUTH_CLIENT_ID !== want.clientId) errors.push(`${where}: AUTH_CLIENT_ID ${v.AUTH_CLIENT_ID} ≠ ${want.clientId}`);
       if (v.ENVIRONMENT !== env) errors.push(`${where}: ENVIRONMENT ${v.ENVIRONMENT} ≠ ${env}`);
-      for (const k of ["VIDEOS_API_URL", "VIDEOS_WEB_URL", "WWW_URL", "WWW_ORIGINS"]) {
+      for (const k of ["VIDEOS_API_URL", "VIDEOS_WEB_URL", "WWW_URL", "WWW_ORIGINS", "ADMIN_API_URL", "ADMIN_WEB_URL"]) {
          if (!v[k]?.startsWith("https://")) errors.push(`${where}: ${k} must be an https URL`);
       }
       if ("BKND_JWT_SECRET" in v || "CMS_CLIENT_SECRET" in v) errors.push(`${where}: secrets must not be vars`);
