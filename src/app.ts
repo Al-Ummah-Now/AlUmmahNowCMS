@@ -28,13 +28,13 @@ export function registerR2(bucket: R2Bucket): void {
 
 let cached: { key: string; app: Promise<App> } | undefined;
 
-export function bkndConfig(cfg: RuntimeConfig): CloudflareBkndConfig<Env> {
+export function bkndConfig(cfg: RuntimeConfig, db?: D1Database): CloudflareBkndConfig<Env> {
    return code<CloudflareBkndConfig<Env>>({
       isProduction: true,
       syncSchema: false,
       config: moduleConfig({ jwtSecret: cfg.jwtSecret, secureCookie: !cfg.isLocal, publicUrl: cfg.publicUrl }),
       options: {
-         plugins: [contentRulesPlugin()],
+         plugins: [contentRulesPlugin(db)],
          // Run async event listeners inline: a cached app must not hold on to an old request's waitUntil.
          asyncEventsMode: "sync",
       },
@@ -48,7 +48,7 @@ export function bkndConfig(cfg: RuntimeConfig): CloudflareBkndConfig<Env> {
 export function getBkndApp(env: Env, ctx: ExecutionContext, request: Request, cfg: RuntimeConfig): Promise<App> {
    const key = `${cfg.jwtSecret.length}:${cfg.publicUrl}`;
    if (!cached || cached.key !== key) {
-      const app = createApp<Env>(bkndConfig(cfg), { env, ctx, request });
+      const app = createApp<Env>(bkndConfig(cfg, env.DB), { env, ctx, request });
       cached = { key, app };
       app.catch(() => {
          if (cached?.app === app) cached = undefined;
