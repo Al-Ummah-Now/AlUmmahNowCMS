@@ -38,3 +38,14 @@ export function uploadAllowed(request: Request, path: string): { ok: true } | { 
    return { ok: true };
 }
 
+
+/** The client-chosen name of `POST /api/media/upload/<name>`, or null (no name: bknd generates one). */
+export function uploadName(path: string): string | null {
+   const m = /^\/api\/media\/upload\/(.+)$/.exec(path);
+   if (!m) return null;
+   try {
+      return decodeURIComponent(m[1]);
+   } catch {
+      return null;
+   }
+}
