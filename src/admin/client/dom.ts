@@ -10,8 +10,8 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<
 }
 
 /** Page-provided strings (a JSON <script id="i18n">). */
-export function strings<T = Record<string, string>>(): T {
-   const node = document.getElementById("i18n");
+export function strings<T = Record<string, string>>(id = "i18n"): T {
+   const node = document.getElementById(id);
    return (node ? JSON.parse(node.textContent || "{}") : {}) as T;
 }
 

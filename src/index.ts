@@ -18,6 +18,7 @@ import { remoteJwks } from "./lib/oidc.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
 import { legacyAdminRedirect } from "./admin/legacy.ts";
+import { entityUploadTarget, keepNewestMedia } from "./admin/media-cleanup.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
 import { pickerRoutes } from "./routes/picker.ts";
 import { publicApi } from "./routes/public-api.ts";
@@ -143,7 +144,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       if (!gated) return next();
       const user = await sessionUser(c, deps);
       if (!user) {
-         if (p.startsWith("/picker/api/")) return c.json({ error: "unauthorized" }, 401);
+         if (p.startsWith("/picker/api/") || p.startsWith("/admin/api/")) return c.json({ error: "unauthorized" }, 401);
          const url = new URL(c.req.url);
          return c.redirect(`/sso/login?return=${encodeURIComponent(url.pathname + url.search)}`, 302);
       }
@@ -160,7 +161,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    // CSRF: same-origin Origin on every non-GET to bknd's API and the picker API.
    app.use("*", async (c, next) => {
       const p = c.req.path;
-      if ((p.startsWith("/api/") || p.startsWith("/picker/api/")) && !sameOriginOk(c.req.raw, c.get("cfg").publicUrl)) {
+      if ((p.startsWith("/api/") || p.startsWith("/picker/api/") || p.startsWith("/admin/api/")) && !sameOriginOk(c.req.raw, c.get("cfg").publicUrl)) {
          return c.json({ error: "forbidden", message: "cross-origin request rejected" }, 403);
       }
       return next();
@@ -180,7 +181,10 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          }
       }
       const bknd = await deps.getApp(c);
-      return bknd.fetch(c.req.raw, c.env, c.executionCtx);
+      const res = await bknd.fetch(c.req.raw, c.env, c.executionCtx);
+      const target = c.req.method === "POST" && res.ok ? entityUploadTarget(p) : null;
+      if (target) await keepNewestMedia(bknd, c.env.MEDIA, target);
+      return res;
    });
 
    app.get("*", async (c) => {
@@ -195,7 +199,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
 
    app.onError((err, c) => {
       console.error("unhandled", err instanceof Error ? `${err.name}: ${err.message}` : String(err));
-      if (c.req.path.startsWith("/api/") || c.req.path.startsWith("/picker/api/")) {
+      if (c.req.path.startsWith("/api/") || c.req.path.startsWith("/picker/api/") || c.req.path.startsWith("/admin/api/")) {
          return c.json({ error: "internal_error" }, 500);
       }
       return renderStatus(c, "error", 500);
