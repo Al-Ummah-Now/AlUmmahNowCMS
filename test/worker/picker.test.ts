@@ -32,6 +32,7 @@ describe("picker", () => {
       const html = await en.text();
       expect(html).toContain('<html lang="en" dir="ltr">');
       expect(html).toContain('<label for="q">');
+      expect(html).toContain('href="/sso/accounts?return=%2Fpicker"');
       expect(en.headers.get("content-security-policy")).toContain("frame-src https://videos.test");
       const ar = await (await f("/picker?lang=ar", { headers: { cookie } })).text();
       expect(ar).toContain('<html lang="ar" dir="rtl">');

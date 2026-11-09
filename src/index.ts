@@ -13,7 +13,9 @@ import { getBkndApp } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
 import { ALLOWED_UPLOAD, blockedApiPath, isAdminUiPath, uploadAllowed } from "./lib/paths.ts";
 import { ConfigError, runtimeConfig, type Env } from "./env.ts";
+import { ADMIN_LINKS, ADMIN_SESSION_SCRIPT } from "./lib/admin-ui.ts";
 import { remoteJwks } from "./lib/oidc.ts";
+import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
 import { pickerRoutes } from "./routes/picker.ts";
 import { publicApi } from "./routes/public-api.ts";
@@ -33,9 +35,7 @@ async function multipartAllowed(request: Request): Promise<boolean> {
    return true;
 }
 
-const PICKER_LINK = `<a href="/picker" style="position:fixed;inset-block-end:1rem;inset-inline-end:1rem;z-index:2147483647;background:#0b5394;color:#fff;padding:.6rem 1rem;border-radius:.5rem;font:600 14px/1.2 system-ui,sans-serif;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.25)">Video picker · منتقي الفيديو</a>`;
-
-/** Adds the per-response CSP nonce to bknd's inline bootstrap script and a fixed "Video picker" link. */
+/** Adds the per-response CSP nonce to bknd's inline bootstrap script, the CMS links and the session watcher. */
 function decorateAdminHtml(res: Response, n: string): Response {
    return new HTMLRewriter()
       .on("script", {
@@ -45,7 +45,7 @@ function decorateAdminHtml(res: Response, n: string): Response {
       })
       .on("body", {
          element(el) {
-            el.append(PICKER_LINK, { html: true });
+            el.append(`${ADMIN_LINKS}<script nonce="${n}">${ADMIN_SESSION_SCRIPT}</script>`, { html: true });
          },
       })
       .transform(res);
@@ -107,8 +107,14 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       await next();
       // Private headers on everything that is not the public API (already returned above).
       const isPicker = c.req.path === "/picker" || c.req.path.startsWith("/picker/");
-      const csp = contentSecurityPolicy({ nonce: n, frameSrc: isPicker ? [c.get("cfg").videosWebUrl] : undefined });
-      c.res = withHeaders(c.res, csp, new URL(c.get("cfg").publicUrl).origin);
+      const cfg = c.get("cfg");
+      const csp = contentSecurityPolicy({
+         nonce: n,
+         frameSrc: isPicker ? [cfg.videosWebUrl] : undefined,
+         // The account chooser reads auth's accounts API from the browser.
+         connectSrc: ACCOUNT_PAGES.has(c.req.path) ? [new URL(cfg.issuer).origin] : undefined,
+      });
+      c.res = withHeaders(c.res, csp, new URL(cfg.publicUrl).origin);
    });
 
    app.route("/sso", ssoRoutes(deps));

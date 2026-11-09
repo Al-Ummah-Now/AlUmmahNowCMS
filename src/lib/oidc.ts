@@ -7,12 +7,28 @@
  */
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 
+/**
+ * `prompt` values the CMS may send. The normal sign-in sends NONE: auth then signs the browser's
+ * active account in silently, or shows its sign-in form when there is no browser session.
+ *  - "login": "Add another account" (auth shows the sign-in form; the new account becomes active).
+ *  - "none":  silent re-authorization after an account switch; auth answers `error=login_required`
+ *             instead of showing any UI.
+ * `select_account` is never sent: the account chooser lives on the CMS's own pages.
+ */
+export type Prompt = "login" | "none";
+
+/** Only "login" and "none" are accepted from `/sso/login?prompt=`; anything else means no prompt. */
+export function parsePrompt(value: string | null | undefined): Prompt | undefined {
+   return value === "login" || value === "none" ? value : undefined;
+}
+
 export interface AuthorizeParams {
    issuer: string;
    clientId: string;
    redirectUri: string;
    state: string;
    codeChallenge: string;
+   prompt?: Prompt;
 }
 
 export function buildAuthorizeUrl(p: AuthorizeParams): string {
@@ -23,6 +39,7 @@ export function buildAuthorizeUrl(p: AuthorizeParams): string {
    url.searchParams.set("state", p.state);
    url.searchParams.set("code_challenge", p.codeChallenge);
    url.searchParams.set("code_challenge_method", "S256");
+   if (p.prompt) url.searchParams.set("prompt", p.prompt);
    return url.toString();
 }
 
