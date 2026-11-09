@@ -25,6 +25,8 @@ export default defineConfig(async () => {
                            AUTH_CLIENT_ID: "test-client",
                            VIDEOS_API_URL: "https://videos.api.test",
                            VIDEOS_WEB_URL: "https://videos.test",
+                           ADMIN_API_URL: "https://admin.api.test",
+                           ADMIN_WEB_URL: "https://admin.test",
                            WWW_URL: "https://www.test",
                            WWW_ORIGINS: "https://www.test",
                            BKND_JWT_SECRET: "test-secret-0123456789abcdef0123456789abcdef",

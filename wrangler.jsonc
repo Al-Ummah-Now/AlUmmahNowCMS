@@ -24,6 +24,8 @@
     "AUTH_CLIENT_ID": "d06fd65a-5b79-45bc-8bfd-a856b8502330",
     "VIDEOS_API_URL": "https://videos.api.alummahnow.net",
     "VIDEOS_WEB_URL": "https://videos.alummahnow.net",
+    "ADMIN_API_URL": "https://admin.api.alummahnow.net",
+    "ADMIN_WEB_URL": "https://admin.alummahnow.net",
     "WWW_URL": "https://www.alummahnow.net",
     "WWW_ORIGINS": "https://www.alummahnow.net"
   },
@@ -51,6 +53,8 @@
         "AUTH_CLIENT_ID": "d06fd65a-5b79-45bc-8bfd-a856b8502330",
         "VIDEOS_API_URL": "https://videos.api.stage.alummahnow.net",
         "VIDEOS_WEB_URL": "https://videos.stage.alummahnow.net",
+        "ADMIN_API_URL": "https://admin.api.stage.alummahnow.net",
+        "ADMIN_WEB_URL": "https://admin.stage.alummahnow.net",
         "WWW_URL": "https://www.stage.alummahnow.net",
         "WWW_ORIGINS": "https://www.stage.alummahnow.net"
       },
@@ -77,6 +81,8 @@
         "AUTH_CLIENT_ID": "0e613f49-674b-490a-93e5-97a35d586da1",
         "VIDEOS_API_URL": "https://videos.api.qa.alummahnow.net",
         "VIDEOS_WEB_URL": "https://videos.qa.alummahnow.net",
+        "ADMIN_API_URL": "https://admin.api.qa.alummahnow.net",
+        "ADMIN_WEB_URL": "https://admin.qa.alummahnow.net",
         "WWW_URL": "https://www.qa.alummahnow.net",
         "WWW_ORIGINS": "https://www.qa.alummahnow.net"
       },

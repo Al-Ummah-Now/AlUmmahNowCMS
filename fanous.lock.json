@@ -1,0 +1,25 @@
+{
+  "repo": "Al-Ummah-Now/AlUmmahNow",
+  "refs": {
+    "tokens": "b225ea5a6c7e1e0f0fceb05b94687db179e41b78",
+    "materials": "399086fcea954661bf720cb6d78832f7e09819a0"
+  },
+  "sources": {
+    "399086fcea95:apps/web/src/theme/demo-graphics.json": "bff543163815040efc4ad100d0afd8a46de64716724f60589afb207b06fc32ae",
+    "399086fcea95:apps/web/src/theme/demo-backdrops.json": "18aeccd38e0ce6b58c37d93d20e5cbbecc0e1a1696d423e8a06983948b985888",
+    "399086fcea95:apps/web/src/theme/demo-motion.css": "f69bd7c05b3858a4d1b43a7a666e77c418045ca4752d97b6f0c46c0fd29b28cc",
+    "b225ea5a6c7e:packages/fanous-tokens/themes/fawanees/theme.json": "6c793f7e4380b8f718f49b03c2ef1985a6118aea47d13a5e5b8adf478ab91c63",
+    "b225ea5a6c7e:packages/fanous-tokens/generated/fawanees/web/tokens.css": "4d00dc1b225faaaea6775a558925bc53706a1e39302bbd3bbb7ca5b90e1f47a8",
+    "399086fcea95:apps/web/src/theme/materials/fawanees.css": "94c0abdd8c8b908863276ea4ad803453a387077f5cd52bcafe66a9b4a0d4e702",
+    "b225ea5a6c7e:packages/fanous-tokens/themes/lantern/theme.json": "d82bd5985c7b138440ad5667040876fb0082dca1a04af5ad830c951ec0bd2d23",
+    "b225ea5a6c7e:packages/fanous-tokens/generated/lantern/web/tokens.css": "2772072243a549c648cc74912cd23d5d5a322778ced23e636c9d3e13bb90b350",
+    "399086fcea95:apps/web/src/theme/materials/lantern.css": "540750b0ae18fa58caaf3dd7e830b3246e8f021d995da409abbe7198857517d0",
+    "b225ea5a6c7e:packages/fanous-tokens/themes/zujaj/theme.json": "19b67768527c0256d3b63877466913e6b5ab44833c64a94bc0b43fe3cd9d063f",
+    "b225ea5a6c7e:packages/fanous-tokens/generated/zujaj/web/tokens.css": "318f7d441a53188c89775acf79aa03238b1dc5a489011a0e8b78a1fd4c0fb4ad",
+    "399086fcea95:apps/web/src/theme/materials/zujaj.css": "0e6530f330e98459bae3bb6ff8e844d30cedc8b97c77dd0c3929ce53205bedca",
+    "b225ea5a6c7e:packages/fanous-tokens/themes/nahas/theme.json": "c4d520abf4176b605f6d8ffd1342d05a2678f4b91e426e4f092181d3abc9e2bc",
+    "b225ea5a6c7e:packages/fanous-tokens/generated/nahas/web/tokens.css": "46b6115338bd460eaa458f28fee623cca4684fcc388d7aa8b8576107a6f7e556",
+    "399086fcea95:apps/web/src/theme/materials/nahas.css": "3bf03acace56f541a350c87dde57484737a489056438a16749d48735e0f443c1"
+  },
+  "output": "3d323dc62e3a7df0b1ef2d583bbefe37d9a380a01edcafd8bb19916df99673cb"
+}

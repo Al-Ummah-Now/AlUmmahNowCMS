@@ -9,6 +9,10 @@ export interface Env {
    VIDEOS_API_URL: string;
    VIDEOS_WEB_URL: string;
    WWW_URL: string;
+   /** Videos admin API: `GET /public/site-theme` (the site theme, docs/ADMIN_UI_SPEC.md §5). */
+   ADMIN_API_URL?: string;
+   /** Videos admin site: where admins change the site theme. */
+   ADMIN_WEB_URL?: string;
    /** Comma-separated origins allowed to call the public API from a browser. */
    WWW_ORIGINS: string;
    /** Worker secret (`openssl rand -hex 32`). Signs bknd sessions and the SSO state cookie. */

@@ -4,10 +4,8 @@ import { applyPrivateHeaders, contentSecurityPolicy, sameOriginOk } from "../../
 import { ConfigError, runtimeConfig, type Env } from "../../src/env.ts";
 
 describe("admin UI paths", () => {
-   it.each(["/", "/data", "/data/entity/posts", "/media", "/settings/auth", "/auth/users", "/tools/x", "/flows"])("%s is gated", (p) =>
-      expect(isAdminUiPath(p)).toBe(true),
-   );
-   it.each(["/healthz", "/api/data/entity/posts", "/picker", "/database", "/assets/main.js", "/sso/login"])("%s is not admin UI", (p) =>
+   it.each(["/bknd", "/bknd/", "/bknd/data/entity/posts", "/bknd/media"])("%s is bknd's admin UI", (p) => expect(isAdminUiPath(p)).toBe(true));
+   it.each(["/", "/data", "/healthz", "/api/data/entity/posts", "/picker", "/database", "/assets/main.js", "/sso/login", "/bkndx"])("%s is not bknd's admin UI", (p) =>
       expect(isAdminUiPath(p)).toBe(false),
    );
 });

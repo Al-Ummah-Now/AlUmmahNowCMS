@@ -5,10 +5,10 @@ import { callbackErrorRedirect } from "../../src/routes/sso.ts";
 import { accessToken, CLIENT, CMS, cookiesOf, ISSUER, makeWorker, signIn, usersCount } from "./helpers.ts";
 
 describe("unauthenticated", () => {
-   it("/ redirects to /sso/login with the return path", async () => {
-      const res = await makeWorker()("/data/entity/posts?x=1");
+   it("a staff screen redirects to /sso/login with the return path", async () => {
+      const res = await makeWorker()("/posts?x=1");
       expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/sso/login?return=%2Fdata%2Fentity%2Fposts%3Fx%3D1");
+      expect(res.headers.get("location")).toBe("/sso/login?return=%2Fposts%3Fx%3D1");
       expect(res.headers.get("cache-control")).toBe("private, no-store");
    });
 
@@ -112,14 +112,14 @@ describe("callback", () => {
       expect(rows.results).toEqual([{ role: "editor" }]);
    });
 
-   it("the session opens the admin UI, with security headers and the picker link", async () => {
+   it("the session opens the staff screens, with security headers and the account links", async () => {
       const { callback, fetchCms } = await signIn(["Moderator"], { id: "ed-ui", email: "ed-ui@example.com" });
       const res = await fetchCms("/", { headers: { cookie: cookiesOf(callback) } });
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).toContain('href="/picker"');
       expect(html).toContain('href="/sso/accounts?return=%2F"');
-      expect(html).toContain('"/sso/login?return=" + encodeURIComponent');
+      expect(html).toContain('href="/sso/logout"');
+      expect(html).toMatch(/<script type="module" src="\/admin-assets\/app\.[0-9a-f]{8}\.js" nonce=/);
       const csp = res.headers.get("content-security-policy")!;
       expect(csp).toContain("frame-ancestors 'none'");
       const nonce = csp.match(/'nonce-([^']+)'/)![1];

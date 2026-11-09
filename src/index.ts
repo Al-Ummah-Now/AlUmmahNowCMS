@@ -16,6 +16,8 @@ import { ConfigError, runtimeConfig, type Env } from "./env.ts";
 import { ADMIN_LINKS, ADMIN_SESSION_SCRIPT } from "./lib/admin-ui.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
+import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
+import { legacyAdminRedirect } from "./admin/legacy.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
 import { pickerRoutes } from "./routes/picker.ts";
 import { publicApi } from "./routes/public-api.ts";
@@ -93,6 +95,9 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    // Public API: no session, no bknd boot, works even before secrets are set.
    app.route("/api/public/v1", publicApi() as unknown as Hono<AppEnv>);
 
+   // Staff screens' CSS/JS: public, immutable, no data (content-hashed names).
+   app.route("/admin-assets", adminAssets() as unknown as Hono<AppEnv>);
+
    // Everything below needs a valid runtime config (fail closed when a secret is missing).
    app.use("*", async (c, next) => {
       const n = nonce();
@@ -106,7 +111,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       }
       await next();
       // Private headers on everything that is not the public API (already returned above).
-      const isPicker = c.req.path === "/picker" || c.req.path.startsWith("/picker/");
+      const isPicker = c.req.path === "/picker" || c.req.path.startsWith("/picker/") || isStaffScreen(c.req.path);
       const cfg = c.get("cfg");
       const csp = contentSecurityPolicy({
          nonce: n,
@@ -125,10 +130,16 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    app.all("/auth/logout", (c) => c.redirect("/sso/logout", 302));
    app.all("/api/auth/logout", (c) => c.redirect("/sso/logout", 302));
 
-   // Session gate for the admin UI and the picker.
+   // bknd's old admin URLs → the matching staff screen (bookmarks, links in old messages).
+   app.get("*", async (c, next) => {
+      const to = legacyAdminRedirect(c.req.path);
+      return to ? c.redirect(to, 302) : next();
+   });
+
+   // Session gate for the staff screens, bknd's admin UI (/bknd, admins only) and the picker.
    app.use("*", async (c, next) => {
       const p = c.req.path;
-      const gated = isAdminUiPath(p) || p === "/picker" || p.startsWith("/picker/");
+      const gated = isStaffScreen(p) || isAdminUiPath(p) || p === "/picker" || p.startsWith("/picker/");
       if (!gated) return next();
       const user = await sessionUser(c, deps);
       if (!user) {
@@ -136,6 +147,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          const url = new URL(c.req.url);
          return c.redirect(`/sso/login?return=${encodeURIComponent(url.pathname + url.search)}`, 302);
       }
+      if (isAdminUiPath(p) && user.role !== "admin") return renderStatus(c, "no_access", 403);
       c.set("user", user);
       return next();
    });
@@ -155,6 +167,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    });
 
    app.route("/picker", pickerRoutes(deps));
+   app.route("/", adminRoutes(deps));
 
    app.all("/api/*", async (c) => {
       const p = c.req.path;
