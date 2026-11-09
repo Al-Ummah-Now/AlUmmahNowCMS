@@ -35,6 +35,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Generated files are current (admin client bundle, vendored Fanous themes)
+        run: npm run check:client && npm run check:fanous
+
       - name: Unit and Workers-runtime tests
         run: npm test
 
