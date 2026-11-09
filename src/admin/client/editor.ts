@@ -1,6 +1,6 @@
 /** Page/post editor: save, publish, slug rules, conflict check, markdown, tags, cover, translations, delete. */
 import { $, $$, api, ApiError, toast, strings } from "./dom.ts";
-import { renderMarkdown } from "./markdown.ts";
+import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
 
 interface S {
@@ -115,7 +115,15 @@ export function initEditor(): void {
          }
          body.hidden = show;
          preview.hidden = !show;
-         if (show) preview.innerHTML = body.value.trim() ? renderMarkdown(body.value, T.videoLine) : `<p class="muted">${T.previewEmpty}</p>`;
+         if (show) {
+            if (body.value.trim()) renderMarkdownInto(preview, body.value, T.videoLine);
+            else {
+               const p = document.createElement("p");
+               p.className = "muted";
+               p.textContent = T.previewEmpty;
+               preview.replaceChildren(p);
+            }
+         }
       });
    }
    const wrap = (before: string, after = before, placeholder = "") => {

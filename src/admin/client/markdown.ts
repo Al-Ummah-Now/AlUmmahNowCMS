@@ -1,26 +1,46 @@
 /**
- * Preview renderer for the body editor. Escapes everything first, then applies a small markdown
- * subset (headings, bold, italic, links, lists, quotes, paragraphs) and shows `::video[ID]` lines
- * as a video card, matching www's rule (AlUmmahNowUI src/lib/markdown.ts: the line on its own).
+ * Preview renderer for the body editor. Builds DOM nodes (text is never parsed as HTML) for a
+ * small markdown subset — headings, bold, italic, links, lists, quotes, paragraphs — and shows
+ * `::video[ID]` lines as a video card, matching www's rule (AlUmmahNowUI src/lib/markdown.ts).
  */
 export const VIDEO_LINE = /^::video\[([^\]\n]{1,80})\]\s*$/;
+const INLINE = /\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|\[([^\]\n]+)\]\(((?:https:\/\/|\/(?!\/))[^\s)]*)\)/g;
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-function inline(s: string): string {
-   return esc(s)
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
-      .replace(/\[([^\]]+)\]\(((?:https:\/\/|\/)[^\s)]*)\)/g, (_m, text: string, href: string) => `<a href="${href}" rel="noopener">${text}</a>`);
+function inline(parent: Node, text: string): void {
+   let last = 0;
+   for (const m of text.matchAll(INLINE)) {
+      const at = m.index ?? 0;
+      if (at > last) parent.appendChild(document.createTextNode(text.slice(last, at)));
+      if (m[1] !== undefined) parent.appendChild(document.createElement("strong")).textContent = m[1];
+      else if (m[2] !== undefined) parent.appendChild(document.createElement("em")).textContent = m[2];
+      else {
+         const a = document.createElement("a");
+         a.textContent = m[3];
+         a.setAttribute("href", m[4]);
+         a.rel = "noopener";
+         parent.appendChild(a);
+      }
+      last = at + m[0].length;
+   }
+   if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
 }
 
-export function renderMarkdown(src: string, videoLabel: string): string {
-   const out: string[] = [];
+export function renderMarkdownInto(target: HTMLElement, src: string, videoLabel: string): void {
+   target.replaceChildren();
    let para: string[] = [];
    let list: string[] = [];
    const flush = () => {
-      if (para.length) out.push(`<p>${para.map(inline).join("<br>")}</p>`);
-      if (list.length) out.push(`<ul>${list.map((l) => `<li>${inline(l)}</li>`).join("")}</ul>`);
+      if (para.length) {
+         const p = target.appendChild(document.createElement("p"));
+         para.forEach((line, i) => {
+            if (i) p.appendChild(document.createElement("br"));
+            inline(p, line);
+         });
+      }
+      if (list.length) {
+         const ul = target.appendChild(document.createElement("ul"));
+         for (const item of list) inline(ul.appendChild(document.createElement("li")), item);
+      }
       para = [];
       list = [];
    };
@@ -28,24 +48,27 @@ export function renderMarkdown(src: string, videoLabel: string): string {
       const video = VIDEO_LINE.exec(line);
       if (video) {
          flush();
-         out.push(`<div class="md-video"><span aria-hidden="true">▶</span> ${esc(videoLabel)}: <code>${esc(video[1])}</code></div>`);
+         const card = target.appendChild(document.createElement("div"));
+         card.className = "md-video";
+         card.append("▶ ", `${videoLabel}: `);
+         card.appendChild(document.createElement("code")).textContent = video[1];
          continue;
       }
-      const h = /^(#{1,3})\s+(.*)$/.exec(line);
+      const h = /^(#{1,3}) (.*)$/.exec(line);
       if (h) {
          flush();
-         const level = Math.min(h[1].length + 1, 4);
-         out.push(`<h${level}>${inline(h[2])}</h${level}>`);
+         inline(target.appendChild(document.createElement(`h${Math.min(h[1].length + 1, 4)}`)), h[2]);
          continue;
       }
-      if (/^\s*[-*]\s+/.test(line)) {
+      const li = /^ {0,3}[-*] (.*)$/.exec(line);
+      if (li) {
          if (para.length) flush();
-         list.push(line.replace(/^\s*[-*]\s+/, ""));
+         list.push(li[1]);
          continue;
       }
-      if (/^>\s?/.test(line)) {
+      if (line.startsWith(">")) {
          flush();
-         out.push(`<blockquote>${inline(line.replace(/^>\s?/, ""))}</blockquote>`);
+         inline(target.appendChild(document.createElement("blockquote")), line.replace(/^> ?/, ""));
          continue;
       }
       if (!line.trim()) {
@@ -56,5 +79,4 @@ export function renderMarkdown(src: string, videoLabel: string): string {
       para.push(line);
    }
    flush();
-   return out.join("\n");
 }
