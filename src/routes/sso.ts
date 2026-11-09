@@ -93,6 +93,9 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
          e: Math.floor(Date.now() / 1000) + TX_TTL_SECONDS,
          ...(prompt ? { p: prompt } : {}),
       };
+      // A switch / add account / silent re-auth replaces the signed-in identity: drop the current
+      // CMS session first, so an unfinished flow can never leave the previous account signed in.
+      if (prompt) await clearSession(c, deps);
       await setSignedCookie(c, txCookieName(secure), btoa(JSON.stringify(tx)), cfg.jwtSecret, {
          path: "/",
          httpOnly: true,
@@ -128,12 +131,22 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       }
       const code = c.req.query("code");
       const state = c.req.query("state");
+      // Every path below that does not end in a NEW session drops the CMS session the browser
+      // holds, so the CMS never keeps acting as an earlier account after the user started a new
+      // sign-in (auth may already have switched its active account). Only when this browser
+      // started the flow (it holds our signed tx cookie, which a third party cannot plant and
+      // which this request consumes): an unsolicited/forged callback cannot sign anyone out.
+      const failed = async () => {
+         if (tx) await clearSession(c, deps);
+      };
       if (c.req.query("error")) {
+         await failed();
          const fallback = callbackErrorRedirect(tx, state);
          if (fallback) return c.redirect(fallback, 302);
          return renderStatus(c, "sign_in_failed", 400);
       }
       if (!tx || !code || !state || tx.e < Date.now() / 1000 || !timingSafeEqual(tx.s, state)) {
+         await failed();
          return renderStatus(c, "sign_in_failed", 400);
       }
 
@@ -149,6 +162,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
             jwks: deps.jwks?.(cfg.issuer),
          });
       } catch (error) {
+         await failed();
          console.warn("sso callback rejected", error instanceof OidcError ? error.kind : "error", (error as Error).message);
          return renderStatus(c, "sign_in_failed", error instanceof OidcError && error.kind === "invalid_token" ? 403 : 502);
       }
