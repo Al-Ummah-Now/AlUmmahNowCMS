@@ -8,6 +8,16 @@ on:
       QA_SEED_PASSWORD:
         required: true
   workflow_dispatch:
+    inputs:
+      browsers:
+        description: "chromium (desktop + phone) or all (adds Firefox and WebKit, desktop + phone)"
+        type: choice
+        options: [chromium, all]
+        default: chromium
+      gallery:
+        description: "Also screenshot every staff screen in every theme, mode and language"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,7 +26,7 @@ jobs:
   e2e:
     name: Playwright vs QA
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: ${{ inputs.gallery && 60 || 25 }}
     steps:
       - uses: actions/checkout@v6
 
@@ -28,7 +38,7 @@ jobs:
       - run: npm ci
 
       - name: Install Playwright
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ inputs.browsers == 'all' && 'chromium firefox webkit' || 'chromium' }}
 
       - name: E2E
         env:
@@ -37,7 +47,20 @@ jobs:
           CMS_CLIENT_ID: 0e613f49-674b-490a-93e5-97a35d586da1
           WWW_URL: https://www.qa.alummahnow.net
           QA_SEED_PASSWORD: ${{ secrets.QA_SEED_PASSWORD }}
+          E2E_BROWSERS: ${{ inputs.browsers }}
         run: npx playwright test
+
+      # Read-only on content (it creates and removes its own sample page and post), so projects run in parallel.
+      - name: Screenshot gallery
+        if: ${{ inputs.gallery }}
+        env:
+          CMS_URL: https://cms.qa.alummahnow.net
+          AUTH_URL: https://auth.qa.alummahnow.net
+          CMS_CLIENT_ID: 0e613f49-674b-490a-93e5-97a35d586da1
+          QA_SEED_PASSWORD: ${{ secrets.QA_SEED_PASSWORD }}
+          E2E_BROWSERS: ${{ inputs.browsers }}
+          E2E_GALLERY: '1'
+        run: npx playwright test e2e/gallery.spec.ts --workers=6
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -46,4 +69,4 @@ jobs:
           # Screenshots only: traces/reports of the signed-in suite hold session cookies.
           path: e2e-artifacts/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 14
