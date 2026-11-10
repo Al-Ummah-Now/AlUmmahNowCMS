@@ -10,7 +10,7 @@ AlUmmahNow #492 (`site.theme`), AlUmmahNowAuth #257 (sign-in follows `site.theme
 
 ## 0. Verdict
 
-bknd's HTTP API covers every staff case. Four cases need a small endpoint in our Worker because
+bknd's HTTP API covers every staff case. Five cases need a small endpoint in our Worker because
 bknd's permissions or data flow don't fit a browser client; none needs a bknd change or fork:
 
 | Gap | Why bknd alone isn't enough | Our endpoint |
@@ -18,6 +18,7 @@ bknd's permissions or data flow don't fit a browser client; none needs a bknd ch
 | Cover alt text | The alt lives in `media.metadata.alt` (`src/routes/public-api.ts:98`). Editors may not update the `media` entity (`src/bknd-config.ts:34-35` limits create/update to content entities), and widening that would let editors repoint any file's `path`. | `PATCH /admin/api/media/:id/alt` — session role admin or editor, validates ≤ 300 chars, writes `metadata.alt` only through `app.em.mutator("media")`. |
 | Re-picking the video of an existing curated row | The `snapshot` must be taken server-side from the public videos API (`src/routes/picker.ts:249-268`); a browser PATCH could write any snapshot. | `PUT /picker/api/items/:id` — same validation and server snapshot as `POST /picker/api/items`, then `updateOne`. |
 | Replacing a cover leaves a stale row (found while building) | bknd 0.21's `?overwrite=true` entity upload deletes the old file from R2 but keeps the old `media` row; the public API reads the first `<entity>.cover` row, so www would point at a deleted file. | After a successful entity upload the Worker keeps only the newest `max_items` rows and their files (`src/admin/media-cleanup.ts`). |
+| Search combined with filters (found while building) | bknd 0.21 joins a `$or` group to its sibling conditions with OR, so `{status: "draft", $or: {title, slug}}` also returns published rows. | The list runs two AND-only bknd queries (title match, address match) with the filters and merges them in the Worker (`src/admin/screens/content.tsx`, capped at 500 per branch). |
 | The site theme | `site.theme` is owned by the videos admin (AlUmmahNow #492, `GET <ADMIN_API_URL>/public/site-theme`), not by the CMS. | Server-side read in the Worker (30 s cache, 500 ms timeout, Fawanees on any failure). No CMS endpoint. |
 
 Schema editing (bknd's schema builder, `/data/schema`, `/api/data/sync`) stays code-only: the model is
@@ -81,7 +82,7 @@ content-rules plugin runs on every write (`src/lib/content-rules.ts:97-124`).
 |---|---|---|---|---|
 | A1 | List rows | `/data/entity/:e` table, 10/25/50 per page | content table/cards per entity, 20 per page, server-rendered first page | `GET /api/data/entity/:e?limit=&offset=&sort=&select=` (count in `meta`) |
 | A2 | Filter | generic `where` builder | chips: status (draft/published), locale (en/ar), menu, placement | `where={"status":"draft","locale":"ar"}` |
-| A3 | Search | the generic `where` filter builder (no free-text box across fields) | search box over title + slug (pages, posts), label/url (nav), title_override (videos) | `where={"$or":{"title":{"$like":"%q%"},"slug":{"$like":"%q%"}}}` |
+| A3 | Search | the generic `where` filter builder (no free-text box across fields) | search box over title + address (pages, posts; the header search goes here too) | two queries, `where={"title":{"$like":"*q*"},…filters}` and the same on `slug`, merged (§0) |
 | A4 | Sort | column header sort | sort menu: updated, published, title, slug | `sort=-updated_at` |
 | A5 | Create | `/data/entity/:e/create` generic form | per-entity editor (§3) | `POST /api/data/entity/:e` |
 | A6 | Edit | `/data/entity/:e/edit/:id` | per-entity editor with unsaved-changes guard | `PATCH /api/data/entity/:e/:id` |
@@ -240,7 +241,7 @@ reorder works with buttons, not only drag; reduced motion respected. axe runs in
 
 Options: (a) remove it from staff routes, or (b) keep it locked to admins as a fallback.
 
-**Recommendation: (a) remove it**, in the last PR of this work, after the E2E suite proves parity on
+**Recommendation: (a) remove it** (done in the last PR of this work), after the E2E suite proves parity on
 QA. Reasons: one UI to keep correct; bknd's SPA needs `style-src 'unsafe-inline'` (`src/lib/security.ts:13`)
 and an injected session watcher; it can't follow the themes, RTL or the picker; and the data API stays
 for emergencies (admins can still call `/api/data/*`). The fallback is a rollback (the release

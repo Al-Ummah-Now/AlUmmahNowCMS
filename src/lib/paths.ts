@@ -1,9 +1,8 @@
 /** Path rules for the wrapper: admin UI routes, blocked bknd routes, upload policy. */
 import { MEDIA_MAX_BYTES } from "../bknd-config.ts";
 
-/** bknd's admin UI (AdminController, adminBasepath "/bknd"): admins only, being retired (docs/ADMIN_UI_SPEC.md §9). */
-export const BKND_ADMIN_BASE = "/bknd";
-export const isAdminUiPath = (p: string) => p === BKND_ADMIN_BASE || p.startsWith(`${BKND_ADMIN_BASE}/`);
+/** Where bknd's retired admin UI lived during the move to the staff screens (now redirects to /). */
+export const isRetiredBkndAdminPath = (p: string) => p === "/bknd" || p.startsWith("/bknd/");
 
 /** bknd API routes that must never be reachable (SSO only; schema only via migrations). */
 export function blockedApiPath(method: string, p: string): boolean {

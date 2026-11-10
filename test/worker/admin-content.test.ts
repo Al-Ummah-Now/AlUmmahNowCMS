@@ -35,6 +35,10 @@ describe("pages and posts screens", () => {
       expect(q).toContain("Contact");
       const bySlug = await (await f("/pages?q=abou&sort=title", { headers: { cookie } })).text();
       expect(bySlug).toContain("2 results");
+      // bknd ORs a $or group with its siblings; search + filter must still filter (spec §0).
+      const draftQ = await (await f("/pages?q=abou&status=draft", { headers: { cookie } })).text();
+      expect(draftQ).toContain("1 result");
+      expect(draftQ).toContain("من نحن");
       const none = await (await f("/pages?q=zzzz", { headers: { cookie } })).text();
       expect(none).toContain("No matches");
    });

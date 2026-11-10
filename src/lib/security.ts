@@ -9,7 +9,7 @@ export function contentSecurityPolicy(opts: { nonce: string; frameSrc?: string[]
    return [
       "default-src 'self'",
       `script-src 'self' 'nonce-${opts.nonce}'`,
-      // bknd's admin UI (Mantine) injects <style> tags at runtime.
+      // Inline style attributes in the staff screens (no inline <style> blocks or scripts).
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",

@@ -115,7 +115,7 @@ function CreateMenu(props: { v: View }) {
    const { t } = props.v;
    return (
       <details class="pop" data-pop>
-         <summary class="btn primary sm">
+         <summary class="btn primary sm" aria-label={t.header.create}>
             <Icon name="plus" size={18} /> <span>{t.header.create}</span>
          </summary>
          <div class="pop-panel" role="menu">
@@ -175,7 +175,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                      <button class="ic only-phone" type="button" data-open-drawer aria-label={t.nav.menu} aria-controls="drawer" aria-expanded="false">
                         <Icon name="menu" />
                      </button>
-                     <a class="brand" href="/">
+                     <a class="brand" href="/" aria-label={`${t.brand} · ${t.cms}`}>
                         <span class="brand-mark" aria-hidden="true">
                            <Icon name="sparkle" size={18} />
                         </span>

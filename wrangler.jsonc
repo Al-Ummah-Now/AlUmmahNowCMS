@@ -12,10 +12,6 @@
   "keep_vars": false,
   "observability": { "enabled": true },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
-  "assets": {
-    // bknd admin UI bundle (/assets/*, /favicon.ico). Served before the Worker only when the file exists.
-    "directory": "node_modules/bknd/dist/static"
-  },
   "routes": [{ "pattern": "cms.alummahnow.net", "custom_domain": true }],
   "vars": {
     "ENVIRONMENT": "production",

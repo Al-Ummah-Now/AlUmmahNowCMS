@@ -92,6 +92,9 @@ Removing a field from the model means stop reading it, never drop it.
 
 ## 5. Video picker
 
+> **Update (2026-11-09):** the picker is now a dialog inside the staff screens (Videos, and Insert video in
+> the page/post editor); `/picker` redirects to `/videos`. bknd's admin UI is retired. See `docs/ADMIN_UI_SPEC.md`.
+
 `/picker` (an SSO-gated page served by the CMS Worker, en/ar, linked from the admin UI's menu
 via a bknd UI link plus a Home card):
 - Search videos (`GET {VIDEOS_API_URL}/api/videos/search?q=`), playlists and channels, through the

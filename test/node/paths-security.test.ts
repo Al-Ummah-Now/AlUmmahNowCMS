@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { blockedApiPath, isAdminUiPath, uploadAllowed } from "../../src/lib/paths.ts";
+import { blockedApiPath, isRetiredBkndAdminPath, uploadAllowed } from "../../src/lib/paths.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, sameOriginOk } from "../../src/lib/security.ts";
 import { ConfigError, runtimeConfig, type Env } from "../../src/env.ts";
 
 describe("admin UI paths", () => {
-   it.each(["/bknd", "/bknd/", "/bknd/data/entity/posts", "/bknd/media"])("%s is bknd's admin UI", (p) => expect(isAdminUiPath(p)).toBe(true));
-   it.each(["/", "/data", "/healthz", "/api/data/entity/posts", "/picker", "/database", "/assets/main.js", "/sso/login", "/bkndx"])("%s is not bknd's admin UI", (p) =>
-      expect(isAdminUiPath(p)).toBe(false),
+   it.each(["/bknd", "/bknd/", "/bknd/data/entity/posts", "/bknd/media"])("%s is the retired bknd admin path", (p) => expect(isRetiredBkndAdminPath(p)).toBe(true));
+   it.each(["/", "/data", "/healthz", "/api/data/entity/posts", "/picker", "/database", "/assets/main.js", "/sso/login", "/bkndx"])("%s is not the retired bknd admin path", (p) =>
+      expect(isRetiredBkndAdminPath(p)).toBe(false),
    );
 });
 

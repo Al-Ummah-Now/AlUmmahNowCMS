@@ -183,7 +183,7 @@ html[lang=ar] .field>label,html[lang=ar] .label{font-size:var(--fanous-type-arab
 .seg{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;border-radius:var(--r-pill);background:var(--fanous-c-segment-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-form-section-border)}
 .seg a,.seg button,.seg label{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--fanous-c-segment-text);font-weight:600;font-size:14px;text-decoration:none;cursor:pointer}
 .seg input{position:absolute;opacity:0;pointer-events:none}
-.seg [aria-current=true],.seg [aria-pressed=true],.seg label:has(input:checked){background:var(--fanous-c-segment-active-bg);color:var(--fanous-c-segment-active-text);box-shadow:var(--fanous-elevation-low)}
+.seg [aria-current=true],.seg [aria-pressed=true],.seg [aria-selected=true],.seg label:has(input:checked){background:var(--fanous-c-segment-active-bg);color:var(--fanous-c-segment-active-text);box-shadow:var(--fanous-elevation-low)}
 .seg label:has(input:focus-visible){outline:2px solid var(--fanous-color-focus-ring);outline-offset:1px}
 
 /* Badges and chips */

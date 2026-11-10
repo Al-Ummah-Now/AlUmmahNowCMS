@@ -73,14 +73,13 @@ describe("staff shell", () => {
       expect(html).toContain("people-ed@example.com");
    });
 
-   it("bknd's own admin moved to /bknd and is for admins only", async () => {
-      const ed = await session(["Moderator"], "bknd-ed");
+   it("bknd's own admin UI is retired: /bknd and its assets are gone", async () => {
       const admin = await session(["Super Admin"], "bknd-admin");
       const f = makeWorker();
-      expect((await f("/bknd", { headers: { cookie: ed } })).status).toBe(403);
       const res = await f("/bknd", { headers: { cookie: admin } });
-      expect(res.status).toBe(200);
-      expect(res.headers.get("content-type")).toContain("text/html");
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/");
+      expect((await f("/assets/main.js", { headers: { cookie: admin } })).status).toBe(404);
    });
 
    it("old bknd admin URLs redirect to the staff screens", async () => {

@@ -22,5 +22,14 @@ export default defineConfig({
    projects: [
       { name: "desktop", use: { ...devices["Desktop Chrome"] } },
       { name: "mobile", use: { ...devices["Pixel 7"] } },
+      // E2E_BROWSERS=all: the same suite in Firefox and WebKit, desktop and phone (QA verification).
+      ...(process.env.E2E_BROWSERS === "all"
+         ? [
+              { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+              { name: "firefox-phone", use: { ...devices["Desktop Firefox"], viewport: { width: 390, height: 844 } } },
+              { name: "webkit", use: { ...devices["Desktop Safari"] } },
+              { name: "webkit-phone", use: { ...devices["iPhone 13"] } },
+           ]
+         : []),
    ],
 });
