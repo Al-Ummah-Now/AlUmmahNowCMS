@@ -760,7 +760,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
          <MediaDialog v={v} />
          {kind === "pages" ? <PostsDialog v={v} locale={locale} /> : null}
          <AiDialogs v={v} locale={locale} other={other} kind={kind} />
-         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} />
+         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} reason />
       </>
    );
 }

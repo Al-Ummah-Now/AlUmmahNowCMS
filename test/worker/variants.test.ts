@@ -5,6 +5,7 @@ import { consumeVariants, enqueueVariants, retryVariants, sweepVariants, type Va
 import { encodePng } from "../../src/lib/variants/png.ts";
 import { probeImage } from "../../src/lib/variants/probe.ts";
 import { variantKey } from "../../src/lib/variants/plan.ts";
+import { purgeDue } from "../../src/lib/trash.ts";
 import { photoAvif, photoJpeg, photoWebp, rotatedJpeg } from "./fixtures/images.ts";
 import { CMS, cookiesOf, makeWorker, signIn } from "./helpers.ts";
 
@@ -284,7 +285,7 @@ describe("image variants: public media route and API fields (CMS-10)", () => {
       expect((post.images[0].variants as { fallback: string }).fallback).toBe(`${i}?w=320&f=png 320w, ${i}?w=640&f=png 640w, ${i}?w=700&f=png 700w`);
    });
 
-   it("uploads may not use the reserved _variants/ name; deleting an original removes its variants", async () => {
+   it("uploads may not use the reserved _variants/ name; deleting an original keeps its variants until the cleanup purges it", async () => {
       const { callback } = await signIn(["Admin"], { id: "var-admin", email: "variants@example.com" });
       const cookie = cookiesOf(callback);
       const { queue } = fakeQueue();
@@ -302,6 +303,16 @@ describe("image variants: public media route and API fields (CMS-10)", () => {
       await env.MEDIA.put(variantKey("del.jpg", 320, "avif"), new Uint8Array([1]));
       const del = await f(`/api/media/file/${encodeURIComponent("del.jpg")}`, { method: "DELETE", headers: { cookie, origin: CMS } });
       expect(del.ok).toBe(true);
+      // Soft delete: hidden (the public route answers 404), variants kept, also by the sweep.
+      expect((await f("/api/public/v1/media/del.jpg")).status).toBe(404);
+      await sweepVariants({ ...env, VARIANTS: queue } as never, 100);
+      expect(await env.MEDIA.head(variantKey("del.jpg", 320, "avif"))).not.toBeNull();
+      expect(await row("del.jpg")).not.toBeNull();
+      // The cleanup's purge (an admin's "Delete permanently now") removes the original and its variants.
+      const t = await env.DB.prepare("SELECT id FROM trash WHERE kind = 'media' AND ref = 'del.jpg'").first<{ id: number }>();
+      expect((await f(`/admin/api/trash/${t!.id}/purge`, { method: "POST", headers: { cookie, origin: CMS, "content-type": "application/json" }, body: JSON.stringify({ confirm: "purge" }) })).status).toBe(202);
+      await purgeDue({ ...env, VARIANTS: queue } as never);
+      expect(await env.MEDIA.head("del.jpg")).toBeNull();
       expect(await env.MEDIA.head(variantKey("del.jpg", 320, "avif"))).toBeNull();
       expect(await row("del.jpg")).toBeNull();
    });

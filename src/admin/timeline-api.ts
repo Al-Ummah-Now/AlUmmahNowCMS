@@ -5,7 +5,7 @@
  *   POST   /admin/api/timeline/videos                { kind, ref_id, locale, entry_date? }  (Add video)
  *   POST   /admin/api/timeline/posts/:id             { on }  a post on / off the timeline
  *   PATCH  /admin/api/timeline/entries/:key          { hidden?, pinned?, entry_date?, title_override?, locale? }
- *   DELETE /admin/api/timeline/entries/:key          a video entry
+ *   DELETE /admin/api/timeline/entries/:key          a video entry { reason? } (soft: to the trash, docs/SOFT_DELETE.md)
  *   PUT    /admin/api/timeline/pins                  { locale, keys }  the pinned order
  *   GET    /admin/api/timeline/status                the KV build's state
  *   POST   /admin/api/timeline/retry                 requeue a build that failed (DLQ flag)
@@ -17,6 +17,7 @@ import { Hono, type Context } from "hono";
 import { feedStatus, requestFullRebuild, retryFeed } from "../lib/feed/jobs.ts";
 import { addVideo, offTimeline, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor } from "../lib/feed/admin.ts";
 import { withActor } from "../lib/revisions.ts";
+import { TrashError } from "../lib/trash.ts";
 import { putSnapshot } from "../lib/video-snapshots.ts";
 import { lookupItem } from "../lib/videos.ts";
 import type { AppEnv, Deps } from "../types.ts";
@@ -36,7 +37,7 @@ async function body(c: C): Promise<Record<string, unknown> | null> {
 }
 
 function fail(c: C, error: unknown) {
-   if (error instanceof TimelineError) return c.json({ error: error.code }, error.status);
+   if (error instanceof TimelineError || error instanceof TrashError) return c.json({ error: error.code }, error.status);
    console.error("timeline api", String(error));
    return c.json({ error: "internal_error" }, 500);
 }
@@ -110,7 +111,8 @@ export function timelineApi(deps: Deps): Hono<AppEnv> {
 
    r.delete("/entries/:key{v[0-9]+}", async (c) => {
       try {
-         await removeVideo(c.env, c.req.param("key"), actorOf(c));
+         const b = await body(c);
+         await removeVideo(c.env, c.req.param("key"), actorOf(c), b?.reason);
          return c.json({ data: { removed: c.req.param("key") } });
       } catch (error) {
          return fail(c, error);

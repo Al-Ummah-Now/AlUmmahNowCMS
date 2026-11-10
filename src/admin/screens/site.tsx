@@ -141,7 +141,7 @@ export async function navigationScreen(v: View, data: Data, menu: "header" | "fo
                <p class="err" data-add-err hidden role="alert" style="grid-column:1/-1" />
             </form>
          </section>
-         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} />
+         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} reason />
       </>
    );
 }
@@ -248,7 +248,7 @@ export async function videosScreen(v: View, data: Data, placement: "home" | "vid
             {t.common.dragHint}
          </p>
          <PickerDialog v={v} kinds={["video", "playlist", "channel"]} />
-         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} />
+         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} reason />
       </>
    );
 }
@@ -440,7 +440,7 @@ export async function libraryScreen(v: View, data: Data) {
          ) : (
             <Empty icon="image" title={t.library.empty} />
          )}
-         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} />
+         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} reason />
       </>
    );
 }

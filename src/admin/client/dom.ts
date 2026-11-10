@@ -9,6 +9,15 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<
    return e;
 }
 
+/** The confirm dialog's optional reason (soft deletes), read once and cleared for the next use. */
+export function takeReason(dlg: ParentNode | null): string | undefined {
+   const field = dlg?.querySelector<HTMLTextAreaElement>("[data-confirm-reason]");
+   if (!field) return undefined;
+   const value = field.value.trim();
+   field.value = "";
+   return value || undefined;
+}
+
 /** Page-provided strings (a JSON <script id="i18n">). */
 export function strings<T = Record<string, string>>(id = "i18n"): T {
    const node = document.getElementById(id);

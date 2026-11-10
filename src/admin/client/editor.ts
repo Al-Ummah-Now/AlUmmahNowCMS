@@ -1,5 +1,5 @@
 /** Page/post editor: save, publish, slug rules, conflict check, markdown, tags, cover, translations, delete. */
-import { $, $$, api, ApiError, toast, strings } from "./dom.ts";
+import { $, $$, api, ApiError, takeReason, toast, strings } from "./dom.ts";
 import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
 import { readBlocks, readSlides, showReadError } from "./blocks.ts";
@@ -410,7 +410,7 @@ export function initEditor(): void {
    confirmDlg?.addEventListener("close", async () => {
       if (confirmDlg.returnValue !== "ok") return;
       try {
-         await api("DELETE", `/api/data/entity/${kind}/${id}`);
+         await api("DELETE", `/api/data/entity/${kind}/${id}`, { reason: takeReason(confirmDlg) });
          dirty = false;
          location.assign(`/${kind}?done=deleted`);
       } catch (err) {

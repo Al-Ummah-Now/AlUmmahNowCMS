@@ -3,7 +3,7 @@
  * by Move up / Move down (renumber in steps of 10, PATCH only rows whose sort changed), add, delete.
  * Videos: add / change through the picker endpoints. Site settings and Library.
  */
-import { $, $$, api, ApiError, strings, toast } from "./dom.ts";
+import { $, $$, api, ApiError, strings, takeReason, toast } from "./dom.ts";
 import { openPicker } from "./picker.ts";
 
 interface S {
@@ -118,7 +118,7 @@ function initRowList(T: S): void {
       if (btn.hasAttribute("data-row-delete")) {
          if (!(await confirmDialog())) return;
          try {
-            await api("DELETE", `/api/data/entity/${entity}/${li.dataset.id}`);
+            await api("DELETE", `/api/data/entity/${entity}/${li.dataset.id}`, { reason: takeReason($("#confirm")) });
             li.remove();
             toast(T.saved);
          } catch (err) {
@@ -369,7 +369,7 @@ function initLibrary(T: S): void {
       } else if (t.closest("[data-media-delete]")) {
          if (!(await confirmDialog(card.dataset.used ? T.deleteUsed : undefined))) return;
          try {
-            await api("DELETE", `/api/media/file/${encodeURIComponent(card.dataset.path!)}`);
+            await api("DELETE", `/api/media/file/${encodeURIComponent(card.dataset.path!)}`, { reason: takeReason($("#confirm")) });
             card.remove();
             toast(T.saved);
          } catch (err2) {
