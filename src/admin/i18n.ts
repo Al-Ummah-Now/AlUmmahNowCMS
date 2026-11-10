@@ -22,6 +22,13 @@ const en = {
       menu: "Menu",
       close: "Close menu",
    },
+   autocomplete: {
+      searching: "Searching…",
+      failed: "Suggestions are unavailable right now. Press Enter to search.",
+      none: "No matches. Press Enter to search anyway.",
+      count: "{0} suggestions. Use the up and down arrows to choose, Enter to open.",
+      searchAll: "Search everything for",
+   },
    header: {
       search: "Search pages and posts",
       searchButton: "Search",
@@ -737,6 +744,13 @@ const ar: Strings = {
       groupSite: "الموقع",
       menu: "القائمة",
       close: "إغلاق القائمة",
+   },
+   autocomplete: {
+      searching: "جارٍ البحث…",
+      failed: "الاقتراحات غير متاحة الآن. اضغط Enter للبحث.",
+      none: "لا نتائج مطابقة. اضغط Enter للبحث على أي حال.",
+      count: "{0} اقتراحات. استخدم السهمين للأعلى والأسفل للاختيار، وEnter للفتح.",
+      searchAll: "البحث في كل شيء عن",
    },
    header: {
       search: "ابحث في الصفحات والمقالات",

@@ -1,5 +1,6 @@
 /** The picker dialog: search the public videos platform and hand the chosen item to a callback. */
 import { $, api, el, strings } from "./dom.ts";
+import { liveSearch } from "./live-search.ts";
 
 export interface PickedItem {
    kind: "video" | "playlist" | "channel";
@@ -37,7 +38,12 @@ export function initPicker(): void {
    dlg.addEventListener("click", (e) => {
       if (e.target === dlg) dlg.close();
    });
-   $<HTMLFormElement>("[data-picker-form]", dlg)?.addEventListener("submit", async (ev) => {
+   const pickerForm = $<HTMLFormElement>("[data-picker-form]", dlg);
+   // Results follow the typing; a one-letter query waits for more (the submit handler says so on Enter).
+   liveSearch($<HTMLInputElement>("input[name=q]", pickerForm ?? dlg), (q) => {
+      if (q.length >= 2) pickerForm?.requestSubmit();
+   });
+   pickerForm?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const form = ev.target as HTMLFormElement;
       const fd = new FormData(form);
