@@ -96,13 +96,13 @@ export async function navigationScreen(v: View, data: Data, menu: "header" | "fo
                               <label class="vh" for={`nl-${r.id}`}>
                                  {t.menus.label}
                               </label>
-                              <input id={`nl-${r.id}`} class="input" data-field="label" value={String(r.label ?? "")} required maxlength={80} lang={locale} dir="auto" placeholder={t.menus.label} />
+                              <input id={`nl-${r.id}`} spellcheck={true} class="input" data-field="label" value={String(r.label ?? "")} required maxlength={80} lang={locale} dir="auto" placeholder={t.menus.label} />
                            </div>
                            <div class="field">
                               <label class="vh" for={`nu-${r.id}`}>
                                  {t.menus.url}
                               </label>
-                              <input id={`nu-${r.id}`} class="input" data-field="url" data-validate="navurl" value={String(r.url ?? "")} required maxlength={2048} dir="ltr" placeholder="/about" />
+                              <input id={`nu-${r.id}`} spellcheck={false} autocapitalize="off" autocorrect="off" class="input" data-field="url" data-validate="navurl" value={String(r.url ?? "")} required maxlength={2048} dir="ltr" placeholder="/about" />
                            </div>
                         </div>
                         <Visibility v={v} on={r.status === "published"} label={String(r.label ?? "")} />
@@ -124,11 +124,11 @@ export async function navigationScreen(v: View, data: Data, menu: "header" | "fo
                <div class="row-fields">
                   <div class="field">
                      <label for="new-label">{t.menus.label}</label>
-                     <input id="new-label" class="input" name="label" required maxlength={80} lang={locale} dir="auto" />
+                     <input id="new-label" spellcheck={true} class="input" name="label" required maxlength={80} lang={locale} dir="auto" />
                   </div>
                   <div class="field">
                      <label for="new-url">{t.menus.url}</label>
-                     <input id="new-url" class="input" name="url" required maxlength={2048} dir="ltr" placeholder="/about" data-validate="navurl" aria-describedby="new-url-help" />
+                     <input id="new-url" spellcheck={false} autocapitalize="off" autocorrect="off" class="input" name="url" required maxlength={2048} dir="ltr" placeholder="/about" data-validate="navurl" aria-describedby="new-url-help" />
                   </div>
                </div>
                <button class="btn primary" type="submit">
@@ -211,7 +211,7 @@ export async function videosScreen(v: View, data: Data, placement: "home" | "vid
                            <div class="row2" style="gap:12px">
                               <div class="field">
                                  <label for={`vo-${r.id}`}>{t.videos.override}</label>
-                                 <input id={`vo-${r.id}`} class="input" data-field="title_override" data-nullable value={String(r.title_override ?? "")} placeholder={snap.title ?? ""} maxlength={200} dir="auto" />
+                                 <input id={`vo-${r.id}`} spellcheck={true} class="input" data-field="title_override" data-nullable value={String(r.title_override ?? "")} placeholder={snap.title ?? ""} maxlength={200} dir="auto" />
                               </div>
                               <div class="field">
                                  <label for={`vl-${r.id}`}>{t.videos.showFor}</label>
@@ -277,7 +277,7 @@ function SocialRow(props: { v: View; kind: string; url: string; i: number }) {
                <label class="vh" for={`su-${props.i}`}>
                   {t.site.url}
                </label>
-               <input id={`su-${props.i}`} class="input" name="social_url" type="url" dir="ltr" value={props.url} placeholder="https://" maxlength={2048} />
+               <input id={`su-${props.i}`} spellcheck={false} autocapitalize="off" autocorrect="off" class="input" name="social_url" type="url" dir="ltr" value={props.url} placeholder="https://" maxlength={2048} />
             </div>
          </div>
          <button type="button" class="btn ghost sm icon-only" data-social-remove aria-label={t.site.removeSocial} title={t.site.removeSocial}>
@@ -310,20 +310,20 @@ export async function siteScreen(v: View, data: Data, locale: "en" | "ar") {
                <section class="card stack">
                   <div class="field">
                      <label for="s-title">{t.site.siteTitle}</label>
-                     <input id="s-title" class="input" name="site_title" required maxlength={120} value={s("site_title")} lang={locale} dir="auto" />
+                     <input id="s-title" spellcheck={true} class="input" name="site_title" required maxlength={120} value={s("site_title")} lang={locale} dir="auto" />
                      <p class="err" id="s-title-err" hidden />
                   </div>
                   <div class="field">
                      <label for="s-tagline">{t.site.tagline}</label>
-                     <input id="s-tagline" class="input" name="tagline" maxlength={200} value={s("tagline")} lang={locale} dir="auto" />
+                     <input id="s-tagline" spellcheck={true} class="input" name="tagline" maxlength={200} value={s("tagline")} lang={locale} dir="auto" />
                   </div>
                   <div class="field">
                      <label for="s-hero-title">{t.site.heroTitle}</label>
-                     <input id="s-hero-title" class="input" name="hero_title" maxlength={200} value={s("hero_title")} lang={locale} dir="auto" data-hero="title" />
+                     <input id="s-hero-title" spellcheck={true} class="input" name="hero_title" maxlength={200} value={s("hero_title")} lang={locale} dir="auto" data-hero="title" />
                   </div>
                   <div class="field">
                      <label for="s-hero-body">{t.site.heroBody}</label>
-                     <textarea id="s-hero-body" class="textarea" name="hero_body" maxlength={1000} lang={locale} dir="auto" data-hero="body">
+                     <textarea id="s-hero-body" spellcheck={true} class="textarea" name="hero_body" maxlength={1000} lang={locale} dir="auto" data-hero="body">
                         {s("hero_body")}
                      </textarea>
                   </div>
@@ -404,7 +404,7 @@ export async function libraryScreen(v: View, data: Data) {
                            <div class="field">
                               <label for={`ma-${m.id}`}>{t.content.alt}</label>
                               <div style="display:flex;gap:8px">
-                                 <input id={`ma-${m.id}`} class="input" maxlength={300} value={typeof meta.alt === "string" ? meta.alt : ""} dir="auto" data-media-alt />
+                                 <input id={`ma-${m.id}`} spellcheck={true} class="input" maxlength={300} value={typeof meta.alt === "string" ? meta.alt : ""} dir="auto" data-media-alt />
                                  <button type="button" class="btn sm" data-media-alt-save aria-label={`${t.content.altSave}: ${path}`}>
                                     <Icon name="check" size={16} />
                                  </button>

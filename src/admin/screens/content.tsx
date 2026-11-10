@@ -282,7 +282,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                <section class="card stack">
                   <div class="field">
                      <label for="f-title">{t.content.title}</label>
-                     <input id="f-title" class="input" name="title" required maxlength={200} value={s("title")} placeholder={t.content.titlePh} lang={locale} dir="auto" style="font-size:20px;font-weight:700" />
+                     <input id="f-title" spellcheck={true} class="input" name="title" required maxlength={200} value={s("title")} placeholder={t.content.titlePh} lang={locale} dir="auto" style="font-size:20px;font-weight:700" />
                      <p class="err" id="f-title-err" hidden />
                   </div>
                   <div class="field">
@@ -291,7 +291,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         <span class="muted" style="display:flex;align-items:center;padding-inline-start:14px;white-space:nowrap">
                            /{locale}/{kind === "posts" ? "posts/" : ""}
                         </span>
-                        <input id="f-slug" name="slug" required maxlength={120} value={s("slug")} pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$" autocapitalize="off" spellcheck={false} aria-describedby="f-slug-help f-slug-err" style="padding-inline-start:2px;color:var(--fanous-c-form-input-text)" data-auto-slug={row ? undefined : "1"} />
+                        <input id="f-slug" name="slug" required maxlength={120} value={s("slug")} pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$" autocapitalize="off" autocorrect="off" spellcheck={false} aria-describedby="f-slug-help f-slug-err" style="padding-inline-start:2px;color:var(--fanous-c-form-input-text)" data-auto-slug={row ? undefined : "1"} />
                      </div>
                      <p class="help" id="f-slug-help">
                         {t.content.slugHelp}
@@ -300,7 +300,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                   </div>
                   <div class="field">
                      <label for="f-summary">{kind === "pages" ? t.content.summary : t.content.excerpt}</label>
-                     <textarea id="f-summary" class="textarea" name={kind === "pages" ? "summary" : "excerpt"} rows={3} maxlength={500} lang={locale} dir="auto" aria-describedby="f-summary-help" style="min-height:84px">
+                     <textarea id="f-summary" spellcheck={true} class="textarea" name={kind === "pages" ? "summary" : "excerpt"} rows={3} maxlength={500} lang={locale} dir="auto" aria-describedby="f-summary-help" style="min-height:84px">
                         {kind === "pages" ? s("summary") : s("excerpt")}
                      </textarea>
                      <p class="help" id="f-summary-help">
@@ -344,7 +344,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                            </button>
                         </span>
                      </div>
-                     <textarea id="f-body" class="textarea code" name="body" aria-labelledby="f-body-label" aria-describedby="f-body-help" lang={locale} dir="auto">
+                     <textarea id="f-body" spellcheck={true} class="textarea code" name="body" aria-labelledby="f-body-label" aria-describedby="f-body-help" lang={locale} dir="auto">
                         {s("body")}
                      </textarea>
                      <div class="md-preview card flat" data-md-preview hidden lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} tabindex={0} />
@@ -369,7 +369,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                                     </button>
                                  </span>
                               ))}
-                              <input id="f-tag-input" maxlength={40} aria-describedby="f-tags-help" autocomplete="off" lang={locale} dir="auto" />
+                              <input id="f-tag-input" spellcheck={true} maxlength={40} aria-describedby="f-tags-help" autocomplete="off" lang={locale} dir="auto" />
                            </div>
                            <p class="help" id="f-tags-help">
                               {t.content.tagsHelp}
@@ -386,7 +386,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         <label for="f-seo-title">{t.content.seoTitle}</label>
                         <Counter for="f-seo-title" max={60} />
                      </span>
-                     <input id="f-seo-title" class="input" name="seo_title" maxlength={200} value={s("seo_title")} lang={locale} dir="auto" aria-describedby="f-seo-title-help" />
+                     <input id="f-seo-title" spellcheck={true} class="input" name="seo_title" maxlength={200} value={s("seo_title")} lang={locale} dir="auto" aria-describedby="f-seo-title-help" />
                      <p class="help" id="f-seo-title-help">
                         {t.content.seoTitleHelp}
                      </p>
@@ -396,7 +396,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         <label for="f-seo-desc">{t.content.seoDescription}</label>
                         <Counter for="f-seo-desc" max={160} />
                      </span>
-                     <textarea id="f-seo-desc" class="textarea" name="seo_description" maxlength={400} rows={2} lang={locale} dir="auto" aria-describedby="f-seo-desc-help" style="min-height:72px">
+                     <textarea id="f-seo-desc" spellcheck={true} class="textarea" name="seo_description" maxlength={400} rows={2} lang={locale} dir="auto" aria-describedby="f-seo-desc-help" style="min-height:72px">
                         {s("seo_description")}
                      </textarea>
                      <p class="help" id="f-seo-desc-help">
@@ -505,7 +505,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                            <>
                               <div class="field">
                                  <label for="f-alt">{t.content.alt}</label>
-                                 <input id="f-alt" class="input" maxlength={300} value={altOf(cover)} lang={locale} dir="auto" aria-describedby="f-alt-help" data-alt-input />
+                                 <input id="f-alt" spellcheck={true} class="input" maxlength={300} value={altOf(cover)} lang={locale} dir="auto" aria-describedby="f-alt-help" data-alt-input />
                                  <p class="help" id="f-alt-help">
                                     {t.content.altHelp}
                                  </p>
