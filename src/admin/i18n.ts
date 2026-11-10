@@ -609,6 +609,9 @@ const en = {
       suggest: "Suggest",
       suggestSeo: "Suggest search and sharing text",
       suggestions: "Suggestions",
+      /** AI fields get their own names, so they never share a label with the form field they fill. */
+      suggestedField: (label: string) => `Suggested: ${label}`,
+      translatedField: (label: string, lang: string) => `${label} (${lang})`,
       suggesting: "Writing suggestions…",
       use: "Use",
       useAll: "Use all",
@@ -1289,6 +1292,8 @@ const ar: Strings = {
       suggest: "اقتراح",
       suggestSeo: "اقتراح نصوص البحث والمشاركة",
       suggestions: "الاقتراحات",
+      suggestedField: (label: string) => `اقتراح: ${label}`,
+      translatedField: (label: string, lang: string) => `${label} (${lang})`,
       suggesting: "جارٍ كتابة الاقتراحات…",
       use: "استخدام",
       useAll: "استخدام الكل",
