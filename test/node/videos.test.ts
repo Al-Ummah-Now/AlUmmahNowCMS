@@ -112,6 +112,8 @@ describe("imageUrl (thumbnails from the videos API)", () => {
    it("upgrades our own http images and drops anything else", () => {
       expect(imageUrl("http://images.alummahnow.net/x.jpg")).toBe("https://images.alummahnow.net/x.jpg");
       expect(imageUrl("http://elsewhere.example/x.jpg")).toBeNull();
+      expect(imageUrl("http://evilalummahnow.net/x.jpg")).toBeNull();
+      expect(imageUrl("http://alummahnow.net/x.jpg")).toBe("https://alummahnow.net/x.jpg");
       expect(imageUrl("/relative/x.jpg")).toBeNull();
       expect(imageUrl("javascript:alert(1)")).toBeNull();
       expect(imageUrl("")).toBeNull();

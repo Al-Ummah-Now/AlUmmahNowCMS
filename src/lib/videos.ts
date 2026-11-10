@@ -30,7 +30,7 @@ export function imageUrl(v: unknown): string | null {
    if (!withScheme) return null;
    try {
       const url = new URL(withScheme);
-      if (url.protocol === "http:" && url.hostname.endsWith("alummahnow.net")) url.protocol = "https:";
+      if (url.protocol === "http:" && (url.hostname === "alummahnow.net" || url.hostname.endsWith(".alummahnow.net"))) url.protocol = "https:";
       if (url.protocol !== "https:") return null;
       const out = url.href;
       return out.length <= 2048 ? out : null;
