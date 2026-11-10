@@ -20,6 +20,12 @@ export interface Actor {
    email: string | null;
    /** Set by the restore endpoint: the revision being restored. */
    restoredFrom?: number;
+   /** The signed-in user's bknd role (a "writer" may only touch their own posts, docs/SCHOLARS.md). */
+   role?: string;
+   /** The writer's auth user id, when the caller already knows it. */
+   sub?: string | null;
+   /** A Worker-internal write (featuring, community sync): may set the protected post fields. */
+   system?: boolean;
 }
 
 const actors = new AsyncLocalStorage<Actor>();

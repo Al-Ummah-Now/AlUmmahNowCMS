@@ -9,6 +9,7 @@ import { toIso } from "../../routes/public-api.ts";
 import { compareSort, isOlder, parseCursor } from "./model.ts";
 import { markDirty } from "./jobs.ts";
 import { softDelete } from "../trash.ts";
+import { MAIN_SITE_SQL, mainSiteSql } from "../scholars/main-site.ts";
 
 type Row = Record<string, unknown>;
 
@@ -41,7 +42,7 @@ export interface Actor {
 }
 
 const POSTS = `FROM posts p LEFT JOIN timeline_entries te ON te.kind = 'post' AND te.post_id = p.id
-   WHERE p.locale = ?1 AND p.status = 'published' AND coalesce(p.show_on_timeline, 1) NOT IN (0, '0', 'false')`;
+   WHERE p.locale = ?1 AND p.status = 'published' AND coalesce(p.show_on_timeline, 1) NOT IN (0, '0', 'false') AND ${mainSiteSql("p")}`;
 const VIDEOS = `FROM timeline_entries te LEFT JOIN video_snapshots vs ON vs.kind = te.video_kind AND vs.ref_id = te.ref_id
    WHERE te.kind = 'video' AND (te.locale = ?1 OR te.locale = 'all')`;
 const PDATE = "coalesce(p.published_at, p.created_at)";
@@ -131,7 +132,7 @@ export async function offTimeline(env: Env, l: "en" | "ar", q: string, limit = 2
    const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
    const { results } = await env.DB.prepare(
       `SELECT id, title, kind, coalesce(published_at, created_at) AS d FROM posts
-       WHERE locale = ?1 AND status = 'published' AND coalesce(show_on_timeline, 1) IN (0, '0', 'false')
+       WHERE locale = ?1 AND status = 'published' AND coalesce(show_on_timeline, 1) IN (0, '0', 'false') AND ${MAIN_SITE_SQL}
          AND (?2 = '%%' OR title LIKE ?2 ESCAPE '\\' OR slug LIKE ?2 ESCAPE '\\')
        ORDER BY d DESC LIMIT ?3`,
    )

@@ -845,6 +845,13 @@ function renderPreview(target: HTMLElement, list: Element): void {
 
 /* ── Wiring ───────────────────────────────────────────────────────────────────────────────────── */
 
+/** The media dialog alone (a scholar's profile photo), on a page without a blocks editor. */
+export function initMediaPicker(): void {
+   if (!$("#media-dlg") || $$("[data-blocks-editor],[data-slides-editor]").length) return;
+   T = strings<S>();
+   initMediaDialog();
+}
+
 export function initBlocks(): void {
    const roots = $$<HTMLElement>("[data-blocks-editor],[data-slides-editor]");
    if (!roots.length) return;

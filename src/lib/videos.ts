@@ -165,3 +165,29 @@ export async function lookupItem(
    if (!isPublicItem(kind, o)) return null;
    return toDetail(kind, o as Obj);
 }
+
+/**
+ * A channel's latest public videos (`GET /api/channels/:id/videos?sort=latest&cursor=`), for the
+ * Featuring screen's scholar videos. `cursor` is the videos API's own; "" = no more pages.
+ */
+export async function channelVideos(
+   apiUrl: string,
+   channelId: string,
+   opts: { cursor?: string | null; limit?: number } = {},
+   fetchImpl: typeof fetch = fetch,
+): Promise<{ items: ItemDetail[]; cursor: string }> {
+   if (!/^[A-Za-z0-9_-]{1,128}$/.test(channelId)) return { items: [], cursor: "" };
+   const url = new URL(`${apiUrl}/api/channels/${encodeURIComponent(channelId)}/videos`);
+   url.searchParams.set("sort", "latest");
+   url.searchParams.set("limit", String(Math.min(Math.max(opts.limit ?? 12, 1), 50)));
+   if (opts.cursor) url.searchParams.set("cursor", opts.cursor);
+   const res = await fetchImpl(url.toString(), { headers: { accept: "application/json" }, signal: AbortSignal.timeout(5_000) });
+   if (res.status === 404) return { items: [], cursor: "" };
+   if (!res.ok) throw new VideosApiError(`channel videos answered ${res.status}`);
+   const body = (await res.json().catch(() => null)) as { data?: unknown; cursor?: unknown } | null;
+   const rows = Array.isArray(body?.data) ? (body.data as Obj[]) : [];
+   return {
+      items: rows.filter((o) => isPublicItem("video", o)).map((o) => toDetail("video", o)).filter((x): x is ItemDetail => x !== null),
+      cursor: typeof body?.cursor === "string" ? body.cursor : "",
+   };
+}

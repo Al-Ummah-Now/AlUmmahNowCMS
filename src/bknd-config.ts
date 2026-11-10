@@ -48,6 +48,37 @@ export const roles = {
          allow("media.file.upload"),
       ],
    },
+   /**
+    * `writer` (auth "Scholar", docs/SCHOLARS.md): posts and media only. Which posts is decided by
+    * the Worker, not here: the wrapper scopes every posts read to the writer's own rows and refuses
+    * writes to anyone else's (src/lib/scholars/ownership.ts), and the content rules check the owner
+    * again on every insert and update.
+    */
+   writer: {
+      permissions: [
+         allow("system.access.admin"),
+         allow("system.access.api"),
+         allow("system.schema.read"),
+         {
+            permission: "data.entity.create",
+            effect: "deny" as const,
+            policies: [{ condition: { entity: { $in: ["posts"] } }, effect: "allow" as const }],
+         },
+         {
+            permission: "data.entity.update",
+            effect: "deny" as const,
+            policies: [{ condition: { entity: { $in: ["posts"] } }, effect: "allow" as const }],
+         },
+         {
+            permission: "data.entity.read",
+            effect: "deny" as const,
+            policies: [{ condition: { entity: { $in: ["posts", "media"] } }, effect: "allow" as const }],
+         },
+         allow("media.file.read"),
+         allow("media.file.list"),
+         allow("media.file.upload"),
+      ],
+   },
 };
 
 type Plain = Record<string, unknown>;

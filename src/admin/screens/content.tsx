@@ -5,7 +5,7 @@ import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
 import { publishState, timeOf, type PublishState } from "../../lib/schedule.ts";
 import { Icon } from "../ui/icons.tsx";
-import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
+import { Empty, isAdmin, isWriter, PageHead, type View } from "../ui/layout.tsx";
 import { PickerDialog } from "../ui/picker.tsx";
 import { Autocomplete, comboboxProps } from "../ui/autocomplete.tsx";
 import { blockMediaIds, blockPostIds, blockVideoRefs, bodyAsBlocks, storedBlocks, storedSlides, type Block, type Slide } from "../../lib/blocks.ts";
@@ -13,6 +13,8 @@ import { getSnapshots } from "../../lib/video-snapshots.ts";
 import { BlocksEditor, emptyRefs, MediaDialog, mediaInfoOf, PostsDialog, SlidesEditor, type Refs } from "./blocks.tsx";
 import { ConfirmDialog, I18nScript, LocalTime, StateBadge } from "../ui/parts.tsx";
 import { historyCard } from "./history.tsx";
+import { MainSiteCard } from "./scholars.tsx";
+import { scholarName, scholarOfSub } from "../../lib/scholars/profiles.ts";
 
 export type ContentKind = "pages" | "posts";
 const PAGE_SIZE = 20;
@@ -72,8 +74,8 @@ export function listWheres(p: Pick<ListParams, "q" | "status" | "locale">): List
 
 const SEARCH_CAP = 500;
 
-async function searchList(data: Data, kind: ContentKind, p: ListParams, select: string[]): Promise<{ data: Row[]; total: number }> {
-   const branches = listWheres(p);
+async function searchList(data: Data, kind: ContentKind, p: ListParams, select: string[], scope: Record<string, unknown> = {}): Promise<{ data: Row[]; total: number }> {
+   const branches = listWheres(p).map((b) => ({ ...b, where: { ...b.where, ...scope } }));
    if (branches.length === 1 && !branches[0].keep) {
       return data.list(kind, { limit: PAGE_SIZE, offset: (p.page - 1) * PAGE_SIZE, sort: SORTS[p.sort], where: branches[0].where, select });
    }
@@ -109,8 +111,11 @@ const qs = (p: ListParams, over: Partial<ListParams>) => {
 
 export async function contentList(v: View, data: Data, kind: ContentKind, p: ListParams) {
    const { t } = v;
-   const select = ["id", "title", "slug", "locale", "status", "updated_at", "published_at", "publish_at", ...(kind === "posts" ? ["author_name"] : [])];
-   const res = await searchList(data, kind, p, select);
+   const select = ["id", "title", "slug", "locale", "status", "updated_at", "published_at", "publish_at", ...(kind === "posts" ? ["author_name", "author_sub", "featured_at"] : [])];
+   // A writer lists only their own posts (docs/SCHOLARS.md §2); data.list reads bknd directly.
+   const writer = isWriter(v);
+   if (writer && (kind !== "posts" || !v.user.sub)) return <Empty icon="pen" title={t.common.notFound} />;
+   const res = await searchList(data, kind, p, select, writer ? { author_sub: v.user.sub } : {});
    const pages = Math.max(1, Math.ceil(res.total / PAGE_SIZE));
    const base = `/${kind}`;
    const filtered = !!(p.q || p.status || p.locale);
@@ -125,9 +130,9 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
    );
    return (
       <>
-         <PageHead title={t.entities[kind].many} intro={kind === "pages" ? t.content.pagesIntro : t.content.postsIntro}>
+         <PageHead title={writer ? t.scholars.myArticles : t.entities[kind].many} intro={writer ? t.scholars.myArticlesIntro : kind === "pages" ? t.content.pagesIntro : t.content.postsIntro}>
             <a class="btn primary" href={`${base}/new`}>
-               <Icon name={kind === "pages" ? "file" : "pen"} size={18} /> {kind === "pages" ? t.content.newPage : t.content.newPost}
+               <Icon name={kind === "pages" ? "file" : "pen"} size={18} /> {writer ? t.scholars.writeArticle : kind === "pages" ? t.content.newPage : t.content.newPost}
             </a>
          </PageHead>
          <form class="toolbar" method="get" action={base} role="search">
@@ -178,6 +183,8 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
                            <span class="badge loc">{String(r.locale).toUpperCase()}</span>
                            <span dir="ltr">/{kind === "posts" ? `${WWW_POSTS}/` : ""}{String(r.slug)}</span>
                            {r.author_name ? <span>{String(r.author_name)}</span> : null}
+                           {r.author_sub && !writer ? <span class="badge loc">{t.scholars.badge}</span> : null}
+                           {r.author_sub && r.featured_at ? <span class="badge published">{t.featuring.featured}</span> : null}
                            {publishState(r) === "scheduled" ? (
                               <span class="when">
                                  <Icon name="clock" size={14} /> {t.content.goesLive} <LocalTime iso={r.publish_at} lang={v.prefs.lang} />
@@ -282,14 +289,24 @@ async function loadRefs(data: Data, db: D1Database | undefined, blocks: Block[],
 
 export async function contentEditor(v: View, data: Data, kind: ContentKind, id: number | null, newLocale: "en" | "ar", db?: D1Database) {
    const { t } = v;
+   const writer = isWriter(v);
+   if (writer && kind !== "posts") return null;
    const row: Row | null = id ? await data.one(kind, id) : null;
    if (id && !row) return null;
+   // A writer edits only their own posts (docs/SCHOLARS.md §2): someone else's is "not found".
+   if (writer && row && (!v.user.sub || row.author_sub !== v.user.sub)) return null;
+   const scholarPost = kind === "posts" && !!(row?.author_sub || writer);
+   const scholar = scholarPost && db ? await scholarOfSub(db, writer ? v.user.sub ?? null : String(row?.author_sub ?? "")) : null;
    const locale = (row?.locale as "en" | "ar") ?? newLocale;
    const other: "en" | "ar" = locale === "en" ? "ar" : "en";
    const [covers, translations] = await Promise.all([
       id ? data.list<MediaRow>("media", { limit: 1, sort: "id", where: { reference: `${kind}.cover`, entity_id: String(id) } }) : Promise.resolve({ data: [] as MediaRow[], total: 0 }),
       row?.translation_key
-         ? data.list(kind, { limit: 5, where: { translation_key: String(row.translation_key), locale: other }, select: ["id", "title", "slug", "locale", "status", "publish_at"] })
+         ? data.list(kind, {
+              limit: 5,
+              where: { translation_key: String(row.translation_key), locale: other, ...(writer ? { author_sub: v.user.sub } : {}) },
+              select: ["id", "title", "slug", "locale", "status", "publish_at"],
+           })
          : Promise.resolve({ data: [] as Row[], total: 0 }),
    ]);
    const cover = covers.data[0];
@@ -487,10 +504,19 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                   ) : null}
                   {kind === "posts" ? (
                      <div class="row2">
-                        <div class="field">
-                           <label for="f-author">{t.content.author}</label>
-                           <input id="f-author" class="input" name="author_name" maxlength={120} value={s("author_name")} lang={locale} dir="auto" />
-                        </div>
+                        {scholarPost ? (
+                           <div class="field">
+                              <span class="label">{t.content.author}</span>
+                              <p class="help" style="margin:0" data-scholar-byline>
+                                 {scholar ? scholarName(scholar, locale) : t.scholars.noProfile}
+                              </p>
+                           </div>
+                        ) : (
+                           <div class="field">
+                              <label for="f-author">{t.content.author}</label>
+                              <input id="f-author" class="input" name="author_name" maxlength={120} value={s("author_name")} lang={locale} dir="auto" />
+                           </div>
+                        )}
                         <div class="field">
                            <label for="f-tag-input">{t.content.tags}</label>
                            <div class="tags input" data-tags>
@@ -556,7 +582,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         {s("seo_description") || (kind === "pages" ? s("summary") : s("excerpt"))}
                      </span>
                   </div>
-                  {kind === "posts" ? (
+                  {kind === "posts" && !writer ? (
                      <div class="field">
                         <label class="switch">
                            <input type="checkbox" name="show_on_timeline" aria-describedby="f-timeline-help" checked={row ? row.show_on_timeline !== false && row.show_on_timeline !== 0 : true} />
@@ -679,12 +705,14 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                      </p>
                   ) : null}
                   <AiCheckButton v={v} />
-                  {row && isAdmin(v) ? (
+                  {row && (isAdmin(v) || writer) ? (
                      <button class="btn danger sm" type="button" data-delete style="justify-self:start">
                         <Icon name="trash" size={16} /> {t.common.delete}
                      </button>
                   ) : null}
                </section>
+
+               {scholarPost && row ? <MainSiteCard v={v} row={row} scholar={scholar} locale={locale} sitePath={sitePath} /> : null}
 
                <section class="card stack" aria-labelledby="cover-h" data-cover={cover ? String(cover.id) : ""} data-cover-path={cover?.path ?? ""}>
                   <h2 id="cover-h">{t.content.cover}</h2>

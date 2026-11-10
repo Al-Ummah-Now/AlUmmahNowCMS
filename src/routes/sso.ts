@@ -10,6 +10,8 @@ import { createPkce, randomToken } from "../lib/pkce.ts";
 import { safeReturnPath } from "../lib/return-path.ts";
 import { mapRoles } from "../lib/roles.ts";
 import { upsertSsoUser } from "../lib/users.ts";
+import { ensureScholar } from "../lib/scholars/profiles.ts";
+import { ownedChannels } from "../lib/scholars/videos-internal.ts";
 import { errText, log } from "../lib/log.ts";
 import { recordSignOut } from "../lib/sign-outs.ts";
 import type { AppEnv, AuthUser, Ctx, Deps } from "../types.ts";
@@ -186,6 +188,16 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       // access token to refresh. When the bknd session ends, the gate sends the browser through
       // /sso/login again, which is silent while auth still has a browser session.
       const user = await upsertSsoUser(c.env.DB, identity, role);
+      if (role === "writer") {
+         // A scholar's profile is made on their first sign-in, linked to the channels they own on the
+         // videos platform (docs/SCHOLARS.md §3). A videos API hiccup never blocks the sign-in: the
+         // profile is made without channels and the scholar links them on their profile screen.
+         const owned = await ownedChannels(c.env, identity.sub, deps.fetch).catch((error) => {
+            log.warn("scholar channels unavailable at sign-in", { error: errText(error) });
+            return [];
+         });
+         await ensureScholar(c.env.DB, identity, owned.map((ch) => ch.id)).catch((error) => log.error("scholar profile not created", { error: errText(error) }));
+      }
       const app = await deps.getApp(c);
       const authenticator = app.module.auth.authenticator;
       const token = await authenticator.jwt({ id: user.id, email: user.email, role: user.role, strategy: "sso" });

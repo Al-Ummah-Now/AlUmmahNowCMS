@@ -97,6 +97,8 @@ export interface SsoIdentity {
    sub: string;
    email: string;
    roles: string[];
+   /** The account's display name, when auth has one (a new scholar profile starts from it). */
+   name?: string | null;
 }
 
 const jwksCache = new Map<string, JWTVerifyGetKey>();
@@ -129,10 +131,11 @@ export async function verifyAccessToken(
    if (payload.mode !== undefined && payload.mode !== "access") {
       throw new OidcError("invalid_token", "not an access token");
    }
-   const props = (payload.properties ?? {}) as { id?: unknown; email?: unknown; roles?: unknown };
+   const props = (payload.properties ?? {}) as { id?: unknown; email?: unknown; roles?: unknown; name?: unknown };
    const email = typeof props.email === "string" ? props.email.trim().toLowerCase() : "";
    if (!email) throw new OidcError("invalid_token", "token has no email");
    const sub = typeof props.id === "string" && props.id ? props.id : String(payload.sub);
    const roles = Array.isArray(props.roles) ? props.roles.filter((r): r is string => typeof r === "string") : [];
-   return { sub, email, roles };
+   const name = typeof props.name === "string" && props.name.trim() ? props.name.trim().slice(0, 120) : null;
+   return { sub, email, roles, name };
 }

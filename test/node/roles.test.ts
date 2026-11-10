@@ -17,7 +17,13 @@ describe("mapRoles", () => {
       expect(mapRoles(["Admin"])).toBe("admin");
    });
    it("maps moderator to bknd editor", () => expect(mapRoles(["Moderator"])).toBe("editor"));
-   it("takes the strongest role", () => expect(mapRoles(["Moderator", "Viewer", "Admin"])).toBe("admin"));
+   it("maps scholar to bknd writer (own posts only)", () => expect(mapRoles(["Scholar", "Member"])).toBe("writer"));
+   it("takes the strongest role", () => {
+      expect(mapRoles(["Moderator", "Viewer", "Admin"])).toBe("admin");
+      expect(mapRoles(["Scholar", "Moderator"])).toBe("editor");
+      expect(mapRoles(["Moderator", "Scholar"])).toBe("editor");
+      expect(mapRoles(["Scholar", "Super Admin"])).toBe("admin");
+   });
    it("denies everyone else", () => {
       expect(mapRoles(["Viewer"])).toBeNull();
       expect(mapRoles(["Content Editor"])).toBeNull();

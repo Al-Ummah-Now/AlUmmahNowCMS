@@ -2,13 +2,15 @@
  * What is on the home timeline, read from D1 (docs/FEED.md "What is on it"). Used by the KV build
  * (src/lib/feed/jobs.ts), the public /timeline endpoint and the Timeline screen.
  *
- * On it: every live post (LIVE_SQL) of the locale whose show_on_timeline is not off, and every
+ * On it: every live post (LIVE_SQL) of the locale whose show_on_timeline is not off and that is on the
+ * main site (staff posts, and scholar posts editors featured: src/lib/scholars/main-site.ts), and every
  * video entry for the locale (or 'all') whose snapshot is public; minus hidden entries. Pinned
  * entries (pin_rank set) come first, by pin_rank; the rest by date, newest first.
  */
 import type { Env } from "../../env.ts";
 import { postSummaries, POST_SUMMARY_COLS, snapshotOf, toIso } from "../../routes/public-api.ts";
 import { LIVE_SQL } from "../schedule.ts";
+import { mainSiteSql } from "../scholars/main-site.ts";
 import { compareItems, compareSort, MAX_POST_VIDEOS, type FeedItem, type FeedLocale, type FeedVideo } from "./model.ts";
 
 type Row = Record<string, unknown>;
@@ -16,7 +18,7 @@ type Row = Record<string, unknown>;
 const P = (sql: string) => sql.replace(/\b(status|publish_at)\b/g, "p.$1");
 /** Live posts of ?1 on the timeline, joined to their overrides (alias te). */
 const POST_FROM = `FROM posts p LEFT JOIN timeline_entries te ON te.kind = 'post' AND te.post_id = p.id
-   WHERE p.locale = ?1 AND ${P(LIVE_SQL)} AND coalesce(p.show_on_timeline, 1) NOT IN (0, '0', 'false') AND coalesce(te.hidden, 0) = 0`;
+   WHERE p.locale = ?1 AND ${P(LIVE_SQL)} AND coalesce(p.show_on_timeline, 1) NOT IN (0, '0', 'false') AND ${mainSiteSql("p")} AND coalesce(te.hidden, 0) = 0`;
 const POST_DATE = "coalesce(p.published_at, p.created_at)";
 /** Video entries for ?1 with a public snapshot (alias te, vs). */
 const VIDEO_FROM = `FROM timeline_entries te JOIN video_snapshots vs ON vs.kind = te.video_kind AND vs.ref_id = te.ref_id

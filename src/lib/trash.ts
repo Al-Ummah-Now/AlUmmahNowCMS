@@ -14,10 +14,11 @@
  */
 import type { Env } from "../env.ts";
 import { markDirty } from "./feed/jobs.ts";
+import { noteCommunityChange } from "./scholars/community.ts";
 import { errText, log } from "./log.ts";
 import { deleteVariants } from "./variants/jobs.ts";
 
-export const TRASH_KINDS = ["posts", "pages", "nav_items", "curated_videos", "site_settings", "media", "timeline_entries"] as const;
+export const TRASH_KINDS = ["posts", "pages", "nav_items", "curated_videos", "site_settings", "media", "timeline_entries", "scholars"] as const;
 export type TrashKind = (typeof TRASH_KINDS)[number];
 export const isTrashKind = (v: unknown): v is TrashKind => typeof v === "string" && (TRASH_KINDS as readonly string[]).includes(v);
 
@@ -96,6 +97,8 @@ function labelOf(kind: TrashKind, row: Row): string {
          return pick("path");
       case "timeline_entries":
          return pick("title_override", "ref_id");
+      case "scholars":
+         return pick("name_en", "name_ar", "slug");
    }
 }
 
@@ -116,7 +119,11 @@ function event(env: Env, action: string, kind: TrashKind, itemId: number, label:
 
 /** What a change to `kind`/`id` means for the home timeline (the KV build republishes it). */
 async function touchFeed(env: Env, kind: TrashKind, id: number, why: string): Promise<void> {
-   if (kind === "posts") await markDirty(env, [`p${id}`], why);
+   if (kind === "posts") {
+      await markDirty(env, [`p${id}`], why);
+      // A scholar's article: its community post is hidden on delete and shown again on restore.
+      await noteCommunityChange(env, [id]);
+   }
    else if (kind === "timeline_entries") await markDirty(env, [`v${id}`], why);
 }
 

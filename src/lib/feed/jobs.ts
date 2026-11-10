@@ -20,6 +20,7 @@
  * head) is written at most once per build, at least HEAD_WRITE_GAP_MS apart (KV allows 1 write/s
  * per key). The consumer runs with max_concurrency 1, so builds never overlap.
  */
+import { noteCommunityChange } from "../scholars/community.ts";
 import { trimSlash, type Env } from "../../env.ts";
 import { lookupItem } from "../videos.ts";
 import { putSnapshot } from "../video-snapshots.ts";
@@ -511,7 +512,14 @@ export async function duePosts(env: Env, now = new Date()): Promise<number> {
    const to = now.toISOString();
    const { results } = await env.DB.prepare("SELECT id FROM posts WHERE status = 'published' AND publish_at > ?1 AND publish_at <= ?2").bind(from, to).all<{ id: number }>();
    await env.DB.prepare("UPDATE feed_state SET due_checked_until = ?1 WHERE id = 1").bind(to).run();
-   if (results.length) await markDirty(env, results.map((r) => `p${r.id}`), "publish_at passed");
+   if (results.length) {
+      await markDirty(env, results.map((r) => `p${r.id}`), "publish_at passed");
+      // A scholar's scheduled article goes out to their channel's Community tab as it goes live.
+      await noteCommunityChange(
+         env,
+         results.map((r) => r.id),
+      );
+   }
    return results.length;
 }
 
