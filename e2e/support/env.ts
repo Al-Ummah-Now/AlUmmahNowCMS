@@ -17,8 +17,8 @@ export const ACCOUNTS = {
    admin: { email: process.env.E2E_ADMIN_EMAIL || "delivered+cms-e2e-admin@resend.dev", password: SEED_PASSWORD },
    moderator: { email: process.env.E2E_MODERATOR_EMAIL || "delivered+cms-e2e-moderator@resend.dev", password: SEED_PASSWORD },
    viewer: { email: process.env.E2E_VIEWER_EMAIL || "delivered+cms-e2e-viewer@resend.dev", password: SEED_PASSWORD },
-   // Has the Scholar role and owns a channel on the env's videos site (docs/SCHOLARS.md).
-   scholar: { email: process.env.E2E_SCHOLAR_EMAIL || "delivered+cms-e2e-scholar@resend.dev", password: SEED_PASSWORD },
+   // Has the Scholar role and owns a channel on the env's videos site (docs/SCHOLARS.md): the seeded QA creator.
+   scholar: { email: process.env.E2E_SCHOLAR_EMAIL || "qa-creator@delivered.resend.dev", password: SEED_PASSWORD },
 } satisfies Record<string, Account>;
 
 export const hasCredentials = SEED_PASSWORD.length > 0;
