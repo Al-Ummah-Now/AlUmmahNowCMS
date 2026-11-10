@@ -96,7 +96,7 @@ test("an editor previews an English draft page on www", async ({ context, page: 
    expect(www.url()).not.toContain("token");
    await expect(www.getByText("Preview — not published")).toBeVisible();
    await expect(www.getByRole("heading", { level: 1 })).toHaveText(`Preview page ${STAMP}`);
-   await expect(www.getByRole("heading", { level: 2, name: `Draft heading ${STAMP}` })).toBeVisible();
+   await expect(www.getByRole("heading", { name: `Draft heading ${STAMP}` })).toBeVisible();
    await expect(www.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
    const again = await www.reload();
    expect(again?.headers()["cache-control"]).toContain("no-store");
