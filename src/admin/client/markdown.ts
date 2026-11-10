@@ -14,11 +14,11 @@ function inline(parent: Node, text: string): void {
       if (m[1] !== undefined) parent.appendChild(document.createElement("strong")).textContent = m[1];
       else if (m[2] !== undefined) parent.appendChild(document.createElement("em")).textContent = m[2];
       else {
-         const a = document.createElement("a");
+         // A preview needs no live link: show the text styled as a link, the address beside it.
+         const a = parent.appendChild(document.createElement("span"));
+         a.className = "md-link";
          a.textContent = m[3];
-         a.setAttribute("href", m[4]);
-         a.rel = "noopener";
-         parent.appendChild(a);
+         parent.appendChild(document.createElement("small")).textContent = ` (${m[4]})`;
       }
       last = at + m[0].length;
    }
