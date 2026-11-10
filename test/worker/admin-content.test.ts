@@ -145,3 +145,17 @@ describe("cover upload and replace through bknd (what the editor does)", () => {
       expect((await upload(f, cookie, id, "x.svg", "image/svg+xml")).status).toBe(415);
    });
 });
+
+describe("editor save is a compare-and-set on updated_at (CMS-3)", () => {
+   it("the value the editor renders is accepted once; a stale one gets 409", async () => {
+      const cookie = await session(["Moderator"], "cas-ed");
+      const f = makeWorker();
+      const id = await create(f, cookie, "pages", { slug: `cas-${Date.now()}`, locale: "en", title: "CAS" });
+      const html = await (await f(`/pages/${id}`, { headers: { cookie } })).text();
+      const updated = /data-updated="([^"]*)"/.exec(html)![1];
+      expect(updated).not.toBe("");
+      const patch = (body: unknown) => f(`/api/data/entity/pages/${id}`, { method: "PATCH", headers: { cookie, origin: ORIGIN, "content-type": "application/json" }, body: JSON.stringify(body) });
+      expect((await patch({ title: "First", updated_at: updated })).status).toBe(200);
+      expect((await patch({ title: "Second", updated_at: updated })).status).toBe(409);
+   });
+});

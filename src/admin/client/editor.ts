@@ -278,7 +278,8 @@ export function initEditor(): void {
          }
          const wasPublished = $("[data-status-badge]")?.classList.contains("published");
          let rowId = id;
-         if (id) await api("PATCH", `/api/data/entity/${kind}/${id}`, data);
+         // updated_at makes the save a compare-and-set on the server (409 if someone saved first).
+         if (id) await api("PATCH", `/api/data/entity/${kind}/${id}`, form.dataset.updated ? { ...data, updated_at: form.dataset.updated } : data);
          else {
             data.locale = locale;
             const created = await api<{ data: { id: number } }>("POST", `/api/data/entity/${kind}`, data);
@@ -288,7 +289,8 @@ export function initEditor(): void {
          const done = !id ? "created" : action === "published" ? "published" : wasPublished ? "unpublished" : "draft";
          location.assign(`/${kind}/${rowId}?done=${done}`);
       } catch (e) {
-         toast(e instanceof ApiError ? `${T.failed} ${e.message}` : T.failed, "bad");
+         if (e instanceof ApiError && e.status === 409) toast(T.conflict, "bad");
+         else toast(e instanceof ApiError ? `${T.failed} ${e.message}` : T.failed, "bad");
       } finally {
          submitting = false;
          buttons.forEach((b) => b.removeAttribute("disabled"));
