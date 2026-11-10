@@ -22,6 +22,11 @@ on:
 permissions:
   contents: read
 
+# Runs share the E2E accounts (auth throttles sign-ins per email): never two at once.
+concurrency:
+  group: cms-e2e-qa
+  cancel-in-progress: false
+
 jobs:
   e2e:
     name: Playwright vs QA

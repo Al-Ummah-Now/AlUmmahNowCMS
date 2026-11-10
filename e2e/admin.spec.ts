@@ -6,7 +6,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { expectNoAxeViolations, sessionPage, shot } from "./support/browser.ts";
 import { ACCOUNTS, CMS_URL, hasCredentials } from "./support/env.ts";
-import { signIn } from "./support/oauth.ts";
+import { sessionCookie } from "./support/sessions.ts";
 
 test.describe.configure({ mode: "serial" });
 test.skip(!hasCredentials, "QA_SEED_PASSWORD is not set");
@@ -17,7 +17,7 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
 let adminCookie = "";
 async function adminApi(method: string, path: string, body?: unknown) {
-   if (!adminCookie) adminCookie = (await signIn(ACCOUNTS.admin)).cookie;
+   if (!adminCookie) adminCookie = await sessionCookie(ACCOUNTS.admin);
    const res = await fetch(`${CMS_URL}${path}`, {
       method,
       headers: { cookie: adminCookie, origin: CMS_URL, accept: "application/json", ...(body ? { "content-type": "application/json" } : {}) },
@@ -37,14 +37,24 @@ async function saveSite(page: Page) {
 }
 const idFromUrl = (page: Page) => Number(new URL(page.url()).pathname.split("/").pop());
 
-test.afterAll(async () => {
-   for (const { entity, id } of created.reverse()) await adminApi("DELETE", `/api/data/entity/${entity}/${id}`).catch(() => undefined);
-   // Rows made through the UI without a known id (nav links, videos) carry the stamp.
-   for (const [entity, field] of [["nav_items", "label"], ["pages", "slug"], ["posts", "slug"]] as const) {
-      const where = encodeURIComponent(JSON.stringify({ [field]: { $like: `*${STAMP}*` } }));
+/** Deletes rows carrying an E2E stamp: this run's in afterAll, any run's (a crashed run can't clean up) in beforeAll. */
+async function sweep(pattern: string) {
+   for (const [entity, field] of [["nav_items", "label"], ["pages", "slug"], ["posts", "slug"], ["curated_videos", "title_override"]] as const) {
+      const where = encodeURIComponent(JSON.stringify({ [field]: { $like: pattern } }));
       const res = await adminApi("GET", `/api/data/entity/${entity}?where=${where}&select=id&limit=100`);
       for (const r of (res.json?.data as { id: number }[] | undefined) ?? []) await adminApi("DELETE", `/api/data/entity/${entity}/${r.id}`);
    }
+}
+
+test.beforeAll(async () => {
+   // Stamps are "e2e" + base-36 time; anything older than this run left by a crash goes now.
+   await sweep("*e2em*");
+});
+
+test.afterAll(async () => {
+   for (const { entity, id } of created.reverse()) await adminApi("DELETE", `/api/data/entity/${entity}/${id}`).catch(() => undefined);
+   // Rows made through the UI without a known id (nav links, videos) carry the stamp.
+   await sweep(`*${STAMP}*`);
 });
 
 test.describe("shell", () => {
