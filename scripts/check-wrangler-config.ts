@@ -8,6 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseJsonc } from "./lib/jsonc.ts";
 import { ENVS, type EnvName } from "./release/envs.ts";
 
@@ -122,9 +123,9 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
    return errors;
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(new URL(import.meta.url)));
 if (isMain) {
-   const root = resolve(new URL("..", import.meta.url).pathname);
+   const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
    const errors = checkWranglerConfig(parseJsonc<WranglerConfig>(readFileSync(resolve(root, "wrangler.jsonc"), "utf8")));
    if (errors.length) {
       process.stderr.write(`wrangler.jsonc check failed:\n${errors.map((e) => `  - ${e}`).join("\n")}\n`);

@@ -102,7 +102,7 @@ test.describe("home timeline", () => {
       // Remove Beta (its "Show on home timeline" goes off), then add it back from the chooser.
       await row(page, `p${b}`).getByRole("button", { name: /^Remove from timeline:/ }).click();
       const confirm = page.getByRole("dialog", { name: "Remove from timeline" });
-      await expect(confirm).toContainText("stays published on News");
+      await expect(confirm).toContainText("stays published in Articles");
       await confirm.getByRole("button", { name: "Remove from timeline" }).click();
       await expect(row(page, `p${b}`)).toHaveCount(0);
       await expect.poll(async () => (await timeline()).items.map((x) => x.key), { timeout: 20_000 }).not.toContain(`p${b}`);

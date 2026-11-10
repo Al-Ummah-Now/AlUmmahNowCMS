@@ -11,7 +11,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { ACCOUNTS, CMS_URL, hasCredentials } from "./support/env.ts";
 import { sessionCookie } from "./support/sessions.ts";
-import { LOCALES, NEWS_PAGE_SIZE, RSS_ITEMS, wwwPaths, wwwViolations, type Locale, type WwwEndpoint } from "../test/www-contract.ts";
+import { LOCALES, ARTICLES_PAGE_SIZE, RSS_ITEMS, wwwPaths, wwwViolations, type Locale, type WwwEndpoint } from "../test/www-contract.ts";
 
 test.skip(({ browserName, isMobile }) => browserName !== "chromium" || isMobile, "HTTP only: desktop Chromium is enough");
 
@@ -89,12 +89,12 @@ async function read(request: APIRequestContext, endpoint: WwwEndpoint, path: str
 
 test.describe("public API as www reads it", () => {
    for (const locale of LOCALES) {
-      test(`${locale}: site, home, news (both page sizes), videos (both placements)`, async ({ request }) => {
+      test(`${locale}: site, home, articles (both page sizes), videos (both placements)`, async ({ request }) => {
          const site = await read(request, "site", wwwPaths.site(locale));
          if (site.settings) expect(site.settings.locale).toBe(locale);
          const home = await read(request, "home", wwwPaths.home(locale));
          for (const p of home.posts) expect(p.locale).toBe(locale);
-         for (const size of [NEWS_PAGE_SIZE, RSS_ITEMS]) {
+         for (const size of [ARTICLES_PAGE_SIZE, RSS_ITEMS]) {
             const posts = await read(request, "posts", wwwPaths.posts(locale, 1, size));
             expect({ page: posts.page, limit: posts.limit }).toEqual({ page: 1, limit: size });
             expect(posts.items.length).toBeLessThanOrEqual(size);

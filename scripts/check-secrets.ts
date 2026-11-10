@@ -8,6 +8,7 @@
  * Needs CLOUDFLARE_API_TOKEN (Workers Scripts:Read) and CLOUDFLARE_ACCOUNT_ID.
  */
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { SECRETS_MANIFEST, type WorkerSecrets } from "./secrets-manifest.ts";
 import type { EnvName } from "./release/envs.ts";
 
@@ -65,7 +66,7 @@ async function liveBindings(worker: string): Promise<Binding[] | null> {
    return json.result?.bindings ?? [];
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(new URL(import.meta.url)));
 if (isMain) {
    const argv = process.argv.slice(2);
    const env = argv.includes("--env") ? (argv[argv.indexOf("--env") + 1] as EnvName) : undefined;

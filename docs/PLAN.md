@@ -45,7 +45,7 @@ prod only via stage-then-promote; out-of-scope work becomes `queue` issues.
 | W1 | Remove the starter (blog, MDX, placeholder images, `utils/api.js`, the dev proxy to a dead `pages.dev`); Astro 5 latest + `@astrojs/cloudflare` + Tailwind 4; ESLint, `astro check` | lint/typecheck |
 | W2 | i18n (en/ar), RTL layout, header/footer/landmarks, language switcher | i18n parity |
 | W3 | CMS client: service binding, timeout, Cache API, KV snapshot, builtin fallback | fallback-chain unit |
-| W4 | Pages: home, news list/article, CMS pages, videos, 404/500 | rendering unit, E2E |
+| W4 | Pages: home, articles list/article, CMS pages, videos, 404/500 | rendering unit, E2E |
 | W5 | Embeds adapter + facade; markdown (HTML off, `::video`) | unit |
 | W6 | Sign-in (PKCE public client), `/auth/me`, header menu, CMS link by role | unit |
 | W7 | SEO: meta, hreflang, JSON-LD, sitemap, robots, RSS; noindex off prod | unit |

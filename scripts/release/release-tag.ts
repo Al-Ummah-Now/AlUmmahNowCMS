@@ -9,6 +9,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const TAG = /^v(\d{4})\.(\d{2})\.(\d{2})(?:\.(\d+))?$/;
 
@@ -58,7 +59,7 @@ function isOnMain(sha: string): boolean {
    }
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(new URL(import.meta.url)));
 if (isMain) {
    const [cmd, tag, sha] = process.argv.slice(2);
    if (cmd !== "check" || !tag || !sha) {

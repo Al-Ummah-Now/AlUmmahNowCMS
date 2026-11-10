@@ -124,7 +124,7 @@ content-rules plugin runs on every write (`src/lib/content-rules.ts:97-124`).
 | X3 | The four themes | The active theme comes from `site.theme` (§5). Each theme is a material (DESIGN-INTENT.md), not a recolour: page atmosphere, header, rail, cards, primary, active item and borders come from the theme's material variables. |
 | X4 | Light and dark | Follows the device; a toggle in the rail foot (System, Light, Dark) stored in cookie `cms_mode`, rendered on the server (no flash). |
 | X5 | Translation linking | Translations panel (E3). |
-| X6 | Live preview on www | "View on site" link for published rows (`${WWW_URL}/${locale}/${slug}` for pages, `/${locale}/news/${slug}` for posts; www serves posts under `/news/`). Saved drafts get **"Preview on site"** instead: `/preview/{kind}/{id}` mints a 30-minute token for that row and opens www's preview (banner, noindex, never cached). With unsaved edits the editor asks for a save first. See `docs/PUBLIC_API.md` "Preview API". |
+| X6 | Live preview on www | "View on site" link for published rows (`${WWW_URL}/${locale}/${slug}` for pages, `/${locale}/articles/${slug}` for posts; www serves posts in its Articles section under `/articles/`, and 301s the old `/news/` urls). Saved drafts get **"Preview on site"** instead: `/preview/{kind}/{id}` mints a 30-minute token for that row and opens www's preview (banner, noindex, never cached). With unsaved edits the editor asks for a save first. See `docs/PUBLIC_API.md` "Preview API". |
 | X7 | Unsaved changes | `beforeunload` guard and a "You have unsaved changes" bar. |
 
 Nothing in the inventory needs a bknd change. **Exceptions: none blocking**; the Worker additions

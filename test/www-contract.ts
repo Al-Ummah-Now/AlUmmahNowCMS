@@ -13,8 +13,8 @@
 
 export type Locale = "en" | "ar";
 export const LOCALES: Locale[] = ["en", "ar"];
-/** Page sizes www requests (NEWS_PAGE_SIZE and RSS_ITEMS in www's src/lib/cms.ts). */
-export const NEWS_PAGE_SIZE = 10;
+/** Page sizes www requests (ARTICLES_PAGE_SIZE and RSS_ITEMS in www's src/lib/cms.ts). */
+export const ARTICLES_PAGE_SIZE = 10;
 export const RSS_ITEMS = 20;
 
 const q = (params: Record<string, string | number>) => `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`;

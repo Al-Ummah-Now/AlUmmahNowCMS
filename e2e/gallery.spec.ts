@@ -58,7 +58,7 @@ test.beforeAll(async () => {
       blocks: [
          { id: "intro", type: "markdown", text: "## Our mission\n\nIslamic video for everyone, in **Arabic** and English." },
          ...(img ? [{ id: "hero", type: "image", media_id: img.id, alt: "Our studio", caption: "Where we record.", size: "wide" }] : []),
-         { id: "news", type: "posts", heading: "Latest news", mode: "latest", limit: 3, tag: "", post_ids: [] },
+         { id: "articles", type: "posts", heading: "Latest articles", mode: "latest", limit: 3, tag: "", post_ids: [] },
          { id: "cards", type: "cards", heading: "Stories", tag: "", page_size: 12, filter: true },
          { id: "cta", type: "cta", heading: "Get in touch", text: "We read every message.", label: "Contact us", url: "/contact", tone: "primary" },
          { id: "q", type: "quote", variant: "callout", text: "New lessons every Friday.", cite: "" },

@@ -11,6 +11,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseJsonc } from "../lib/jsonc.ts";
 import { ENVS, parseEnv, type EnvName } from "./envs.ts";
 
@@ -56,10 +57,10 @@ export function consumerPlan(worker: string, consumers: ConsumerConfig[], info: 
    return consumers.filter((c) => !listedConsumers(info(c.queue)).includes(worker)).map((c) => addArgs(worker, c));
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(new URL(import.meta.url)));
 if (isMain) {
    const env = parseEnv(process.argv.slice(2), ["stage", "production"]);
-   const root = resolve(new URL("../..", import.meta.url).pathname);
+   const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
    const config = parseJsonc<EnvConfig & { env?: Record<string, EnvConfig> }>(readFileSync(resolve(root, "wrangler.jsonc"), "utf8"));
    const run = (args: string[]) =>
       execFileSync("npx", ["wrangler", ...args], { cwd: root, encoding: "utf8", env: { ...process.env, CI: "true" }, stdio: ["ignore", "pipe", "pipe"] });
