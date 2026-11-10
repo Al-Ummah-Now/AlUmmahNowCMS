@@ -149,6 +149,8 @@ Worker with Hono JSX, and enhanced by one small client script. bknd's admin UI m
 | `/admin-assets/*` | our CSS/JS, content-hashed, immutable | public (no data) |
 | `/admin/api/media/:id/alt` | §0 | admin, editor |
 | `/picker/api/items/:id` (PUT) | §0 | admin, editor |
+| `/picker/api/snapshots` (POST) | snapshot a video picked into a page block, server-side (§2.1) | admin, editor |
+| `/admin/api/video-snapshots/retry` (POST) | requeue dead-lettered block video snapshots (Overview flag) | admin, editor |
 
 Screen anatomy (shared): header (brand + theme wordmark at the start, global search across pages and
 posts in the centre, New and the account menu at the end), a 76 px rail with icon+label items
@@ -156,6 +158,32 @@ posts in the centre, New and the account menu at the end), a 76 px rail with ico
 bar on phones, and the language and mode controls at the rail foot. Lists use cards on phones and a
 table on wide screens. Editors are two columns on wide screens (content | publish panel, cover,
 translations, SEO) and one column on phones with a sticky action bar.
+
+### 2.1 Page blocks and card posts
+
+**Page content** replaces the page's markdown field with a block list (`src/admin/screens/blocks.tsx`,
+`src/admin/client/blocks.ts`). *Add a block* is a grid of eleven named cards (icon, name and what it
+is for; two compact columns on phones). Each block is a card with its type icon and name, and named
+icon buttons: Move up, Move down, Duplicate, Remove (no bare "+" anywhere). Reorder by those buttons,
+by Alt+↑/↓ from any field in the block, or by dragging the grip; every move, add, duplicate and
+remove is announced in an `aria-live` region, and Remove offers Undo. Focus lands in the new block's
+first field, and stays on the moved item. Images come from the **media chooser** (library grid with
+paging, or upload: names are generated, so an upload never replaces a file); the alt text defaults
+to the library's description. Posts are picked from a search dialog in the page's language; videos
+with the existing picker, snapshotted server-side. *Preview* shows the blocks as they read, in the
+page's language and direction; *Preview on site* shows the finished design. Incomplete blocks are
+marked "Hidden on the site until it is complete". Prose fields are spell-checked in the page's
+language; links are not. A bad block is refused before saving, with the message on that block;
+server errors never show raw text.
+
+**Card posts:** the post editor has a *Post type* toggle (Article | Cards). Cards hides the body and
+shows **Slides**: each slide has an image, a heading and short text (≤ 140 / 400), alt text and a
+text position (Top, Middle, Bottom), with a live preview of the text over the image using the same
+shade the site uses. Slides reorder, duplicate and remove like blocks; *Add slides from images* makes
+one slide per chosen image.
+
+**Overview:** a videos-in-blocks refresh that was dead-lettered (SPEC §4.2) shows as an alert with
+the items' titles and **Retry now**.
 
 ## 3. Data flow
 
@@ -240,6 +268,11 @@ reorder works with buttons, not only drag; reduced motion respected. axe runs in
   (search, filters, sort), X1-X4 (picker in body editor inserts `::video[ID]`; ar UI RTL; four themes via
   the preview param; light and dark), plus "published content appears on www" and axe on every screen.
   Runs in Chromium, Firefox and WebKit, desktop and phone projects.
+- **Page builder and card posts** (`e2e/blocks.spec.ts`): build a page from blocks with uploads
+  through the chooser, keyboard and drag reorder, duplicate, remove and Undo, a refused bad link,
+  preview, publish, and the public API's `blocks`; the Arabic editor with axe; a card post with
+  slides, the live overlay, keyboard reorder, publish, the post's `slides` and `/cards`. The gallery
+  (`e2e/gallery.spec.ts`) includes a built page, a card post and the media chooser.
 
 ## 9. Retiring bknd's admin UI
 

@@ -3,10 +3,12 @@
  *   PATCH /admin/api/media/:id/alt  { alt }  → media.metadata.alt only (editors may not update media)
  *   POST  /admin/api/media/variants/retry  { path }  → queue an original's image variants again (CMS-10)
  *   POST  /admin/api/revisions/:id/restore  { updated_at }  → a page/post back to that revision (#8)
+ *   POST  /admin/api/video-snapshots/retry   → requeue dead-lettered block video snapshots
  */
 import { Hono } from "hono";
 import { retryVariants } from "../lib/variants/jobs.ts";
 import { getRevision, RESTORABLE, withActor } from "../lib/revisions.ts";
+import { retryDead } from "../lib/video-snapshots.ts";
 import type { AppEnv, Deps } from "../types.ts";
 
 export const ALT_MAX = 300;
@@ -103,6 +105,12 @@ export function mediaAltRoute(deps: Deps): Hono<AppEnv> {
          console.error("restore failed", rev.id, text);
          return c.json({ error: "internal_error" }, 500);
       }
+   });
+
+   r.post("/video-snapshots/retry", async (c) => {
+      const role = c.get("user")?.role;
+      if (role !== "admin" && role !== "editor") return c.json({ error: "forbidden" }, 403);
+      return c.json({ data: { requeued: await retryDead(c.env.DB) } });
    });
    return r;
 }

@@ -10,6 +10,7 @@ import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
 
 const ORIGIN = "https://cms.test";
 const PNG = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
+import { PNG_16X9 } from "../fixtures/png-16x9.ts";
 
 const videosApi = (url: URL) => {
    if (url.pathname === "/api/videos/vid-1") return Response.json({ id: "vid-1", title: "Talk one", thumbnailUrl: "https://cdn.test/1.jpg", channelName: "Channel", isPublic: true, uploadStatus: "ready" });
@@ -94,6 +95,53 @@ describe("public API contract (www)", () => {
          "/api/public/v1/videos?locale=ar&placement=home",
          "/api/public/v1/sitemap",
          "/api/public/v1/site?locale=fr",
+      ]) {
+         const res = await f(path);
+         out[path] = { status: res.status, cache: res.headers.get("cache-control"), etag: res.headers.has("etag"), body: normalize(await res.json()) };
+      }
+      // Page blocks: one of every type, the way the block editor saves them (media from the library,
+      // videos through the picker's snapshot endpoint, a post picked by id). Plus a card post.
+      const lib = new FormData();
+      lib.append("file", new File([PNG_16X9], "slide.png", { type: "image/png" }));
+      const libUp = (await send("POST", "/api/media/upload", lib)) as unknown as { name: string };
+      const media = (await send("GET", `/api/data/entity/media?where=${encodeURIComponent(JSON.stringify({ path: libUp.name }))}&select=id`)) as unknown as { data: { id: number }[] };
+      const m = media.data[0].id;
+      await send("PATCH", `/admin/api/media/${m}/alt`, { alt: "Lantern at dusk" });
+      await send("POST", "/picker/api/snapshots", { kind: "video", ref_id: "vid-1" });
+      await send("POST", "/picker/api/snapshots", { kind: "playlist", ref_id: "pl-1" });
+      const cards = await send("POST", "/api/data/entity/posts", {
+         slug: "story", locale: "en", title: "A story in cards", excerpt: "Swipe through", kind: "cards", tags: ["stories"], status: "published",
+         slides: [
+            { id: "s1", media_id: m, heading: "The beginning", body: "Where it started", position: "bottom" },
+            { id: "s2", media_id: m, alt: "Second", heading: "Then", position: "top" },
+         ],
+      });
+      await send("POST", "/api/data/entity/pages", {
+         slug: "built", locale: "en", title: "Built from blocks", status: "published", translation_key: "k-built",
+         blocks: [
+            { id: "text", type: "markdown", text: "## Welcome\n\nSome **text**." },
+            { id: "img", type: "image", media_id: m, caption: "Our lantern", size: "wide" },
+            { id: "gal", type: "gallery", columns: 3, items: [{ media_id: m, alt: "One" }, { media_id: m, caption: "Two" }] },
+            { id: "news", type: "posts", heading: "Latest news", mode: "latest", limit: 2 },
+            { id: "pick", type: "posts", heading: "Picked", mode: "picked", post_ids: [cards.data.id] },
+            { id: "stories", type: "cards", heading: "Stories", tag: "stories", page_size: 6, filter: true },
+            { id: "shelf", type: "videos", heading: "Watch", items: [{ kind: "video", ref_id: "vid-1" }, { kind: "playlist", ref_id: "pl-1", title_override: "Series" }] },
+            { id: "embed", type: "video", kind: "video", ref_id: "vid-1", caption: "A talk" },
+            { id: "cta", type: "cta", heading: "Get involved", text: "Join us", label: "Contact", url: "/contact", tone: "primary" },
+            { id: "cols", type: "columns", text: "Beside the image", media_id: m, image_side: "end" },
+            { id: "quote", type: "quote", variant: "callout", text: "Remember this", cite: "Editors" },
+            { id: "div", type: "divider", style: "line", size: "m" },
+         ],
+      });
+
+      // Written after the original responses above were taken, so those entries prove the change is
+      // additive (same values, new fields only).
+      for (const path of [
+         "/api/public/v1/pages/built?locale=en",
+         "/api/public/v1/posts/story?locale=en",
+         "/api/public/v1/cards?locale=en",
+         "/api/public/v1/cards?locale=en&tag=stories&limit=6",
+         "/api/public/v1/cards?locale=en&tag=none",
       ]) {
          const res = await f(path);
          out[path] = { status: res.status, cache: res.headers.get("cache-control"), etag: res.headers.has("etag"), body: normalize(await res.json()) };

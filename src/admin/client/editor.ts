@@ -2,6 +2,7 @@
 import { $, $$, api, ApiError, toast, strings } from "./dom.ts";
 import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
+import { readBlocks, readSlides, showReadError } from "./blocks.ts";
 import { toLocalInput } from "./time.ts";
 
 interface S {
@@ -12,6 +13,7 @@ interface S {
    saving: string;
    failed: string;
    conflict: string;
+   invalid: string;
    linkPrompt: string;
    previewEmpty: string;
    videoLine: string;
@@ -58,7 +60,8 @@ export function initEditor(): void {
    const locale = form.dataset.locale as "en" | "ar";
    const title = $<HTMLInputElement>("#f-title", form)!;
    const slug = $<HTMLInputElement>("#f-slug", form)!;
-   const body = $<HTMLTextAreaElement>("#f-body", form)!;
+   // Pages are built from blocks (no markdown body field); posts have the body (articles) and slides (cards).
+   const body = $<HTMLTextAreaElement>("#f-body", form);
    const state = form.dataset.state as "draft" | "scheduled" | "published";
    // Scheduling: the input shows the schedule (or the next full hour + 1) in the editor's own time zone.
    const publishAt = $<HTMLInputElement>("#f-publish-at", form);
@@ -78,6 +81,7 @@ export function initEditor(): void {
       if (dirtyNote) dirtyNote.hidden = false;
    };
    form.addEventListener("input", markDirty);
+   form.addEventListener("seq:change", markDirty);
    addEventListener("beforeunload", (e) => {
       if (dirty) e.preventDefault();
    });
@@ -127,6 +131,8 @@ export function initEditor(): void {
    updateSerp();
 
    // Markdown toolbar, preview tabs, insert video.
+   if (body) initBodyMarkdown(body, form);
+   function initBodyMarkdown(body: HTMLTextAreaElement, form: HTMLFormElement) {
    const preview = $("[data-md-preview]", form)!;
    for (const tab of $$<HTMLButtonElement>("[data-md-tab]", form)) {
       tab.addEventListener("click", () => {
@@ -192,6 +198,7 @@ export function initEditor(): void {
                return openPicker((item) => insertLine(`::video[${item.id}]`), b);
          }
       });
+   }
    }
 
    // Tags (posts).
@@ -284,6 +291,17 @@ export function initEditor(): void {
          }
          goLive = at!.toISOString();
       }
+      // Blocks and slides: the server's own rules, checked here first so the editor can point at the block.
+      const blocksRead = readBlocks(form);
+      const slidesRead = readSlides(form);
+      for (const r of [blocksRead, slidesRead]) {
+         if (r && !r.ok) {
+            showReadError(r);
+            return;
+         }
+      }
+      const blocks = blocksRead?.ok ? blocksRead.value : undefined;
+      const slides = slidesRead?.ok ? slidesRead.value : undefined;
       submitting = true;
       const buttons = $$<HTMLButtonElement>("button[type=submit]", form);
       buttons.forEach((b) => b.setAttribute("disabled", ""));
@@ -306,13 +324,17 @@ export function initEditor(): void {
          const data: Record<string, unknown> = {
             title: title.value.trim(),
             slug: s,
-            body: body.value,
             seo_title: val("seo_title"),
             seo_description: val("seo_description"),
             status: action === "draft" ? "draft" : "published",
             // Publish = live now; Schedule = live at goLive; a draft carries no schedule.
             publish_at: goLive,
          };
+         if (body) data.body = body.value;
+         if (blocks) data.blocks = blocks;
+         if (slides) data.slides = slides;
+         const kindInput = $<HTMLInputElement>("input[data-post-kind]:checked", form);
+         if (kindInput) data.kind = kindInput.value;
          if (kind === "pages") {
             data.summary = val("summary");
             data.show_in_sitemap = (form.elements.namedItem("show_in_sitemap") as HTMLInputElement).checked;
@@ -335,8 +357,9 @@ export function initEditor(): void {
             action === "schedule" ? "scheduled" : !id ? "created" : action === "published" ? "published" : state === "published" ? "unpublished" : state === "scheduled" ? "unscheduled" : "draft";
          location.assign(`/${kind}/${rowId}?done=${done}`);
       } catch (e) {
+         // No raw server text: a 400 is a rule the form couldn't check (e.g. a block), anything else a failure.
          if (e instanceof ApiError && e.status === 409) toast(T.conflict, "bad");
-         else toast(e instanceof ApiError ? `${T.failed} ${e.message}` : T.failed, "bad");
+         else toast(e instanceof ApiError && e.status === 400 ? T.invalid : T.failed, "bad");
       } finally {
          submitting = false;
          buttons.forEach((b) => b.removeAttribute("disabled"));
@@ -361,6 +384,10 @@ export function initEditor(): void {
             translation_key: key,
             status: "draft",
             body: "",
+            // Same blocks / slides (images, posts, videos, layout): only the text needs translating.
+            ...(readBlocks(form)?.ok ? { blocks: (readBlocks(form) as { value: unknown }).value } : {}),
+            ...(readSlides(form)?.ok ? { slides: (readSlides(form) as { value: unknown }).value } : {}),
+            ...($<HTMLInputElement>("input[data-post-kind]:checked", form) ? { kind: $<HTMLInputElement>("input[data-post-kind]:checked", form)!.value } : {}),
          });
          dirty = false;
          location.assign(`/${kind}/${created.data.id}?done=created`);

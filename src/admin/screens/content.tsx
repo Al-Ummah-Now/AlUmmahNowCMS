@@ -6,6 +6,9 @@ import { publishState, timeOf, type PublishState } from "../../lib/schedule.ts";
 import { Icon } from "../ui/icons.tsx";
 import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { PickerDialog } from "../ui/picker.tsx";
+import { blockMediaIds, blockPostIds, blockVideoRefs, bodyAsBlocks, storedBlocks, storedSlides, type Block, type Slide } from "../../lib/blocks.ts";
+import { getSnapshots } from "../../lib/video-snapshots.ts";
+import { BlocksEditor, emptyRefs, MediaDialog, mediaInfoOf, PostsDialog, SlidesEditor, type Refs } from "./blocks.tsx";
 import { ConfirmDialog, I18nScript, LocalTime, StateBadge } from "../ui/parts.tsx";
 import { historyCard } from "./history.tsx";
 
@@ -240,11 +243,38 @@ function tagsOf(v: unknown): string[] {
    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : [];
 }
 
+/** Placeholders for numeric string templates (rendered as "{0}" / "{1}"). */
+const P0 = "{0}" as unknown as number;
+const P1 = "{1}" as unknown as number;
+
 function Counter(props: { for: string; max: number }) {
    return <span class="muted" style="font-size:12px" data-counter={props.for} data-max={String(props.max)} aria-hidden="true" />;
 }
 
-export async function contentEditor(v: View, data: Data, kind: ContentKind, id: number | null, newLocale: "en" | "ar") {
+/** Media, posts and video snapshots the blocks and slides refer to (for thumbnails and titles). */
+async function loadRefs(data: Data, db: D1Database | undefined, blocks: Block[], slides: Slide[]): Promise<Refs> {
+   const refs = emptyRefs();
+   const mediaIds = [...new Set([...blockMediaIds(blocks), ...slides.flatMap((x) => (x.media_id ? [x.media_id] : []))])];
+   const postIds = blockPostIds(blocks);
+   const videoRefs = blockVideoRefs(blocks);
+   const [media, posts, snaps] = await Promise.all([
+      mediaIds.length ? data.list<{ id: number; path: string; metadata?: unknown }>("media", { limit: mediaIds.length, where: { id: { $in: mediaIds } }, select: ["id", "path", "metadata"] }) : Promise.resolve({ data: [], total: 0 }),
+      postIds.length ? data.list("posts", { limit: postIds.length, where: { id: { $in: postIds } }, select: ["id", "title", "locale", "status"] }) : Promise.resolve({ data: [] as Row[], total: 0 }),
+      db && videoRefs.length ? getSnapshots(db, videoRefs) : Promise.resolve(new Map<string, Record<string, unknown>>()),
+   ]);
+   for (const m of media.data) if (m.path) refs.media.set(Number(m.id), mediaInfoOf(m));
+   for (const p of posts.data) refs.posts.set(Number(p.id), { title: String(p.title ?? ""), locale: String(p.locale ?? ""), status: String(p.status ?? "") });
+   for (const [k, snap] of snaps) {
+      refs.videos.set(k, {
+         title: typeof snap.title === "string" ? snap.title : k.split(":")[1],
+         thumbnail_url: typeof snap.thumbnail_url === "string" ? snap.thumbnail_url : null,
+         channel_name: typeof snap.channel_name === "string" ? snap.channel_name : null,
+      });
+   }
+   return refs;
+}
+
+export async function contentEditor(v: View, data: Data, kind: ContentKind, id: number | null, newLocale: "en" | "ar", db?: D1Database) {
    const { t } = v;
    const row: Row | null = id ? await data.one(kind, id) : null;
    if (id && !row) return null;
@@ -258,6 +288,11 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    ]);
    const cover = covers.data[0];
    const history = id ? await historyCard({ v, data, kind, id }) : null;
+   // Blocks (pages) and slides (card posts), with what the editor shows for their references.
+   const blocks: Block[] = kind === "pages" ? (row ? (storedBlocks(row.blocks).length ? storedBlocks(row.blocks) : bodyAsBlocks(row.body)) : []) : [];
+   const slides: Slide[] = kind === "posts" ? storedSlides(row?.slides) : [];
+   const postKind = kind === "posts" && row?.kind === "cards" ? "cards" : "article";
+   const refs = await loadRefs(data, db, blocks, slides);
    const s = (k: string) => (row && row[k] != null ? String(row[k]) : "");
    const state = publishState(row);
    const published = state === "published";
@@ -269,6 +304,21 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    const sitePath = `${v.wwwUrl}/${locale}/${kind === "posts" ? "news/" : ""}${s("slug")}`;
    const title = row ? s("title") : kind === "pages" ? t.content.newPage : t.content.newPost;
    const strings = {
+      // Functions don't survive JSON: the client gets "{0}"/"{1}" templates (src/admin/client/blocks.ts fmt).
+      blocks: {
+         ...t.blocks,
+         position: t.blocks.position(P0, P1),
+         moved: t.blocks.moved(P0, P1),
+         added: t.blocks.added("{0}"),
+         duplicated: t.blocks.duplicated("{0}"),
+         removed: t.blocks.removed("{0}"),
+         mediaUseMany: t.blocks.mediaUseMany(P0),
+         mediaUseOne: t.blocks.mediaUseMany(1),
+         mediaUploading: t.blocks.mediaUploading("{0}"),
+      },
+      slides: { ...t.slides, count: t.slides.count(P0), count1: t.slides.count(1), count2: t.slides.count(2), count10: t.slides.count(3) },
+      invalid: t.blocks.invalid,
+      status: t.status,
       slugBad: t.content.slugBad,
       slugHome: t.content.slugHome,
       slugTaken: t.content.slugTaken,
@@ -349,51 +399,75 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         {kind === "pages" ? t.content.summaryHelp : t.content.excerptHelp}
                      </p>
                   </div>
-                  <div class="field" data-md>
-                     <span class="label" id="f-body-label">
-                        {t.content.body}
-                     </span>
-                     <div class="md-bar" role="toolbar" aria-label={t.content.toolbar} aria-controls="f-body">
-                        <div class="seg" role="tablist">
-                           <button type="button" role="tab" aria-selected="true" data-md-tab="write">
-                              {t.content.write}
-                           </button>
-                           <button type="button" role="tab" aria-selected="false" data-md-tab="preview">
-                              {t.content.preview}
-                           </button>
-                        </div>
-                        <span class="md-tools">
-                           <button type="button" class="btn ghost sm icon-only" data-md="h2" title={t.content.h2} aria-label={t.content.h2}>
-                              <Icon name="heading" size={18} />
-                           </button>
-                           <button type="button" class="btn ghost sm icon-only" data-md="bold" title={t.content.bold} aria-label={t.content.bold}>
-                              <Icon name="bold" size={18} />
-                           </button>
-                           <button type="button" class="btn ghost sm icon-only" data-md="italic" title={t.content.italic} aria-label={t.content.italic}>
-                              <Icon name="italic" size={18} />
-                           </button>
-                           <button type="button" class="btn ghost sm icon-only" data-md="quote" title={t.content.quote} aria-label={t.content.quote}>
-                              <Icon name="quote" size={18} />
-                           </button>
-                           <button type="button" class="btn ghost sm icon-only" data-md="list" title={t.content.bullets} aria-label={t.content.bullets}>
-                              <Icon name="listBullet" size={18} />
-                           </button>
-                           <button type="button" class="btn ghost sm icon-only" data-md="link" title={t.content.link} aria-label={t.content.link}>
-                              <Icon name="link" size={18} />
-                           </button>
-                           <button type="button" class="btn sm" data-md="video" data-open-picker="insert">
-                              <Icon name="film" size={18} /> {t.content.insertVideo}
-                           </button>
+                  {kind === "posts" ? (
+                     <div class="field">
+                        <span class="label" id="f-kind-l">
+                           {t.content.kind}
                         </span>
+                        <div class="seg" role="radiogroup" aria-labelledby="f-kind-l" aria-describedby="f-kind-help">
+                           <label>
+                              <input type="radio" name="kind" value="article" checked={postKind === "article"} data-post-kind />
+                              <Icon name="text" size={16} /> {t.content.kindArticle}
+                           </label>
+                           <label>
+                              <input type="radio" name="kind" value="cards" checked={postKind === "cards"} data-post-kind />
+                              <Icon name="layers" size={16} /> {t.content.kindCards}
+                           </label>
+                        </div>
+                        <p class="help" id="f-kind-help">
+                           {t.content.kindHelp}
+                        </p>
                      </div>
-                     <textarea id="f-body" spellcheck={true} class="textarea code" name="body" aria-labelledby="f-body-label" aria-describedby="f-body-help" lang={locale} dir="auto">
-                        {s("body")}
-                     </textarea>
-                     <div class="md-preview card flat" data-md-preview hidden lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} tabindex={0} />
-                     <p class="help" id="f-body-help">
-                        {t.content.bodyHelp}
-                     </p>
-                  </div>
+                  ) : null}
+                  {kind === "posts" ? (
+                     <div data-kind-panel="article" hidden={postKind !== "article"}>
+                  <div class="field" data-md>
+                        <span class="label" id="f-body-label">
+                           {t.content.body}
+                        </span>
+                        <div class="md-bar" role="toolbar" aria-label={t.content.toolbar} aria-controls="f-body">
+                           <div class="seg" role="tablist">
+                              <button type="button" role="tab" aria-selected="true" data-md-tab="write">
+                                 {t.content.write}
+                              </button>
+                              <button type="button" role="tab" aria-selected="false" data-md-tab="preview">
+                                 {t.content.preview}
+                              </button>
+                           </div>
+                           <span class="md-tools">
+                              <button type="button" class="btn ghost sm icon-only" data-md="h2" title={t.content.h2} aria-label={t.content.h2}>
+                                 <Icon name="heading" size={18} />
+                              </button>
+                              <button type="button" class="btn ghost sm icon-only" data-md="bold" title={t.content.bold} aria-label={t.content.bold}>
+                                 <Icon name="bold" size={18} />
+                              </button>
+                              <button type="button" class="btn ghost sm icon-only" data-md="italic" title={t.content.italic} aria-label={t.content.italic}>
+                                 <Icon name="italic" size={18} />
+                              </button>
+                              <button type="button" class="btn ghost sm icon-only" data-md="quote" title={t.content.quote} aria-label={t.content.quote}>
+                                 <Icon name="quote" size={18} />
+                              </button>
+                              <button type="button" class="btn ghost sm icon-only" data-md="list" title={t.content.bullets} aria-label={t.content.bullets}>
+                                 <Icon name="listBullet" size={18} />
+                              </button>
+                              <button type="button" class="btn ghost sm icon-only" data-md="link" title={t.content.link} aria-label={t.content.link}>
+                                 <Icon name="link" size={18} />
+                              </button>
+                              <button type="button" class="btn sm" data-md="video" data-open-picker="insert">
+                                 <Icon name="film" size={18} /> {t.content.insertVideo}
+                              </button>
+                           </span>
+                        </div>
+                        <textarea id="f-body" spellcheck={true} class="textarea code" name="body" aria-labelledby="f-body-label" aria-describedby="f-body-help" lang={locale} dir="auto">
+                           {s("body")}
+                        </textarea>
+                        <div class="md-preview card flat" data-md-preview hidden lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} tabindex={0} />
+                        <p class="help" id="f-body-help">
+                           {t.content.bodyHelp}
+                        </p>
+                     </div>
+                     </div>
+                  ) : null}
                   {kind === "posts" ? (
                      <div class="row2">
                         <div class="field">
@@ -420,6 +494,9 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                      </div>
                   ) : null}
                </section>
+
+               {kind === "pages" ? <BlocksEditor v={v} locale={locale} blocks={blocks} refs={refs} /> : null}
+               {kind === "posts" ? <SlidesEditor v={v} locale={locale} slides={slides} refs={refs} hidden={postKind !== "cards"} /> : null}
 
                <section class="card stack" aria-labelledby="seo-h">
                   <h2 id="seo-h">{t.content.seo}</h2>
@@ -654,7 +731,9 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                </button>
             </div>
          </form>
-         <PickerDialog v={v} />
+         <PickerDialog v={v} kinds={kind === "pages" ? ["video", "playlist", "channel"] : undefined} />
+         <MediaDialog v={v} />
+         {kind === "pages" ? <PostsDialog v={v} locale={locale} /> : null}
          <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} />
       </>
    );

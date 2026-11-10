@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- loosely typed JSON responses in assertions */
 /**
  * The committed public API snapshot (fixtures/public-api-contract.json, written through the
  * staff screens' own API calls) must satisfy what www reads (test/www-contract.ts). The snapshot
@@ -25,7 +26,7 @@ function restore(v: unknown, key?: string): unknown {
 describe("public API satisfies www's contract", () => {
    it("covers every endpoint www reads", () => {
       const covered = new Set(entries.filter(([, e]) => e.status === 200).map(([p]) => endpointOf(p)));
-      expect([...covered].sort()).toEqual(["home", "page", "post", "posts", "site", "sitemap", "videos"]);
+      expect([...covered].sort()).toEqual(["cards", "home", "page", "post", "posts", "site", "sitemap", "videos"]);
    });
 
    for (const [path, entry] of entries) {
@@ -76,5 +77,31 @@ describe("public API satisfies www's contract", () => {
       expect(wwwViolations("site", s1, CMS)[0]).toMatch(/^site\.nav\.header\[0\]\.url/);
       // Additive fields are fine
       expect(wwwViolations("page", { ...page, new_field: 1 }, CMS)).toEqual([]);
+
+      // Blocks and slides (the composed page and the card post)
+      const built = restore((snapshot as Record<string, Entry>)["/api/public/v1/pages/built?locale=en"].body) as { blocks: Record<string, any>[] };
+      expect(built.blocks.map((b) => b.type)).toEqual(["markdown", "image", "gallery", "posts", "posts", "cards", "videos", "video", "cta", "columns", "quote", "divider"]);
+      const b1 = clone(built);
+      b1.blocks[1].image.url = "https://elsewhere.example/x.png";
+      expect(wwwViolations("page", b1, CMS)[0]).toMatch(/^page\.blocks\[1\]<image>\.image\.url/);
+      const b2 = clone(built);
+      b2.blocks[8].url = "javascript:alert(1)";
+      expect(wwwViolations("page", b2, CMS)[0]).toMatch(/^page\.blocks\[8\]<cta>\.url/);
+      const b3 = clone(built);
+      b3.blocks[2].columns = 7;
+      expect(wwwViolations("page", b3, CMS)[0]).toMatch(/<gallery>\.columns/);
+      // An unknown future block type is skipped by www, so it is not a violation
+      expect(wwwViolations("page", { ...built, blocks: [...built.blocks, { id: "z", type: "future" }] }, CMS)).toEqual([]);
+      // A page from a CMS that predates blocks is still valid (www renders the body)
+      const { blocks: _b, ...noBlocks } = built;
+      expect(wwwViolations("page", noBlocks, CMS)).toEqual([]);
+      const story = restore((snapshot as Record<string, Entry>)["/api/public/v1/posts/story?locale=en"].body) as { slides: Record<string, any>[] };
+      const s2 = clone(story);
+      s2.slides[0].position = "left";
+      expect(wwwViolations("post", s2, CMS)[0]).toMatch(/^post\.slides\[0\]\.position/);
+      const grid = restore((snapshot as Record<string, Entry>)["/api/public/v1/cards?locale=en"].body) as { items: Record<string, any>[] };
+      const g1 = clone(grid);
+      g1.items[0].kind = "article";
+      expect(wwwViolations("cards", g1, CMS)[0]).toMatch(/^cards\.items\[0\]\.kind/);
    });
 });

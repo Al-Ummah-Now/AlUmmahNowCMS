@@ -82,13 +82,40 @@ also has `created_at`/`updated_at` (maintained by `src/lib/content-rules.ts`).
 
 | Entity | Fields |
 |---|---|
-| `pages` | `slug`*, `locale`*, `translation_key`, `title`*, `summary`, `body` (markdown), `status`, `published_at`, `publish_at`, `seo_title`, `seo_description`, `cover` (media), `show_in_sitemap` (bool, default true) — unique (`slug`, `locale`) |
-| `posts` | `slug`*, `locale`*, `translation_key`, `title`*, `excerpt`, `body` (markdown), `status`, `published_at`, `author_name`, `tags` (json string[]), `cover` (media), `seo_title`, `seo_description` — unique (`slug`, `locale`) |
+| `pages` | `slug`*, `locale`*, `translation_key`, `title`*, `summary`, `body` (markdown), `status`, `published_at`, `publish_at`, `seo_title`, `seo_description`, `cover` (media), `show_in_sitemap` (bool, default true), `blocks` (json Block[], `migrations/0006`; `body` is derived from it on save) — unique (`slug`, `locale`) |
+| `posts` | `slug`*, `locale`*, `translation_key`, `title`*, `excerpt`, `body` (markdown), `status`, `published_at`, `author_name`, `tags` (json string[]), `cover` (media), `seo_title`, `seo_description`, `kind` (`article`|`cards`, default `article`), `slides` (json Slide[], cards; `body` is derived from it) — unique (`slug`, `locale`) |
 | `nav_items` | `menu` (`header`|`footer`)*, `locale`*, `label`*, `url`* (relative `/…` or https), `sort` (int), `status` |
 | `curated_videos` | `kind` (`video`|`playlist`|`channel`)*, `ref_id`*, `placement` (`home`|`videos`)*, `locale` (`en`|`ar`|`all`), `title_override`, `sort`, `status`, `snapshot` (json: title, thumbnail and channel at pick time; display fallback only) |
 | `site_settings` | `locale`* (unique), `site_title`, `tagline`, `hero_title`, `hero_body`, `social` (json) |
+| `video_snapshots` | (`kind`, `ref_id`) primary key, `snapshot` (json), `attempts`, `next_attempt_at`, `last_error`, `dead_at` — snapshots of videos used in page blocks, and their refresh queue (§4.2) |
 | media | bknd's media entity, R2 binding `MEDIA` |
 | `content_revisions` (#8, `migrations/0005`) | not a bknd entity (Worker-only, never on the data API): `entity`, `entity_id`, `version`, `action` (create/update/restore), `actor_id`, `actor_email`, `restored_from`, `changed` (json field names), `snapshot` (json, full row), `created_at`. Written after every create/update of a page or post (`src/lib/revisions.ts`); all kept, listed 20 per page. |
+
+### 4.1 Page blocks and card posts
+
+A page is built from ordered blocks (`src/lib/blocks.ts`, shared by the server and the editor):
+text (markdown), image, gallery, posts (latest / by tag / picked), card posts grid, video shelf,
+embedded video, call to action, text beside an image, quote or callout, divider or space. A post is an
+article (markdown body) or **cards**: ordered slides, each an image with a heading and short text drawn
+on it at the top, middle or bottom. Blocks and slides store references only (media ids, post ids,
+video refs); the public API resolves them at read time (`src/lib/blocks-public.ts`, PUBLIC_API.md
+"Blocks"). Validation is in `src/lib/content-rules.ts` (400 on an invalid block, a bad CTA link, or too
+many items) and `body` is rewritten on every save as the blocks' (or slides') text in markdown, so
+readers that only know `body`, search and the sitemap keep working. Each locale row has its own
+blocks; Add translation copies them. `migrations/0006` backs `pages` up to `pages_backup_0006`, then
+turns every non-empty body into one text block (no data loss; tested on a copy in
+`test/node/migration-0006.test.ts`).
+
+### 4.2 Block video snapshots: a queue in D1
+
+Videos in blocks are snapshotted server-side when picked (`POST /picker/api/snapshots`) into
+`video_snapshots`, shared by every page that uses them. The cron runs the refresh queue
+(`src/lib/video-snapshots.ts`): a row is due at `next_attempt_at` (2 h after a success), only rows a
+page still uses are fetched, writes are compare-and-set on `updated_at` (overlapping runs never
+overwrite a newer write), and a failure backs off 5 min · 2^(attempts−1), at most 6 h. After 8
+failures in a row the row is dead-lettered: it keeps its last good snapshot, is flagged to staff on
+the Overview, and Retry (`POST /admin/api/video-snapshots/retry`, admin or editor) puts it back in the
+queue. An item the videos site no longer serves is kept but marked not public and left out of pages.
 
 Expand-only rules (enforced by CI, §8): migrations only `CREATE TABLE`/`CREATE INDEX`/`ALTER TABLE …
 ADD COLUMN`. No `DROP`, `RENAME` or `ALTER … DROP`. A new required field must have a default.
@@ -123,10 +150,11 @@ service binding; CORS is for the client-side language switcher and future island
 |---|---|
 | `/site?locale=` | settings + `nav: { header[], footer[] }` |
 | `/home?locale=` | settings hero, `videos` (placement home), `posts` (latest 3) |
-| `/pages/:slug?locale=` | a page + `alternates: [{ locale, slug }]` |
+| `/pages/:slug?locale=` | a page + `alternates: [{ locale, slug }]` + `blocks` (resolved) |
 | `/posts?locale=&page=&limit=` (≤ 20) | `{ items, page, total }` |
 | `/posts/:slug?locale=` | a post + alternates |
 | `/videos?locale=&placement=` | curated items |
+| `/cards?locale=&tag=&page=&limit=` (≤ 24) | card posts `{ items, page, total, tags }` |
 | `/sitemap` | `[{ type, locale, slug, updated_at }]` |
 | `/media/:path` | the R2 object, `Cache-Control: public, max-age=31536000, immutable` (media paths are content-addressed) |
 

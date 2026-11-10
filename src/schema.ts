@@ -41,6 +41,9 @@ export const schema = em(
             seo_description: text(),
             cover: medium(),
             show_in_sitemap: boolean({ default_value: true }),
+            // Ordered blocks (src/lib/blocks.ts). `body` stays: it is derived from the blocks on save
+            // (content-rules) for readers of the v1 contract that predate blocks.
+            blocks: json<unknown[]>({ description: "Ordered page blocks (src/lib/blocks.ts)." }),
             ...timestamps(),
          },
          { primary_format: "integer" },
@@ -59,6 +62,9 @@ export const schema = em(
             publish_at: datetime(),
             author_name: text(),
             tags: json<string[]>({ default_value: [] }),
+            // "article" (markdown body) or "cards" (ordered slides, src/lib/blocks.ts). NULL reads as article.
+            kind: enumm({ enum: ["article", "cards"], default_value: "article" }),
+            slides: json<unknown[]>({ description: "Card post slides (src/lib/blocks.ts)." }),
             cover: medium(),
             seo_title: text(),
             seo_description: text(),
@@ -119,6 +125,7 @@ export const schema = em(
       index(e.site_settings).on(["locale"], true);
       index(e.users).on(["sso_sub"], true);
       index(e.posts).on(["status", "locale", "published_at"]);
+      index(e.posts).on(["kind", "status", "locale", "published_at"]);
       index(e.curated_videos).on(["placement", "status"]);
       // One row per video per placement and locale (migrations/0002): the picker inserts ON CONFLICT DO NOTHING.
       index(e.curated_videos).on(["kind", "ref_id", "placement", "locale"], true);

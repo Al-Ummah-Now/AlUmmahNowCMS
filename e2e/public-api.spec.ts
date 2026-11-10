@@ -102,6 +102,9 @@ test.describe("public API as www reads it", () => {
             for (const p of posts.items) expect(p.locale).toBe(locale);
          }
          for (const placement of ["home", "videos"] as const) await read(request, "videos", wwwPaths.videos(locale, placement));
+         // The cards grid, as a cards block requests it (first page, then a tag filter)
+         await read(request, "cards", wwwPaths.cards(locale, 1, 12));
+         await read(request, "cards", wwwPaths.cards(locale, 1, 12, "e2e-no-such-tag"));
       });
 
       test(`${locale}: unknown page and post slugs are 404 (www caches them as not found)`, async ({ request }) => {
