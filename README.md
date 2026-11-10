@@ -40,6 +40,11 @@ CMS_URL=http://localhost:8585 npm run e2e       # Playwright (signed-in tests ne
 npx playwright test -c playwright.local.config.ts  # AI assist flows: wrangler dev + mock auth + mock Workers AI
 ```
 
+A spec that ends sessions (sign-out, token revoke, password/role change) must sign in with its own
+dedicated `qa-sso-*` seed account (e.g. `ACCOUNTS.ssoCms` for `e2e/sso-journey.spec.ts`), never a
+shared one: sign-out ends the account's sessions in every app. `npm test` enforces this
+(`scripts/lib/e2e-session-accounts.ts`).
+
 ## Changing the content model
 
 1. Edit `src/schema.ts` (add only — never remove or rename a field; stop reading it instead).
@@ -65,7 +70,7 @@ npx playwright test -c playwright.local.config.ts  # AI assist flows: wrangler d
 |---|---|---|
 | Worker (each env) | `BKND_JWT_SECRET` | `openssl rand -hex 32` → `wrangler secret put BKND_JWT_SECRET [--env qa\|stage]`. Required; the Worker serves 503 without it. Also the root of the draft-preview token key (derived, `src/lib/preview.ts`), so preview needs no secret of its own. |
 | GitHub | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Workers, D1 and R2 edit on account `0e4b6e7f…` |
-| GitHub | `QA_SEED_PASSWORD`, `STAGE_SEED_PASSWORD` | E2E test accounts (`qa-admin`, `qa-moderator`, `qa-viewer`) |
+| GitHub | `QA_SEED_PASSWORD`, `STAGE_SEED_PASSWORD` | E2E test accounts (`qa-admin`, `qa-moderator`, `qa-viewer`, `qa-sso-cms`) |
 
 AI writing assist needs no secret by default: it runs on Workers AI through the `AI` binding every env
 declares in `wrangler.jsonc` (docs/AI_ASSIST_SPEC.md §2). Workers AI is the default, and third-party
