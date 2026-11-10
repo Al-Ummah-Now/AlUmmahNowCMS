@@ -32,6 +32,15 @@ describe("unauthenticated", () => {
       expect(cookie).toMatch(/SameSite=Lax/i);
    });
 
+   it("an Arabic page signs in on the Arabic sign-in page (auth reads ?lang= only)", async () => {
+      const fromReturn = new URL((await makeWorker()("/sso/login?return=%2Fvideos%3Flang%3Dar")).headers.get("location")!);
+      expect(fromReturn.searchParams.get("lang")).toBe("ar");
+      const fromQuery = new URL((await makeWorker()("/sso/login?lang=ar&return=%2F")).headers.get("location")!);
+      expect(fromQuery.searchParams.get("lang")).toBe("ar");
+      const english = new URL((await makeWorker()("/sso/login?return=%2Fvideos%3Flang%3Den")).headers.get("location")!);
+      expect(english.searchParams.has("lang")).toBe(false);
+   });
+
    it("the picker API answers 401 JSON, not a redirect", async () => {
       const res = await makeWorker()("/picker/api/search?kind=video&q=ab");
       expect(res.status).toBe(401);

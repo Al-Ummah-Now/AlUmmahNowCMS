@@ -29,6 +29,18 @@ export interface AuthorizeParams {
    state: string;
    codeChallenge: string;
    prompt?: Prompt;
+   /** The sign-in page language (auth reads it from ?lang= only). Only "ar" is sent; English is the default. */
+   lang?: "en" | "ar";
+}
+
+/** "ar" when the sign-in starts from an Arabic page (?lang=ar on /sso/login or on the return path). */
+export function signInLang(query: string | undefined, returnPath: string): "ar" | undefined {
+   if (query === "ar") return "ar";
+   try {
+      return new URL(returnPath, "https://cms.invalid").searchParams.get("lang") === "ar" ? "ar" : undefined;
+   } catch {
+      return undefined;
+   }
 }
 
 export function buildAuthorizeUrl(p: AuthorizeParams): string {
@@ -40,6 +52,7 @@ export function buildAuthorizeUrl(p: AuthorizeParams): string {
    url.searchParams.set("code_challenge", p.codeChallenge);
    url.searchParams.set("code_challenge_method", "S256");
    if (p.prompt) url.searchParams.set("prompt", p.prompt);
+   if (p.lang === "ar") url.searchParams.set("lang", "ar");
    return url.toString();
 }
 
