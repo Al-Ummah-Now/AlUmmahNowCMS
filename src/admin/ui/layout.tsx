@@ -175,7 +175,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                      <button class="ic only-phone" type="button" data-open-drawer aria-label={t.nav.menu} aria-controls="drawer" aria-expanded="false">
                         <Icon name="menu" />
                      </button>
-                     <a class="brand" href="/" aria-label={`${t.brand} · ${t.cms}`}>
+                     <a class="brand" href="/">
                         <span class="brand-mark" aria-hidden="true">
                            <Icon name="sparkle" size={18} />
                         </span>
