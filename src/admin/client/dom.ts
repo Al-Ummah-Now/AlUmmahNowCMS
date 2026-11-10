@@ -46,7 +46,61 @@ export function errorMessage(body: unknown): string | undefined {
    return undefined;
 }
 
+/**
+ * Uploads in flight (requests with a FormData body). Leaving the page cancels
+ * them (the editor's language links, the UI language toggle and nav links are
+ * full page loads), so while any is running, leaving asks first.
+ */
+let uploadsInFlight = 0;
+let leaveConfirmed = false;
+let leaveGuardInstalled = false;
+
+export const uploadInProgress = (): boolean => uploadsInFlight > 0;
+
+function leaveMessage(): string {
+   return document.body?.dataset.leaveUploading || "An upload is still in progress. Leaving this page now will cancel it. Leave anyway?";
+}
+
+function installLeaveGuard(): void {
+   if (leaveGuardInstalled || typeof window === "undefined") return;
+   leaveGuardInstalled = true;
+   // Same-page links (language switch, nav): ask in the page's language
+   document.addEventListener(
+      "click",
+      (e) => {
+         if (uploadsInFlight === 0 || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+         const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+         if (!a || a.target === "_blank" || a.hasAttribute("download") || a.getAttribute("href")?.startsWith("#")) return;
+         if (confirm(leaveMessage())) leaveConfirmed = true;
+         else {
+            e.preventDefault();
+            e.stopPropagation();
+         }
+      },
+      true,
+   );
+   // Reload, close, back, typed URL: the browser's own prompt
+   window.addEventListener("beforeunload", (e) => {
+      if (uploadsInFlight === 0 || leaveConfirmed) return;
+      e.preventDefault();
+      e.returnValue = "";
+   });
+}
+
 export async function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
+   if (body instanceof FormData) {
+      installLeaveGuard();
+      uploadsInFlight++;
+      try {
+         return await request<T>(method, url, body);
+      } finally {
+         uploadsInFlight--;
+      }
+   }
+   return request<T>(method, url, body);
+}
+
+async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
    const init: RequestInit = { method, credentials: "same-origin", headers: { accept: "application/json" } };
    if (body instanceof FormData) init.body = body;
    else if (body !== undefined) {

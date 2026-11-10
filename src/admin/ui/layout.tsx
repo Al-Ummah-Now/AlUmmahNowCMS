@@ -157,7 +157,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
             <link rel="stylesheet" href={v.assets.css} />
             <script type="module" src={v.assets.js} nonce={v.nonce} />
          </head>
-         <body>
+         <body data-leave-uploading={t.common.leaveUploading}>
             <a class="skip" href="#main">
                {t.skip}
             </a>
