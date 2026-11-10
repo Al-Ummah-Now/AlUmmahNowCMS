@@ -16,6 +16,7 @@
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const MIGRATIONS_DIR = "migrations";
 export const NAME = /^\d{4}_[a-z0-9_]+\.sql$/;
@@ -119,11 +120,11 @@ function readBase(root: string, ref: string): MigrationFile[] {
    return names.map((name) => ({ name, content: git("show", `${ref}:${MIGRATIONS_DIR}/${name}`) }));
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(new URL(import.meta.url)));
 if (isMain) {
    const argv = process.argv.slice(2);
    const base = argv.includes("--base") ? argv[argv.indexOf("--base") + 1] : "origin/main";
-   const root = resolve(new URL("..", import.meta.url).pathname);
+   const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
    const errors = checkMigrations(readHead(root), readBase(root, base));
    if (errors.length) {
       process.stderr.write(`Migration guard failed (base ${base}):\n${errors.map((e) => `  - ${e}`).join("\n")}\n`);

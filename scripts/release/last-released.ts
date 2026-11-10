@@ -8,6 +8,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ENVS, parseEnv } from "./envs.ts";
 
 export const RELEASE_MESSAGE = /^release ([0-9a-f]{40})\b/;
@@ -26,10 +27,10 @@ export function lastReleasedSha(deploymentsJson: string): string | undefined {
    return undefined;
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(new URL(import.meta.url)));
 if (isMain) {
    const env = parseEnv(process.argv.slice(2), ["production", "stage"]);
-   const root = resolve(new URL("../..", import.meta.url).pathname);
+   const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
    const out = execFileSync("npx", ["wrangler", "deployments", "list", "--json", "--name", ENVS[env].worker], {
       cwd: root,
       encoding: "utf8",

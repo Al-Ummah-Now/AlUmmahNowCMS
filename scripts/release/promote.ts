@@ -13,6 +13,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ENVS, parseEnv, type EnvName } from "./envs.ts";
 import { runSmoke, type CheckResult } from "./smoke.ts";
 
@@ -175,12 +176,12 @@ export async function waitForVersion(
    throw new Error(`${info.worker} did not serve ${version} within ${timeoutMs / 1000}s (last: ${last})`);
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(new URL(import.meta.url)));
 if (isMain) {
    const argv = process.argv.slice(2);
    const env = parseEnv(argv, ["stage", "production"]) as ReleaseEnv;
    const message = argv.includes("--message") ? argv[argv.indexOf("--message") + 1] : `release ${process.env.GITHUB_SHA?.slice(0, 7) ?? "local"}`;
-   const root = resolve(new URL("../..", import.meta.url).pathname);
+   const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
    const bundle = join(root, "dist", env, "index.js");
    if (!existsSync(bundle)) {
       process.stderr.write(`missing ${bundle}: run the build job (wrangler deploy --dry-run --outdir dist/${env})\n`);

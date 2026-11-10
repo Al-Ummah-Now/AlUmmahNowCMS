@@ -8,6 +8,7 @@
  * hit that (0 %-traffic) version with production bindings, and /healthz must report it.
  */
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ENVS, parseEnv, type EnvName } from "./envs.ts";
 
 export interface CheckResult {
@@ -101,7 +102,7 @@ export async function runSmoke(opts: SmokeOptions): Promise<CheckResult[]> {
    return results;
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(new URL(import.meta.url)));
 if (isMain) {
    const argv = process.argv.slice(2);
    const env = parseEnv(argv);

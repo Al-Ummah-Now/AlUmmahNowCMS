@@ -65,9 +65,9 @@ describe("minting (GET /preview/:kind/:id)", () => {
       const published = await (await f("/pages/902", { headers: { cookie } })).text();
       expect(published).not.toContain("/preview/pages/902");
       expect(published).toContain("View on site");
-      // www serves posts under /news/ (not /posts/).
+      // www serves posts under /articles/ (not /posts/).
       const post = await (await f("/posts/902", { headers: { cookie } })).text();
-      expect(post).toContain('href="https://www.test/en/news/pv-live"');
+      expect(post).toContain('href="https://www.test/en/articles/pv-live"');
       const fresh = await (await f("/pages/new", { headers: { cookie } })).text();
       expect(fresh).not.toContain("data-preview");
    });

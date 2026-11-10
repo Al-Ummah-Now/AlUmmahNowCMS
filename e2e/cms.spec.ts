@@ -189,7 +189,7 @@ test.describe("signed in", () => {
 
          if (WWW_URL) {
             await expect
-               .poll(async () => (await fetch(`${WWW_URL}/en/news/`, { headers: { "cache-control": "no-cache" } }).then((r) => r.text())).includes(title), {
+               .poll(async () => (await fetch(`${WWW_URL}/en/articles/`, { headers: { "cache-control": "no-cache" } }).then((r) => r.text())).includes(title), {
                   timeout: 90_000,
                   intervals: [5_000],
                })
