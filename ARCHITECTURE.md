@@ -28,6 +28,10 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
 | `src/lib/content-rules.ts` | bknd plugin: timestamps, `published_at` on first publish, URL/slug/tag validation. |
 | `src/routes/public-api.ts` | `docs/PUBLIC_API.md`. Every query has `status = 'published'`. ETag + `s-maxage=60`. |
 | `src/routes/preview.ts`, `src/lib/preview.ts` | Draft preview on www: signed, 30-minute, one-row tokens (HMAC key derived from `BKND_JWT_SECRET`), minted by staff only; the preview API serves the public Page/Post shape, `no-store`. `docs/PUBLIC_API.md` "Preview API". |
+| `src/lib/blocks.ts` | Page blocks and card-post slides: types, limits, validation (`normalizeBlocks`/`normalizeSlides`), body derivation, text extraction for translation. Imports nothing: shared by the Worker and the admin client. |
+| `src/lib/blocks-public.ts` | Resolves blocks and slides for the public API at read time (media → MediaRef, picked posts → live summaries in the page's locale, videos → snapshots); drops incomplete or non-public blocks. |
+| `src/lib/video-snapshots.ts` | Snapshots of videos used in blocks and their D1 refresh queue (cron): backoff, dead-letter, compare-and-set, Overview flag + Retry. |
+| `src/admin/screens/blocks.tsx`, `src/admin/client/blocks.ts` | Block and slide editors: server-rendered items and templates, client-side ordered lists (buttons, Alt+↑/↓, drag, Undo), media and posts choosers, preview. |
 | `src/routes/picker.ts`, `src/lib/videos.ts`, `src/lib/embeds.ts` | Picker page (en/ar), videos-API proxy that drops non-public items, embed URL adapter. |
 | `src/lib/security.ts`, `src/lib/paths.ts` | CSP with per-response nonce, no-store/noindex, CSRF Origin check, blocked bknd routes, upload policy (jpeg/png/webp/avif ≤ 10 MB). |
 | `src/lib/variants/` | Image variants (CMS-10, docs/PUBLIC_API.md "Image variants"): `plan.ts` widths/formats/R2 keys, `jobs.ts` queue consumer + D1 `media_variants` state + cron sweep, `codecs.ts` WASM codecs (fresh instance per call, decode read in place), `resize.ts` streaming area resize, `png.ts`, `probe.ts` header size + EXIF orientation. |

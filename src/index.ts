@@ -22,6 +22,7 @@ import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
 import { consumeVariants, deleteVariants, sweepVariants, type VariantMessage } from "./lib/variants/jobs.ts";
 import { VARIANT_ROOT } from "./lib/variants/plan.ts";
 import { withActor } from "./lib/revisions.ts";
+import { runSnapshotQueue } from "./lib/video-snapshots.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
 import { legacyAdminRedirect } from "./admin/legacy.ts";
@@ -252,6 +253,13 @@ export default {
          sweepVariants(env).then(
             (r) => console.log(JSON.stringify({ msg: "image variants swept", ...r })),
             (error) => console.error("image variant sweep failed", String(error)),
+         ),
+      );
+      // Block video snapshots: a retrying queue in D1; dead-lettered rows are flagged on the Overview.
+      ctx.waitUntil(
+         runSnapshotQueue(env.DB, env.VIDEOS_API_URL.replace(/\/+$/, "")).then(
+            (r) => console.log(JSON.stringify({ msg: "block video snapshots", ...r })),
+            (error) => console.error("block video snapshot queue failed", String(error)),
          ),
       );
    },

@@ -58,7 +58,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
 
    r.get("/", async (c) => {
       const v = await buildView(c, deps);
-      return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps)));
+      return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps), c.env.DB));
    });
 
    for (const kind of ["pages", "posts"] as ContentKind[]) {
@@ -69,11 +69,11 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       r.get(`/${kind}/new`, async (c) => {
          const v = await buildView(c, deps);
          const locale = c.req.query("locale") === "ar" ? "ar" : c.req.query("locale") === "en" ? "en" : v.prefs.lang;
-         return render(c, v, kind === "pages" ? v.t.content.newPage : v.t.content.newPost, await contentEditor(v, new Data(c, deps), kind, null, locale));
+         return render(c, v, kind === "pages" ? v.t.content.newPage : v.t.content.newPost, await contentEditor(v, new Data(c, deps), kind, null, locale, c.env.DB));
       });
       r.get(`/${kind}/:id{[0-9]+}`, async (c) => {
          const v = await buildView(c, deps);
-         const body = await contentEditor(v, new Data(c, deps), kind, Number(c.req.param("id")), v.prefs.lang);
+         const body = await contentEditor(v, new Data(c, deps), kind, Number(c.req.param("id")), v.prefs.lang, c.env.DB);
          if (!body) return render(c, v, v.t.common.notFound, <p class="notice">{v.t.common.notFound}</p>, 404);
          return render(c, v, v.t.entities[kind].one, body);
       });

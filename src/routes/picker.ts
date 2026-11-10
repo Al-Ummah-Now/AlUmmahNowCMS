@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { applyRules, ContentRuleError } from "../lib/content-rules.ts";
 import { embedUrl } from "../lib/embeds.ts";
 import { snapshotOf } from "../lib/snapshots.ts";
+import { putSnapshot } from "../lib/video-snapshots.ts";
 import { lookupItem, searchVideos, VIDEO_KINDS, type VideoKind } from "../lib/videos.ts";
 import type { AppEnv, Deps } from "../types.ts";
 
@@ -157,6 +158,29 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
          if (error instanceof ContentRuleError) return c.json({ error: "bad_request", message: error.message }, 400);
          throw error;
       }
+   });
+
+   // A video for a page block (shelf or embed): look it up server-side and store its snapshot in
+   // video_snapshots (idempotent upsert). The page row only stores { kind, ref_id }.
+   picker.post("/api/snapshots", async (c) => {
+      const cfg = c.get("cfg");
+      if (!(c.req.header("content-type") ?? "").includes("application/json")) {
+         return c.json({ error: "bad_request", message: "JSON body required" }, 415);
+      }
+      const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+      const kind = b?.kind as VideoKind;
+      const refId = typeof b?.ref_id === "string" ? b.ref_id : "";
+      if (!VIDEO_KINDS.includes(kind) || !refId) return c.json({ error: "bad_request" }, 400);
+      let item;
+      try {
+         item = await lookupItem(cfg.videosApiUrl, kind, refId, deps.fetch);
+      } catch (error) {
+         console.warn("snapshot lookup failed", (error as Error).message);
+         return c.json({ error: "upstream_error" }, 502);
+      }
+      if (!item) return c.json({ error: "not_found", message: "not found or not public" }, 404);
+      const snapshot = await putSnapshot(c.env.DB, item);
+      return c.json({ data: { kind, ref_id: item.id, snapshot } }, 200);
    });
 
    return picker;

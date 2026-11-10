@@ -27,6 +27,7 @@ export const wwwPaths = {
    post: (l: Locale, slug: string) => `/posts/${encodeURIComponent(slug)}${q({ locale: l })}`,
    videos: (l: Locale, placement: "home" | "videos") => `/videos${q({ locale: l, placement })}`,
    sitemap: () => "/sitemap",
+   cards: (l: Locale, page: number, limit: number, tag?: string) => `/cards${q({ locale: l, page, limit, ...(tag ? { tag } : {}) })}`,
 };
 
 type Check = (v: unknown, path: string, out: string[]) => void;
@@ -92,6 +93,10 @@ const settings = object({
 
 const alternates = arrayOf(object({ locale, slug: nonEmpty }));
 
+/** A card post's slide: real text over an image (www renders it, never burned into the image). */
+const slide = (cms: string) =>
+   object({ id: nonEmpty, image: media(cms), heading: nullable(str), body: nullable(str), position: oneOf("top", "middle", "bottom") });
+
 const postSummary = (cms: string) => ({
    slug: nonEmpty,
    locale,
@@ -102,6 +107,10 @@ const postSummary = (cms: string) => ({
    tags: arrayOf(str),
    published_at: iso,
    updated_at: iso,
+   // Card posts (additive; absent from a CMS that predates them, which www reads as an article)
+   kind: optional(oneOf("article", "cards")),
+   slide_count: optional(int),
+   first_slide: optional(nullable(slide(cms))),
 });
 
 const localized = (c: Check): Check => (v, p, o) => {
@@ -135,16 +144,43 @@ const curated = object({
    sort: int,
 });
 
+const blockItem = (cms: string) => object({ image: media(cms), caption: nullable(str) });
+const blockVideo = object({ kind: oneOf("video", "playlist", "channel"), ref_id: nonEmpty, title_override: nullable(str), snapshot: nullable(snapshot) });
+
+/** One page block: www renders each type; an unknown type is skipped by www, so it is allowed. */
+const block = (cms: string): Check => (v, p, o) => {
+   if (kind(v) !== "object") return fail(o, p, "object", v);
+   const b = v as Record<string, unknown>;
+   const shapes: Record<string, Record<string, Check>> = {
+      markdown: { text: str },
+      image: { image: media(cms), caption: nullable(str), size: oneOf("content", "wide") },
+      gallery: { columns: (x, pp, oo) => void (![2, 3, 4].includes(x as number) && fail(oo, pp, "2|3|4", x)), items: arrayOf(blockItem(cms)) },
+      posts: { heading: nullable(str), mode: oneOf("latest", "tag", "picked"), items: arrayOf(object(postSummary(cms))) },
+      cards: { heading: nullable(str), tag: nullable(str), page_size: int, filter: (x, pp, oo) => void (typeof x !== "boolean" && fail(oo, pp, "boolean", x)) },
+      videos: { heading: nullable(str), items: arrayOf(blockVideo) },
+      video: { kind: oneOf("video", "playlist"), ref_id: nonEmpty, caption: nullable(str), snapshot: nullable(snapshot) },
+      cta: { heading: nullable(str), text: nullable(str), label: nonEmpty, url: navUrl, tone: oneOf("primary", "quiet") },
+      columns: { text: str, image: nullable(media(cms)), caption: nullable(str), image_side: oneOf("start", "end") },
+      quote: { variant: oneOf("quote", "callout"), text: nonEmpty, cite: nullable(str) },
+      divider: { style: oneOf("line", "space"), size: oneOf("s", "m", "l") },
+   };
+   nonEmpty(b.id, `${p}.id`, o);
+   const shape = shapes[b.type as string];
+   if (shape) object(shape)(v, `${p}<${String(b.type)}>`, o);
+   else nonEmpty(b.type, `${p}.type`, o);
+};
+
 /** Body checks per endpoint (www's response types). `cms` is the CMS's public origin. */
 export function wwwSchemas(cms: string) {
    return {
       site: object({ settings: nullable(settings), nav: object({ header: arrayOf(object({ label: nonEmpty, url: navUrl })), footer: arrayOf(object({ label: nonEmpty, url: navUrl })) }) }),
       home: object({ settings: nullable(settings), videos: arrayOf(curated), posts: arrayOf(object(postSummary(cms))) }),
-      page: object({ slug: nonEmpty, locale, title: nonEmpty, summary: nullable(str), body: str, seo_title: nullable(str), seo_description: nullable(str), cover: nullable(media(cms)), published_at: iso, updated_at: iso, alternates, images: optional(arrayOf(media(cms))) }),
+      page: object({ slug: nonEmpty, locale, title: nonEmpty, summary: nullable(str), body: str, seo_title: nullable(str), seo_description: nullable(str), cover: nullable(media(cms)), published_at: iso, updated_at: iso, alternates, images: optional(arrayOf(media(cms))), blocks: optional(arrayOf(block(cms))) }),
       posts: object({ items: arrayOf(object(postSummary(cms))), page: int, limit: int, total: int }),
-      post: object({ ...postSummary(cms), body: str, seo_title: nullable(str), seo_description: nullable(str), alternates, images: optional(arrayOf(media(cms))) }),
+      post: object({ ...postSummary(cms), body: str, seo_title: nullable(str), seo_description: nullable(str), alternates, images: optional(arrayOf(media(cms))), slides: optional(arrayOf(slide(cms))) }),
       videos: object({ items: arrayOf(curated) }),
       sitemap: object({ items: arrayOf(object({ type: oneOf("page", "post"), locale, slug: nonEmpty, updated_at: iso })) }),
+      cards: object({ items: arrayOf(object({ ...postSummary(cms), kind: oneOf("cards"), slide_count: int, first_slide: nullable(slide(cms)) })), page: int, limit: int, total: int, tags: arrayOf(nonEmpty) }),
    } satisfies Record<keyof typeof wwwPaths, Check>;
 }
 export type WwwEndpoint = keyof typeof wwwPaths;
@@ -164,6 +200,7 @@ export function endpointOf(path: string): WwwEndpoint | null {
    if (p === "/posts") return "posts";
    if (p === "/videos") return "videos";
    if (p === "/sitemap") return "sitemap";
+   if (p === "/cards") return "cards";
    if (/^\/pages\/[^/]+$/.test(p)) return "page";
    if (/^\/posts\/[^/]+$/.test(p)) return "post";
    return null;

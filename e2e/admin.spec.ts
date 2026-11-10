@@ -135,10 +135,12 @@ test.describe("pages and posts (E1–E16)", () => {
       await page.getByLabel("Title", { exact: true }).fill(`About ${STAMP}`);
       await page.getByLabel("Address", { exact: true }).fill(`about-${STAMP}`);
       await page.getByLabel("Summary", { exact: true }).fill("Who we are");
-      await page.locator("#f-body").fill("## Hello\n\nThis is **bold**.");
-      await page.getByRole("tab", { name: "Preview" }).click();
-      await expect(page.locator("[data-md-preview] strong")).toHaveText("bold");
-      await page.getByRole("tab", { name: "Write" }).click();
+      // Pages are built from blocks (e2e/blocks.spec.ts covers every block type).
+      await page.getByRole("button", { name: /^Text Headings/ }).click();
+      await page.locator("[data-blocks-editor] textarea[data-k=text]").fill("## Hello\n\nThis is **bold**.");
+      await page.getByRole("button", { name: "Preview", exact: true }).click();
+      await expect(page.locator("[data-blocks-preview-body] strong")).toHaveText("bold");
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
       await page.getByLabel("Search title", { exact: true }).fill(`SEO ${STAMP}`);
       await expect(page.locator("[data-serp-title]")).toHaveText(`SEO ${STAMP}`);
       await page.getByRole("button", { name: "Publish" }).first().click();

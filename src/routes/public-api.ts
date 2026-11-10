@@ -9,28 +9,12 @@ import type { Env } from "../env.ts";
 import { LIVE_SQL } from "../lib/schedule.ts";
 import { bodyImagePaths } from "../lib/variants/body-images.ts";
 import { enqueueVariants } from "../lib/variants/jobs.ts";
-import { fallbackFormat, parseVariantQuery, VARIANT_TYPES, variantKey, widthsFor } from "../lib/variants/plan.ts";
+import { parseVariantQuery, VARIANT_TYPES, variantKey } from "../lib/variants/plan.ts";
+import { MEDIA_COLS, mediaRefOf, mediaUrl, mediaVariants, type MediaRef, type MediaRow, type MediaVariants } from "../lib/media-ref.ts";
+import { mediaByIds, publicBlocks, publicSlides, rowSlides, slideMediaIds, type BlockDeps, type PublicSlide } from "../lib/blocks-public.ts";
 
 type Locale = "en" | "ar";
 type Row = Record<string, unknown>;
-
-export interface MediaRef {
-   url: string;
-   alt: string | null;
-   width: number | null;
-   height: number | null;
-   /** Resized copies in modern formats (CMS-10); null when the original's width is unknown. Additive. */
-   variants: MediaVariants | null;
-}
-
-/** srcset strings ("<url>?w=320&f=avif 320w, …") per format, for `<picture>` sources. */
-export interface MediaVariants {
-   widths: number[];
-   fallback_type: "image/jpeg" | "image/png";
-   avif: string;
-   webp: string;
-   fallback: string;
-}
 
 const CACHE = "public, s-maxage=60, stale-while-revalidate=600";
 const MEDIA_CACHE = "public, max-age=31536000, immutable";
@@ -94,36 +78,8 @@ function parseJson<T>(v: unknown, fallback: T): T {
 const truthy = (v: unknown, def: boolean) =>
    v === null || v === undefined ? def : v === true || v === 1 || v === "1" || v === "true";
 
-export function mediaUrl(publicUrl: string, path: string): string {
-   return `${publicUrl.replace(/\/+$/, "")}/api/public/v1/media/${path.split("/").map(encodeURIComponent).join("/")}`;
-}
-
-export function mediaVariants(url: string, width: number | null, mimeType: string | null): MediaVariants | null {
-   const widths = widthsFor(width);
-   if (!widths) return null;
-   const fallback = fallbackFormat(mimeType);
-   const srcset = (f: string) => widths.map((w) => `${url}?w=${w}&f=${f} ${w}w`).join(", ");
-   return { widths, fallback_type: fallback === "png" ? "image/png" : "image/jpeg", avif: srcset("avif"), webp: srcset("webp"), fallback: srcset(fallback) };
-}
-
-interface MediaRow {
-   path: string;
-   metadata: unknown;
-   mime_type: string | null;
-   /** Displayed size read by the variant job (EXIF orientation applied); preferred over bknd's. */
-   v_width: number | null;
-   v_height: number | null;
-}
-const MEDIA_COLS = "m.path, m.metadata, m.mime_type, v.width AS v_width, v.height AS v_height";
-
-function mediaRefOf(env: Env, m: MediaRow): MediaRef {
-   const meta = parseJson<Row>(m.metadata, {});
-   const num = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v > 0 ? v : null);
-   const width = num(m.v_width) ?? num(meta.width);
-   const height = num(m.v_width) ? num(m.v_height) : num(meta.height);
-   const url = mediaUrl(env.PUBLIC_URL, m.path);
-   return { url, alt: strOrNull(meta.alt), width, height, variants: mediaVariants(url, width, m.mime_type) };
-}
+export { mediaUrl, mediaVariants };
+export type { MediaRef, MediaVariants };
 
 async function covers(env: Env, entity: "pages" | "posts", ids: unknown[]): Promise<Map<string, MediaRef>> {
    const out = new Map<string, MediaRef>();
@@ -251,18 +207,26 @@ async function curated(env: Env, l: Locale, placement: "home" | "videos") {
    return results.map(curatedOf);
 }
 
-const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, tags, published_at, updated_at, created_at";
+const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, tags, kind, slides, published_at, updated_at, created_at";
 
 async function postSummaries(env: Env, rows: Row[]) {
-   const cov = await covers(
-      env,
-      "posts",
-      rows.map((r) => r.id),
-   );
-   return rows.map((r) => postSummaryOf(r, cov.get(String(r.id)) ?? null));
+   const firstIds = rows.flatMap((r) => slideMediaIds(rowSlides(r)));
+   const [cov, media] = await Promise.all([
+      covers(
+         env,
+         "posts",
+         rows.map((r) => r.id),
+      ),
+      mediaByIds(env, firstIds),
+   ]);
+   return rows.map((r) => {
+      const slides = publicSlides(rowSlides(r), media);
+      return postSummaryOf(r, cov.get(String(r.id)) ?? null, slides);
+   });
 }
 
-function postSummaryOf(r: Row, cover: MediaRef | null) {
+/** `kind`, `slide_count` and `first_slide` are additive (card posts); articles have 0 and null. */
+function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[]) {
    const published = toIso(r.published_at) ?? toIso(r.created_at) ?? new Date(0).toISOString();
    const tags = parseJson<unknown>(r.tags, []);
    return {
@@ -275,8 +239,17 @@ function postSummaryOf(r: Row, cover: MediaRef | null) {
       tags: Array.isArray(tags) ? tags.filter((t): t is string => typeof t === "string") : [],
       published_at: published,
       updated_at: toIso(r.updated_at) ?? published,
+      kind: r.kind === "cards" ? ("cards" as const) : ("article" as const),
+      slide_count: slides.length,
+      first_slide: slides[0] ?? null,
    };
 }
+
+const blockDeps = (env: Env): BlockDeps => ({
+   summaries: (rows) => postSummaries(env, rows),
+   postCols: POST_SUMMARY_COLS,
+   snapshot: (s) => snapshotOf(s),
+});
 
 async function alternates(env: Env, table: "pages" | "posts", key: unknown, l: Locale) {
    if (typeof key !== "string" || key === "") return [];
@@ -292,7 +265,12 @@ async function alternates(env: Env, table: "pages" | "posts", key: unknown, l: L
 export async function pageOf(env: Env, row: Row) {
    const l = row.locale as Locale;
    const body = typeof row.body === "string" ? row.body : "";
-   const [cov, alts, images] = await Promise.all([covers(env, "pages", [row.id]), alternates(env, "pages", row.translation_key, l), bodyImages(env, body)]);
+   const [cov, alts, images, blocks] = await Promise.all([
+      covers(env, "pages", [row.id]),
+      alternates(env, "pages", row.translation_key, l),
+      bodyImages(env, body),
+      publicBlocks(env, row, blockDeps(env)),
+   ]);
    const published = toIso(row.published_at) ?? toIso(row.created_at) ?? new Date(0).toISOString();
    return {
       slug: String(row.slug),
@@ -307,6 +285,7 @@ export async function pageOf(env: Env, row: Row) {
       updated_at: toIso(row.updated_at) ?? published,
       alternates: alts,
       images,
+      blocks,
    };
 }
 
@@ -314,9 +293,17 @@ export async function pageOf(env: Env, row: Row) {
 export async function postOf(env: Env, row: Row) {
    const l = row.locale as Locale;
    const body = typeof row.body === "string" ? row.body : "";
-   const [cov, alts, images] = await Promise.all([covers(env, "posts", [row.id]), alternates(env, "posts", row.translation_key, l), bodyImages(env, body)]);
+   const slideRows = rowSlides(row);
+   const [cov, alts, images, media] = await Promise.all([
+      covers(env, "posts", [row.id]),
+      alternates(env, "posts", row.translation_key, l),
+      bodyImages(env, body),
+      mediaByIds(env, slideMediaIds(slideRows)),
+   ]);
+   const slides = publicSlides(slideRows, media);
    return {
-      ...postSummaryOf(row, cov.get(String(row.id)) ?? null),
+      ...postSummaryOf(row, cov.get(String(row.id)) ?? null, slides),
+      slides,
       body,
       seo_title: strOrNull(row.seo_title),
       seo_description: strOrNull(row.seo_description),
@@ -424,6 +411,33 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          .first<Row>();
       if (!row) throw new HttpError(404);
       return json(c, await postOf(c.env, row));
+   });
+
+   // Card posts only, newest first, optionally by tag (the cards grid). `tags`: every tag used by a
+   // live card post in this locale, for the filter.
+   api.get("/cards", async (c) => {
+      const l = locale(c);
+      const page = intParam(c.req.query("page"), 1, 1, 100_000, "page");
+      const limit = intParam(c.req.query("limit"), 12, 1, 24, "limit");
+      const tag = (c.req.query("tag") ?? "").trim();
+      if (tag.length > 40) throw new HttpError(400, "tag must be at most 40 characters");
+      const byTag = tag ? "AND EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(posts.tags) THEN posts.tags ELSE '[]' END) WHERE value = ?2)" : "";
+      const where = `locale = ?1 AND kind = 'cards' AND ${LIVE_SQL} ${byTag}`;
+      const binds = tag ? [l, tag] : [l];
+      const n = binds.length;
+      const [count, rows, tags] = await Promise.all([
+         c.env.DB.prepare(`SELECT COUNT(*) AS n FROM posts WHERE ${where}`).bind(...binds).first<{ n: number }>(),
+         c.env.DB.prepare(`SELECT ${POST_SUMMARY_COLS} FROM posts WHERE ${where} ORDER BY published_at DESC, id DESC LIMIT ?${n + 1} OFFSET ?${n + 2}`)
+            .bind(...binds, limit, (page - 1) * limit)
+            .all<Row>(),
+         c.env.DB.prepare(
+            `SELECT DISTINCT j.value AS tag FROM posts, json_each(CASE WHEN json_valid(posts.tags) THEN posts.tags ELSE '[]' END) j
+             WHERE posts.locale = ?1 AND posts.kind = 'cards' AND ${LIVE_SQL.replace(/\b(status|publish_at)\b/g, "posts.$1")} AND typeof(j.value) = 'text' ORDER BY j.value LIMIT 50`,
+         )
+            .bind(l)
+            .all<{ tag: string }>(),
+      ]);
+      return json(c, { items: await postSummaries(c.env, rows.results), page, limit, total: Number(count?.n ?? 0), tags: tags.results.map((r) => r.tag) });
    });
 
    api.get("/videos", async (c) => {

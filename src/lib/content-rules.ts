@@ -9,6 +9,10 @@
  * - the page slug "home" is reserved (www's home page is not a CMS page).
  * - posts.tags is an array of strings.
  * - curated_videos.locale is never NULL (NULL means "all"; stored as 'all').
+ * - pages.blocks is a valid block list (src/lib/blocks.ts), stored normalized; when blocks are
+ *   written, pages.body is derived from them (the v1 contract's markdown fallback).
+ * - posts.kind is "article" (default) or "cards"; posts.slides is a valid slide list, and a card
+ *   post's body is derived from its slides.
  * - optimistic lock: an update that carries `updated_at` only applies if the row still has that
  *   `updated_at`; otherwise it fails with 409 (two editors saving the same row: the second, stale
  *   save no longer silently overwrites the first). Updates without `updated_at` are unchanged.
@@ -22,6 +26,7 @@
 import { DatabaseEvents, Exception, type AppPlugin } from "bknd";
 import { CONTENT_ENTITIES } from "../schema.ts";
 import { timeOf } from "./schedule.ts";
+import { BlockError, blocksToMarkdown, normalizeBlocks, normalizeSlides, slidesToMarkdown } from "./blocks.ts";
 
 const CONTENT = new Set<string>(CONTENT_ENTITIES);
 const PUBLISHABLE = new Set(["pages", "posts"]);
@@ -109,6 +114,33 @@ export function applyRules(entity: string, data: Row, mode: "create" | "update",
    }
    if (entity === "pages" && typeof data.slug === "string" && data.slug.trim().toLowerCase() === "home") {
       throw new ContentRuleError('The page slug "home" is reserved');
+   }
+   if (entity === "pages" && "blocks" in data) {
+      let blocks;
+      try {
+         blocks = normalizeBlocks(data.blocks);
+      } catch (error) {
+         if (error instanceof BlockError) throw new ContentRuleError(error.message);
+         throw error;
+      }
+      data.blocks = blocks;
+      data.body = blocksToMarkdown(blocks);
+   }
+   if (entity === "posts") {
+      if (mode === "create" && (data.kind === undefined || data.kind === null)) data.kind = "article";
+      if ("kind" in data && data.kind !== null && data.kind !== "article" && data.kind !== "cards") throw new ContentRuleError('posts.kind must be "article" or "cards"');
+      if ("slides" in data) {
+         let slides;
+         try {
+            slides = normalizeSlides(data.slides);
+         } catch (error) {
+            if (error instanceof BlockError) throw new ContentRuleError(error.message.replace(/^Block /, "Slide "));
+            throw error;
+         }
+         data.slides = slides;
+         const kind = data.kind ?? current?.kind;
+         if (kind === "cards") data.body = slidesToMarkdown(slides);
+      }
    }
    if (entity === "posts" && "tags" in data && data.tags != null) {
       const tags = data.tags;

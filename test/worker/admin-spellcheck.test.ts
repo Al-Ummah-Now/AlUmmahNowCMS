@@ -20,14 +20,28 @@ describe("spell checking in the admin", () => {
       const cookie = await session("spell-admin");
       const f = makeWorker();
       const page = await (await f("/pages/new?locale=ar", { headers: { cookie } })).text();
-      for (const id of ["f-title", "f-summary", "f-body", "f-seo-title", "f-seo-desc"]) {
+      for (const id of ["f-title", "f-summary", "f-seo-title", "f-seo-desc"]) {
          expect(tagOf(page, id), id).toContain('spellcheck="true"');
          expect(tagOf(page, id), id).toContain('lang="ar"');
       }
       expect(tagOf(page, "f-slug")).toContain('spellcheck="false"');
       expect(tagOf(page, "f-slug")).toContain('autocorrect="off"');
+      // Page blocks (rendered as templates on a new page): prose on, the call-to-action link off.
+      for (const id of ["__UID__-text", "__UID__-caption", "__UID__-alt", "__UID__-heading", "__UID__-label", "__UID__-cite", "__UID__-title_override", "posts-q"]) {
+         expect(tagOf(page, id), id).toContain('spellcheck="true"');
+         expect(tagOf(page, id), id).toContain('lang="ar"');
+      }
+      expect(tagOf(page, "__UID__-url")).toContain('spellcheck="false"');
+      expect(tagOf(page, "__UID__-url")).toContain('autocorrect="off"');
+      expect(tagOf(page, "__UID__-url")).toContain('dir="ltr"');
       const post = await (await f("/posts/new?locale=en", { headers: { cookie } })).text();
       expect(tagOf(post, "f-tag-input")).toContain('spellcheck="true"');
+      expect(tagOf(post, "f-body")).toContain('spellcheck="true"');
+      // Card post slides: heading, text and alt are prose in the post's language.
+      for (const id of ["__UID__-heading", "__UID__-body", "__UID__-alt"]) {
+         expect(tagOf(post, id), id).toContain('spellcheck="true"');
+         expect(tagOf(post, id), id).toContain('lang="en"');
+      }
 
       const r = await f("/api/data/entity/nav_items", { method: "POST", headers: { cookie, origin: ORIGIN, "content-type": "application/json" }, body: JSON.stringify({ menu: "header", locale: "en", label: "About", url: "/about", sort: 10, status: "published" }) });
       expect(r.status).toBe(201);

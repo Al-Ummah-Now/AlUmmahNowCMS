@@ -131,6 +131,8 @@ describe("public API: shapes (docs/PUBLIC_API.md)", () => {
          updated_at: "2026-11-08T10:00:00.000Z",
          alternates: [{ locale: "ar", slug: "hawl" }],
          images: [],
+         // Additive (page blocks): a row saved before blocks serves its body as one rich-text block.
+         blocks: [{ id: "body", type: "markdown", text: "# About" }],
       });
    });
    it("/posts paginates newest first", async () => {

@@ -6,9 +6,10 @@ import { Icon } from "../ui/icons.tsx";
 import { PageHead, type View } from "../ui/layout.tsx";
 import { I18nScript, LocalTime } from "../ui/parts.tsx";
 import type { ContentKind } from "./content.tsx";
+import { storedBlocks, storedSlides } from "../../lib/blocks.ts";
 
 /** Long text: shown as a line diff. Everything else: before / after. */
-const LONG = new Set(["body", "summary", "excerpt", "seo_description"]);
+const LONG = new Set(["body", "summary", "excerpt", "seo_description", "blocks", "slides"]);
 const DATES = new Set(["publish_at", "published_at"]);
 /** Unchanged lines kept around a change in a line diff. */
 const CONTEXT = 2;
@@ -35,6 +36,51 @@ function text(v: unknown): string {
    return String(v);
 }
 
+const clip = (s: string, n = 90) => {
+   const one = s.replace(/\s+/g, " ").trim();
+   return one.length > n ? `${one.slice(0, n - 1)}…` : one;
+};
+
+/** Blocks and slides as one readable line each (type, then what tells it apart), so a diff shows
+ *  added, removed, reordered and edited items. Media appear by library id. */
+function structured(v: View, field: string, value: unknown): string | null {
+   const tb = v.t.blocks;
+   if (field === "blocks") {
+      return storedBlocks(value)
+         .map((b) => {
+            const name = tb.types[b.type];
+            switch (b.type) {
+               case "markdown":
+                  return `${name}: ${clip(b.text)}`;
+               case "image":
+                  return `${name}: #${b.media_id ?? "—"} ${clip(b.alt || b.caption)}`.trimEnd();
+               case "gallery":
+                  return `${name}: ${b.items.map((x) => `#${x.media_id ?? "—"}`).join(" ")}`;
+               case "posts":
+                  return `${name}: ${b.heading ? `${clip(b.heading, 40)} · ` : ""}${b.mode === "picked" ? b.post_ids.map((x) => `#${x}`).join(" ") : b.mode === "tag" ? `${b.tag} (${b.limit})` : `${tb.modeLatest} (${b.limit})`}`;
+               case "cards":
+                  return `${name}: ${[b.heading, b.tag].filter(Boolean).join(" · ") || "—"}`;
+               case "videos":
+                  return `${name}: ${b.items.map((x) => x.ref_id).join(" ")}`;
+               case "video":
+                  return `${name}: ${b.ref_id}`;
+               case "cta":
+                  return `${name}: ${clip(b.label, 40)} → ${b.url}`;
+               case "columns":
+                  return `${name}: ${clip(b.text, 60)} #${b.media_id ?? "—"}`;
+               case "quote":
+                  return `${name}: ${clip(b.text)}`;
+               case "divider":
+                  return `${name}: ${b.style === "line" ? tb.styleLine : tb.styleSpace}`;
+            }
+         })
+         .join("\n");
+   }
+   if (field === "slides") return storedSlides(value).map((x, i) => `${v.t.slides.one} ${i + 1}: #${x.media_id ?? "—"} ${clip(x.heading)}${x.body ? ` — ${clip(x.body, 60)}` : ""}`).join("\n");
+   if (field === "kind") return value === "cards" ? v.t.content.kindCards : v.t.content.kindArticle;
+   return null;
+}
+
 function Value(props: { v: View; field: string; value: unknown; lang: string }) {
    const { t } = props.v;
    const val = props.value;
@@ -42,6 +88,8 @@ function Value(props: { v: View; field: string; value: unknown; lang: string }) 
    if (DATES.has(props.field)) return <LocalTime iso={val} lang={props.v.prefs.lang} />;
    if (props.field === "show_in_sitemap") return <span>{val === true || val === 1 || val === "1" ? t.history.yes : t.history.no}</span>;
    if (props.field === "status") return <span>{val === "published" ? t.status.published : t.status.draft}</span>;
+   const s = structured(props.v, props.field, val);
+   if (s !== null) return <span dir="auto" style="white-space:pre-line">{s}</span>;
    const dir = props.field === "slug" ? "ltr" : "auto";
    return (
       <span lang={props.field === "slug" ? undefined : props.lang} dir={dir}>
@@ -91,7 +139,7 @@ function FieldChange(props: { v: View; kind: ContentKind; field: string; before:
       <section class="fc" aria-label={label}>
          <h3>{label}</h3>
          {LONG.has(field) && props.before ? (
-            <LineDiff v={props.v} before={text(b)} after={text(a)} lang={props.lang} />
+            <LineDiff v={props.v} before={structured(props.v, field, b) ?? text(b)} after={structured(props.v, field, a) ?? text(a)} lang={props.lang} />
          ) : (
             <dl class="ba">
                {props.before ? (

@@ -1,386 +1,932 @@
 {
-  "/api/public/v1/site?locale=en": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "settings": {
-        "locale": "en",
-        "site_title": "Al Ummah Now",
-        "tagline": "Tag",
-        "hero_title": "Hero",
-        "hero_body": "Body",
-        "social": [
-          {
-            "kind": "youtube",
-            "url": "https://youtube.com/@x"
-          }
-        ]
-      },
-      "nav": {
-        "header": [
-          {
-            "label": "Videos",
-            "url": "/videos"
-          }
-        ],
-        "footer": [
-          {
-            "label": "Contact",
-            "url": "https://example.org/contact"
-          }
-        ]
+   "/api/public/v1/site?locale=en": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "settings": {
+            "locale": "en",
+            "site_title": "Al Ummah Now",
+            "tagline": "Tag",
+            "hero_title": "Hero",
+            "hero_body": "Body",
+            "social": [
+               {
+                  "kind": "youtube",
+                  "url": "https://youtube.com/@x"
+               }
+            ]
+         },
+         "nav": {
+            "header": [
+               {
+                  "label": "Videos",
+                  "url": "/videos"
+               }
+            ],
+            "footer": [
+               {
+                  "label": "Contact",
+                  "url": "https://example.org/contact"
+               }
+            ]
+         }
       }
-    }
-  },
-  "/api/public/v1/site?locale=ar": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "settings": null,
-      "nav": {
-        "header": [],
-        "footer": []
+   },
+   "/api/public/v1/site?locale=ar": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "settings": null,
+         "nav": {
+            "header": [],
+            "footer": []
+         }
       }
-    }
-  },
-  "/api/public/v1/home?locale=en": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "settings": {
-        "locale": "en",
-        "site_title": "Al Ummah Now",
-        "tagline": "Tag",
-        "hero_title": "Hero",
-        "hero_body": "Body",
-        "social": [
-          {
-            "kind": "youtube",
-            "url": "https://youtube.com/@x"
-          }
-        ]
-      },
-      "videos": [
-        {
-          "id": "<id>",
-          "kind": "video",
-          "ref_id": "vid-1",
-          "title_override": "Featured talk",
-          "snapshot": {
-            "title": "Talk one",
-            "thumbnail_url": "https://cdn.test/1.jpg",
-            "channel_name": "Channel",
-            "refreshed_at": "<iso-date>",
-            "handle": null,
-            "description": null,
-            "titles": {},
-            "descriptions": {},
-            "duration_seconds": null,
-            "upload_date": null,
-            "video_count": null
-          },
-          "sort": 10
-        }
-      ],
-      "posts": [
-        {
-          "slug": "second",
-          "locale": "en",
-          "title": "Second",
-          "excerpt": null,
-          "cover": null,
-          "author_name": null,
-          "tags": [],
-          "published_at": "<iso-date>",
-          "updated_at": "<iso-date>"
-        },
-        {
-          "slug": "first",
-          "locale": "en",
-          "title": "First",
-          "excerpt": "One",
-          "cover": null,
-          "author_name": "Editorial",
-          "tags": [
+   },
+   "/api/public/v1/home?locale=en": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "settings": {
+            "locale": "en",
+            "site_title": "Al Ummah Now",
+            "tagline": "Tag",
+            "hero_title": "Hero",
+            "hero_body": "Body",
+            "social": [
+               {
+                  "kind": "youtube",
+                  "url": "https://youtube.com/@x"
+               }
+            ]
+         },
+         "videos": [
+            {
+               "id": "<id>",
+               "kind": "video",
+               "ref_id": "vid-1",
+               "title_override": "Featured talk",
+               "snapshot": {
+                  "title": "Talk one",
+                  "thumbnail_url": "https://cdn.test/1.jpg",
+                  "channel_name": "Channel",
+                  "refreshed_at": "<iso-date>",
+                  "handle": null,
+                  "description": null,
+                  "titles": {},
+                  "descriptions": {},
+                  "duration_seconds": null,
+                  "upload_date": null,
+                  "video_count": null
+               },
+               "sort": 10
+            }
+         ],
+         "posts": [
+            {
+               "slug": "second",
+               "locale": "en",
+               "title": "Second",
+               "excerpt": null,
+               "cover": null,
+               "author_name": null,
+               "tags": [],
+               "published_at": "<iso-date>",
+               "updated_at": "<iso-date>",
+               "kind": "article",
+               "slide_count": 0,
+               "first_slide": null
+            },
+            {
+               "slug": "first",
+               "locale": "en",
+               "title": "First",
+               "excerpt": "One",
+               "cover": null,
+               "author_name": "Editorial",
+               "tags": [
+                  "news"
+               ],
+               "published_at": "<iso-date>",
+               "updated_at": "<iso-date>",
+               "kind": "article",
+               "slide_count": 0,
+               "first_slide": null
+            }
+         ]
+      }
+   },
+   "/api/public/v1/pages/about?locale=en": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "slug": "about",
+         "locale": "en",
+         "title": "About Al Ummah Now",
+         "summary": "Who we are",
+         "body": "# About\n\n::video[vid-1]\n",
+         "seo_title": "About us",
+         "seo_description": "Desc",
+         "cover": {
+            "url": "https://cms.test/api/public/v1/media/<file>",
+            "alt": "A lantern",
+            "width": null,
+            "height": null,
+            "variants": null
+         },
+         "published_at": "<iso-date>",
+         "updated_at": "<iso-date>",
+         "alternates": [
+            {
+               "locale": "ar",
+               "slug": "about"
+            }
+         ],
+         "images": [],
+         "blocks": [
+            {
+               "id": "body",
+               "type": "markdown",
+               "text": "# About\n\n::video[vid-1]\n"
+            }
+         ]
+      }
+   },
+   "/api/public/v1/pages/about?locale=ar": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "slug": "about",
+         "locale": "ar",
+         "title": "من نحن",
+         "summary": null,
+         "body": "نص",
+         "seo_title": null,
+         "seo_description": null,
+         "cover": null,
+         "published_at": "<iso-date>",
+         "updated_at": "<iso-date>",
+         "alternates": [
+            {
+               "locale": "en",
+               "slug": "about"
+            }
+         ],
+         "images": [],
+         "blocks": [
+            {
+               "id": "body",
+               "type": "markdown",
+               "text": "نص"
+            }
+         ]
+      }
+   },
+   "/api/public/v1/pages/secret?locale=en": {
+      "status": 404,
+      "cache": "public, s-maxage=30",
+      "etag": false,
+      "body": {
+         "error": "not_found"
+      }
+   },
+   "/api/public/v1/posts?locale=en": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "items": [
+            {
+               "slug": "second",
+               "locale": "en",
+               "title": "Second",
+               "excerpt": null,
+               "cover": null,
+               "author_name": null,
+               "tags": [],
+               "published_at": "<iso-date>",
+               "updated_at": "<iso-date>",
+               "kind": "article",
+               "slide_count": 0,
+               "first_slide": null
+            },
+            {
+               "slug": "first",
+               "locale": "en",
+               "title": "First",
+               "excerpt": "One",
+               "cover": null,
+               "author_name": "Editorial",
+               "tags": [
+                  "news"
+               ],
+               "published_at": "<iso-date>",
+               "updated_at": "<iso-date>",
+               "kind": "article",
+               "slide_count": 0,
+               "first_slide": null
+            }
+         ],
+         "page": 1,
+         "limit": 10,
+         "total": 2
+      }
+   },
+   "/api/public/v1/posts?locale=en&page=2&limit=1": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "items": [
+            {
+               "slug": "first",
+               "locale": "en",
+               "title": "First",
+               "excerpt": "One",
+               "cover": null,
+               "author_name": "Editorial",
+               "tags": [
+                  "news"
+               ],
+               "published_at": "<iso-date>",
+               "updated_at": "<iso-date>",
+               "kind": "article",
+               "slide_count": 0,
+               "first_slide": null
+            }
+         ],
+         "page": 2,
+         "limit": 1,
+         "total": 2
+      }
+   },
+   "/api/public/v1/posts/first?locale=en": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "slug": "first",
+         "locale": "en",
+         "title": "First",
+         "excerpt": "One",
+         "cover": null,
+         "author_name": "Editorial",
+         "tags": [
             "news"
-          ],
-          "published_at": "<iso-date>",
-          "updated_at": "<iso-date>"
-        }
-      ]
-    }
-  },
-  "/api/public/v1/pages/about?locale=en": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "slug": "about",
-      "locale": "en",
-      "title": "About Al Ummah Now",
-      "summary": "Who we are",
-      "body": "# About\n\n::video[vid-1]\n",
-      "seo_title": "About us",
-      "seo_description": "Desc",
-      "cover": {
-        "url": "https://cms.test/api/public/v1/media/<file>",
-        "alt": "A lantern",
-        "width": null,
-        "height": null,
-        "variants": null
-      },
-      "published_at": "<iso-date>",
-      "updated_at": "<iso-date>",
-      "alternates": [
-        {
-          "locale": "ar",
-          "slug": "about"
-        }
-      ],
-      "images": []
-    }
-  },
-  "/api/public/v1/pages/about?locale=ar": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "slug": "about",
-      "locale": "ar",
-      "title": "من نحن",
-      "summary": null,
-      "body": "نص",
-      "seo_title": null,
-      "seo_description": null,
-      "cover": null,
-      "published_at": "<iso-date>",
-      "updated_at": "<iso-date>",
-      "alternates": [
-        {
-          "locale": "en",
-          "slug": "about"
-        }
-      ],
-      "images": []
-    }
-  },
-  "/api/public/v1/pages/secret?locale=en": {
-    "status": 404,
-    "cache": "public, s-maxage=30",
-    "etag": false,
-    "body": {
-      "error": "not_found"
-    }
-  },
-  "/api/public/v1/posts?locale=en": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "items": [
-        {
-          "slug": "second",
-          "locale": "en",
-          "title": "Second",
-          "excerpt": null,
-          "cover": null,
-          "author_name": null,
-          "tags": [],
-          "published_at": "<iso-date>",
-          "updated_at": "<iso-date>"
-        },
-        {
-          "slug": "first",
-          "locale": "en",
-          "title": "First",
-          "excerpt": "One",
-          "cover": null,
-          "author_name": "Editorial",
-          "tags": [
-            "news"
-          ],
-          "published_at": "<iso-date>",
-          "updated_at": "<iso-date>"
-        }
-      ],
-      "page": 1,
-      "limit": 10,
-      "total": 2
-    }
-  },
-  "/api/public/v1/posts?locale=en&page=2&limit=1": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "items": [
-        {
-          "slug": "first",
-          "locale": "en",
-          "title": "First",
-          "excerpt": "One",
-          "cover": null,
-          "author_name": "Editorial",
-          "tags": [
-            "news"
-          ],
-          "published_at": "<iso-date>",
-          "updated_at": "<iso-date>"
-        }
-      ],
-      "page": 2,
-      "limit": 1,
-      "total": 2
-    }
-  },
-  "/api/public/v1/posts/first?locale=en": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "slug": "first",
-      "locale": "en",
-      "title": "First",
-      "excerpt": "One",
-      "cover": null,
-      "author_name": "Editorial",
-      "tags": [
-        "news"
-      ],
-      "published_at": "<iso-date>",
-      "updated_at": "<iso-date>",
-      "body": "Body",
-      "seo_title": null,
-      "seo_description": null,
-      "alternates": [],
-      "images": []
-    }
-  },
-  "/api/public/v1/posts/hidden?locale=en": {
-    "status": 404,
-    "cache": "public, s-maxage=30",
-    "etag": false,
-    "body": {
-      "error": "not_found"
-    }
-  },
-  "/api/public/v1/posts/scheduled?locale=en": {
-    "status": 404,
-    "cache": "public, s-maxage=30",
-    "etag": false,
-    "body": {
-      "error": "not_found"
-    }
-  },
-  "/api/public/v1/pages/launch?locale=en": {
-    "status": 404,
-    "cache": "public, s-maxage=30",
-    "etag": false,
-    "body": {
-      "error": "not_found"
-    }
-  },
-  "/api/public/v1/videos?locale=en&placement=videos": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "items": [
-        {
-          "id": "<id>",
-          "kind": "playlist",
-          "ref_id": "pl-1",
-          "title_override": null,
-          "snapshot": {
-            "title": "Series",
-            "thumbnail_url": null,
-            "channel_name": "Channel",
-            "refreshed_at": "<iso-date>",
-            "handle": null,
-            "description": null,
-            "titles": {},
-            "descriptions": {},
-            "duration_seconds": null,
-            "upload_date": null,
-            "video_count": null
-          },
-          "sort": 10
-        }
-      ]
-    }
-  },
-  "/api/public/v1/videos?locale=ar&placement=home": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "items": [
-        {
-          "id": "<id>",
-          "kind": "video",
-          "ref_id": "vid-1",
-          "title_override": "Featured talk",
-          "snapshot": {
-            "title": "Talk one",
-            "thumbnail_url": "https://cdn.test/1.jpg",
-            "channel_name": "Channel",
-            "refreshed_at": "<iso-date>",
-            "handle": null,
-            "description": null,
-            "titles": {},
-            "descriptions": {},
-            "duration_seconds": null,
-            "upload_date": null,
-            "video_count": null
-          },
-          "sort": 10
-        }
-      ]
-    }
-  },
-  "/api/public/v1/sitemap": {
-    "status": 200,
-    "cache": "public, s-maxage=60, stale-while-revalidate=600",
-    "etag": true,
-    "body": {
-      "items": [
-        {
-          "type": "page",
-          "locale": "ar",
-          "slug": "about",
-          "updated_at": "<iso-date>"
-        },
-        {
-          "type": "page",
-          "locale": "en",
-          "slug": "about",
-          "updated_at": "<iso-date>"
-        },
-        {
-          "type": "post",
-          "locale": "en",
-          "slug": "second",
-          "updated_at": "<iso-date>"
-        },
-        {
-          "type": "post",
-          "locale": "en",
-          "slug": "first",
-          "updated_at": "<iso-date>"
-        }
-      ]
-    }
-  },
-  "/api/public/v1/site?locale=fr": {
-    "status": 400,
-    "cache": "no-store",
-    "etag": false,
-    "body": {
-      "error": "bad_request",
-      "message": "locale must be en or ar"
-    }
-  }
+         ],
+         "published_at": "<iso-date>",
+         "updated_at": "<iso-date>",
+         "kind": "article",
+         "slide_count": 0,
+         "first_slide": null,
+         "slides": [],
+         "body": "Body",
+         "seo_title": null,
+         "seo_description": null,
+         "alternates": [],
+         "images": []
+      }
+   },
+   "/api/public/v1/posts/hidden?locale=en": {
+      "status": 404,
+      "cache": "public, s-maxage=30",
+      "etag": false,
+      "body": {
+         "error": "not_found"
+      }
+   },
+   "/api/public/v1/posts/scheduled?locale=en": {
+      "status": 404,
+      "cache": "public, s-maxage=30",
+      "etag": false,
+      "body": {
+         "error": "not_found"
+      }
+   },
+   "/api/public/v1/pages/launch?locale=en": {
+      "status": 404,
+      "cache": "public, s-maxage=30",
+      "etag": false,
+      "body": {
+         "error": "not_found"
+      }
+   },
+   "/api/public/v1/videos?locale=en&placement=videos": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "items": [
+            {
+               "id": "<id>",
+               "kind": "playlist",
+               "ref_id": "pl-1",
+               "title_override": null,
+               "snapshot": {
+                  "title": "Series",
+                  "thumbnail_url": null,
+                  "channel_name": "Channel",
+                  "refreshed_at": "<iso-date>",
+                  "handle": null,
+                  "description": null,
+                  "titles": {},
+                  "descriptions": {},
+                  "duration_seconds": null,
+                  "upload_date": null,
+                  "video_count": null
+               },
+               "sort": 10
+            }
+         ]
+      }
+   },
+   "/api/public/v1/videos?locale=ar&placement=home": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "items": [
+            {
+               "id": "<id>",
+               "kind": "video",
+               "ref_id": "vid-1",
+               "title_override": "Featured talk",
+               "snapshot": {
+                  "title": "Talk one",
+                  "thumbnail_url": "https://cdn.test/1.jpg",
+                  "channel_name": "Channel",
+                  "refreshed_at": "<iso-date>",
+                  "handle": null,
+                  "description": null,
+                  "titles": {},
+                  "descriptions": {},
+                  "duration_seconds": null,
+                  "upload_date": null,
+                  "video_count": null
+               },
+               "sort": 10
+            }
+         ]
+      }
+   },
+   "/api/public/v1/sitemap": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "items": [
+            {
+               "type": "page",
+               "locale": "ar",
+               "slug": "about",
+               "updated_at": "<iso-date>"
+            },
+            {
+               "type": "page",
+               "locale": "en",
+               "slug": "about",
+               "updated_at": "<iso-date>"
+            },
+            {
+               "type": "post",
+               "locale": "en",
+               "slug": "second",
+               "updated_at": "<iso-date>"
+            },
+            {
+               "type": "post",
+               "locale": "en",
+               "slug": "first",
+               "updated_at": "<iso-date>"
+            }
+         ]
+      }
+   },
+   "/api/public/v1/site?locale=fr": {
+      "status": 400,
+      "cache": "no-store",
+      "etag": false,
+      "body": {
+         "error": "bad_request",
+         "message": "locale must be en or ar"
+      }
+   },
+   "/api/public/v1/pages/built?locale=en": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "slug": "built",
+         "locale": "en",
+         "title": "Built from blocks",
+         "summary": null,
+         "body": "## Welcome\n\nSome **text**.\n\n## Latest news\n\n## Picked\n\n## Stories\n\n## Watch\n\n::video[vid-1]\n\n**Get involved**\n\nJoin us\n\n[Contact](/contact)\n\nBeside the image\n\n> Remember this\n>\n> — Editors\n\n---",
+         "seo_title": null,
+         "seo_description": null,
+         "cover": null,
+         "published_at": "<iso-date>",
+         "updated_at": "<iso-date>",
+         "alternates": [],
+         "images": [],
+         "blocks": [
+            {
+               "id": "text",
+               "type": "markdown",
+               "text": "## Welcome\n\nSome **text**."
+            },
+            {
+               "id": "img",
+               "type": "image",
+               "image": {
+                  "url": "https://cms.test/api/public/v1/media/<file>",
+                  "alt": "Lantern at dusk",
+                  "width": 16,
+                  "height": 9,
+                  "variants": {
+                     "widths": [
+                        16
+                     ],
+                     "fallback_type": "image/png",
+                     "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                     "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                     "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                  }
+               },
+               "caption": "Our lantern",
+               "size": "wide"
+            },
+            {
+               "id": "gal",
+               "type": "gallery",
+               "columns": 3,
+               "items": [
+                  {
+                     "image": {
+                        "url": "https://cms.test/api/public/v1/media/<file>",
+                        "alt": "One",
+                        "width": 16,
+                        "height": 9,
+                        "variants": {
+                           "widths": [
+                              16
+                           ],
+                           "fallback_type": "image/png",
+                           "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                           "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                           "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                        }
+                     },
+                     "caption": null
+                  },
+                  {
+                     "image": {
+                        "url": "https://cms.test/api/public/v1/media/<file>",
+                        "alt": "Lantern at dusk",
+                        "width": 16,
+                        "height": 9,
+                        "variants": {
+                           "widths": [
+                              16
+                           ],
+                           "fallback_type": "image/png",
+                           "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                           "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                           "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                        }
+                     },
+                     "caption": "Two"
+                  }
+               ]
+            },
+            {
+               "id": "news",
+               "type": "posts",
+               "heading": "Latest news",
+               "mode": "latest",
+               "items": [
+                  {
+                     "slug": "story",
+                     "locale": "en",
+                     "title": "A story in cards",
+                     "excerpt": "Swipe through",
+                     "cover": null,
+                     "author_name": null,
+                     "tags": [
+                        "stories"
+                     ],
+                     "published_at": "<iso-date>",
+                     "updated_at": "<iso-date>",
+                     "kind": "cards",
+                     "slide_count": 2,
+                     "first_slide": {
+                        "id": "s1",
+                        "image": {
+                           "url": "https://cms.test/api/public/v1/media/<file>",
+                           "alt": "Lantern at dusk",
+                           "width": 16,
+                           "height": 9,
+                           "variants": {
+                              "widths": [
+                                 16
+                              ],
+                              "fallback_type": "image/png",
+                              "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                              "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                              "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                           }
+                        },
+                        "heading": "The beginning",
+                        "body": "Where it started",
+                        "position": "bottom"
+                     }
+                  },
+                  {
+                     "slug": "second",
+                     "locale": "en",
+                     "title": "Second",
+                     "excerpt": null,
+                     "cover": null,
+                     "author_name": null,
+                     "tags": [],
+                     "published_at": "<iso-date>",
+                     "updated_at": "<iso-date>",
+                     "kind": "article",
+                     "slide_count": 0,
+                     "first_slide": null
+                  }
+               ]
+            },
+            {
+               "id": "pick",
+               "type": "posts",
+               "heading": "Picked",
+               "mode": "picked",
+               "items": [
+                  {
+                     "slug": "story",
+                     "locale": "en",
+                     "title": "A story in cards",
+                     "excerpt": "Swipe through",
+                     "cover": null,
+                     "author_name": null,
+                     "tags": [
+                        "stories"
+                     ],
+                     "published_at": "<iso-date>",
+                     "updated_at": "<iso-date>",
+                     "kind": "cards",
+                     "slide_count": 2,
+                     "first_slide": {
+                        "id": "s1",
+                        "image": {
+                           "url": "https://cms.test/api/public/v1/media/<file>",
+                           "alt": "Lantern at dusk",
+                           "width": 16,
+                           "height": 9,
+                           "variants": {
+                              "widths": [
+                                 16
+                              ],
+                              "fallback_type": "image/png",
+                              "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                              "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                              "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                           }
+                        },
+                        "heading": "The beginning",
+                        "body": "Where it started",
+                        "position": "bottom"
+                     }
+                  }
+               ]
+            },
+            {
+               "id": "stories",
+               "type": "cards",
+               "heading": "Stories",
+               "tag": "stories",
+               "page_size": 6,
+               "filter": true
+            },
+            {
+               "id": "shelf",
+               "type": "videos",
+               "heading": "Watch",
+               "items": [
+                  {
+                     "kind": "video",
+                     "ref_id": "vid-1",
+                     "title_override": null,
+                     "snapshot": {
+                        "title": "Talk one",
+                        "thumbnail_url": "https://cdn.test/1.jpg",
+                        "channel_name": "Channel",
+                        "refreshed_at": "<iso-date>",
+                        "handle": null,
+                        "description": null,
+                        "titles": {},
+                        "descriptions": {},
+                        "duration_seconds": null,
+                        "upload_date": null,
+                        "video_count": null
+                     }
+                  },
+                  {
+                     "kind": "playlist",
+                     "ref_id": "pl-1",
+                     "title_override": "Series",
+                     "snapshot": {
+                        "title": "Series",
+                        "thumbnail_url": null,
+                        "channel_name": "Channel",
+                        "refreshed_at": "<iso-date>",
+                        "handle": null,
+                        "description": null,
+                        "titles": {},
+                        "descriptions": {},
+                        "duration_seconds": null,
+                        "upload_date": null,
+                        "video_count": null
+                     }
+                  }
+               ]
+            },
+            {
+               "id": "embed",
+               "type": "video",
+               "kind": "video",
+               "ref_id": "vid-1",
+               "caption": "A talk",
+               "snapshot": {
+                  "title": "Talk one",
+                  "thumbnail_url": "https://cdn.test/1.jpg",
+                  "channel_name": "Channel",
+                  "refreshed_at": "<iso-date>",
+                  "handle": null,
+                  "description": null,
+                  "titles": {},
+                  "descriptions": {},
+                  "duration_seconds": null,
+                  "upload_date": null,
+                  "video_count": null
+               }
+            },
+            {
+               "id": "cta",
+               "type": "cta",
+               "heading": "Get involved",
+               "text": "Join us",
+               "label": "Contact",
+               "url": "/contact",
+               "tone": "primary"
+            },
+            {
+               "id": "cols",
+               "type": "columns",
+               "text": "Beside the image",
+               "image": {
+                  "url": "https://cms.test/api/public/v1/media/<file>",
+                  "alt": "Lantern at dusk",
+                  "width": 16,
+                  "height": 9,
+                  "variants": {
+                     "widths": [
+                        16
+                     ],
+                     "fallback_type": "image/png",
+                     "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                     "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                     "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                  }
+               },
+               "caption": null,
+               "image_side": "end"
+            },
+            {
+               "id": "quote",
+               "type": "quote",
+               "variant": "callout",
+               "text": "Remember this",
+               "cite": "Editors"
+            },
+            {
+               "id": "div",
+               "type": "divider",
+               "style": "line",
+               "size": "m"
+            }
+         ]
+      }
+   },
+   "/api/public/v1/posts/story?locale=en": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "slug": "story",
+         "locale": "en",
+         "title": "A story in cards",
+         "excerpt": "Swipe through",
+         "cover": null,
+         "author_name": null,
+         "tags": [
+            "stories"
+         ],
+         "published_at": "<iso-date>",
+         "updated_at": "<iso-date>",
+         "kind": "cards",
+         "slide_count": 2,
+         "first_slide": {
+            "id": "s1",
+            "image": {
+               "url": "https://cms.test/api/public/v1/media/<file>",
+               "alt": "Lantern at dusk",
+               "width": 16,
+               "height": 9,
+               "variants": {
+                  "widths": [
+                     16
+                  ],
+                  "fallback_type": "image/png",
+                  "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                  "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                  "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+               }
+            },
+            "heading": "The beginning",
+            "body": "Where it started",
+            "position": "bottom"
+         },
+         "slides": [
+            {
+               "id": "s1",
+               "image": {
+                  "url": "https://cms.test/api/public/v1/media/<file>",
+                  "alt": "Lantern at dusk",
+                  "width": 16,
+                  "height": 9,
+                  "variants": {
+                     "widths": [
+                        16
+                     ],
+                     "fallback_type": "image/png",
+                     "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                     "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                     "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                  }
+               },
+               "heading": "The beginning",
+               "body": "Where it started",
+               "position": "bottom"
+            },
+            {
+               "id": "s2",
+               "image": {
+                  "url": "https://cms.test/api/public/v1/media/<file>",
+                  "alt": "Second",
+                  "width": 16,
+                  "height": 9,
+                  "variants": {
+                     "widths": [
+                        16
+                     ],
+                     "fallback_type": "image/png",
+                     "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                     "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                     "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                  }
+               },
+               "heading": "Then",
+               "body": null,
+               "position": "top"
+            }
+         ],
+         "body": "## The beginning\n\nWhere it started\n\n## Then",
+         "seo_title": null,
+         "seo_description": null,
+         "alternates": [],
+         "images": []
+      }
+   },
+   "/api/public/v1/cards?locale=en": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "items": [
+            {
+               "slug": "story",
+               "locale": "en",
+               "title": "A story in cards",
+               "excerpt": "Swipe through",
+               "cover": null,
+               "author_name": null,
+               "tags": [
+                  "stories"
+               ],
+               "published_at": "<iso-date>",
+               "updated_at": "<iso-date>",
+               "kind": "cards",
+               "slide_count": 2,
+               "first_slide": {
+                  "id": "s1",
+                  "image": {
+                     "url": "https://cms.test/api/public/v1/media/<file>",
+                     "alt": "Lantern at dusk",
+                     "width": 16,
+                     "height": 9,
+                     "variants": {
+                        "widths": [
+                           16
+                        ],
+                        "fallback_type": "image/png",
+                        "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                        "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                        "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                     }
+                  },
+                  "heading": "The beginning",
+                  "body": "Where it started",
+                  "position": "bottom"
+               }
+            }
+         ],
+         "page": 1,
+         "limit": 12,
+         "total": 1,
+         "tags": [
+            "stories"
+         ]
+      }
+   },
+   "/api/public/v1/cards?locale=en&tag=stories&limit=6": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "items": [
+            {
+               "slug": "story",
+               "locale": "en",
+               "title": "A story in cards",
+               "excerpt": "Swipe through",
+               "cover": null,
+               "author_name": null,
+               "tags": [
+                  "stories"
+               ],
+               "published_at": "<iso-date>",
+               "updated_at": "<iso-date>",
+               "kind": "cards",
+               "slide_count": 2,
+               "first_slide": {
+                  "id": "s1",
+                  "image": {
+                     "url": "https://cms.test/api/public/v1/media/<file>",
+                     "alt": "Lantern at dusk",
+                     "width": 16,
+                     "height": 9,
+                     "variants": {
+                        "widths": [
+                           16
+                        ],
+                        "fallback_type": "image/png",
+                        "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                        "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                        "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                     }
+                  },
+                  "heading": "The beginning",
+                  "body": "Where it started",
+                  "position": "bottom"
+               }
+            }
+         ],
+         "page": 1,
+         "limit": 6,
+         "total": 1,
+         "tags": [
+            "stories"
+         ]
+      }
+   },
+   "/api/public/v1/cards?locale=en&tag=none": {
+      "status": 200,
+      "cache": "public, s-maxage=60, stale-while-revalidate=600",
+      "etag": true,
+      "body": {
+         "items": [],
+         "page": 1,
+         "limit": 12,
+         "total": 0,
+         "tags": [
+            "stories"
+         ]
+      }
+   }
 }

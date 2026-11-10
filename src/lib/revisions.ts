@@ -31,8 +31,8 @@ const IGNORED = new Set(["id", "created_at", "updated_at"]);
 
 /** Fields a restore writes back. Status, schedule, language and translation link stay as they are. */
 export const RESTORABLE: Record<RevisionedEntity, string[]> = {
-   pages: ["title", "slug", "summary", "body", "seo_title", "seo_description", "show_in_sitemap"],
-   posts: ["title", "slug", "excerpt", "body", "author_name", "tags", "seo_title", "seo_description"],
+   pages: ["title", "slug", "summary", "body", "blocks", "seo_title", "seo_description", "show_in_sitemap"],
+   posts: ["title", "slug", "excerpt", "kind", "body", "slides", "author_name", "tags", "seo_title", "seo_description"],
 };
 
 type Row = Record<string, unknown>;

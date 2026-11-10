@@ -8,6 +8,7 @@ import { LocalTime, StateBadge } from "../ui/parts.tsx";
 import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "../ui/icons.tsx";
 import { Empty, isAdmin, withParam, type View } from "../ui/layout.tsx";
+import { deadSnapshots, type DeadSnapshot } from "../../lib/video-snapshots.ts";
 
 interface Tile {
    entity: "pages" | "posts" | "curated_videos" | "nav_items";
@@ -16,8 +17,39 @@ interface Tile {
    label: string;
 }
 
-export async function overviewScreen(v: View, data: Data) {
+/** Failures flag staff: block videos the refresh queue gave up on (src/lib/video-snapshots.ts). */
+function VideoFlag(props: { v: View; dead: { items: DeadSnapshot[]; total: number } }) {
+   const { t } = props.v;
+   if (!props.dead.total) return null;
+   return (
+      <section class="notice bad" role="alert" aria-labelledby="vflag-h" style="margin-block-end:20px;display:grid;gap:10px" data-video-flag>
+         <div style="display:flex;gap:10px;align-items:flex-start">
+            <Icon name="alert" />
+            <div>
+               <h2 id="vflag-h" style="margin:0;font-size:16px">
+                  {t.overview.videoFlag(props.dead.total)}
+               </h2>
+               <p style="margin:4px 0 0">{t.overview.videoFlagBody}</p>
+               <ul style="margin:8px 0 0;padding-inline-start:18px">
+                  {props.dead.items.slice(0, 5).map((d) => (
+                     <li dir="auto">{d.title}</li>
+                  ))}
+               </ul>
+            </div>
+         </div>
+         <div>
+            <button type="button" class="btn sm" data-retry-videos data-done-one={t.overview.retried(1)} data-done={t.overview.retried(P0)} data-failed={t.common.failed}>
+               <Icon name="refresh" size={16} /> {t.overview.retry}
+            </button>
+         </div>
+      </section>
+   );
+}
+const P0 = "{0}" as unknown as number;
+
+export async function overviewScreen(v: View, data: Data, db?: D1Database) {
    const { t } = v;
+   const dead = db ? await deadSnapshots(db).catch(() => ({ items: [], total: 0 })) : { items: [], total: 0 };
    const tiles: Tile[] = [
       { entity: "pages", href: "/pages", icon: "file", label: t.nav.pages },
       { entity: "posts", href: "/posts", icon: "pen", label: t.nav.posts },
@@ -64,6 +96,7 @@ export async function overviewScreen(v: View, data: Data) {
 
    return (
       <>
+         <VideoFlag v={v} dead={dead} />
          <section class="hero" aria-labelledby="ov-h">
             <div class="hero-copy">
                <p class="muted" style="margin:0 0 6px;font-weight:600">{t.overview.greeting}{v.prefs.lang === "ar" ? "، " : ", "}{name}</p>
