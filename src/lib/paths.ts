@@ -4,6 +4,9 @@ import { MEDIA_MAX_BYTES } from "../bknd-config.ts";
 /** Where bknd's retired admin UI lived during the move to the staff screens (now redirects to /). */
 export const isRetiredBkndAdminPath = (p: string) => p === "/bknd" || p.startsWith("/bknd/");
 
+/** `/api/data/entity/<content entity>` (the collection, not one row). */
+export const contentCollectionPath = (p: string) => /^\/api\/data\/entity\/(pages|posts|nav_items|curated_videos|site_settings)\/?$/.test(p);
+
 /** bknd API routes that must never be reachable (SSO only; schema only via migrations). */
 export function blockedApiPath(method: string, p: string): boolean {
    if (p.startsWith("/api/auth/")) {
@@ -11,6 +14,8 @@ export function blockedApiPath(method: string, p: string): boolean {
       return !(method === "GET" && (p === "/api/auth/me" || p === "/api/auth/strategies"));
    }
    if (p === "/api/data/sync" || p.startsWith("/api/data/sync/")) return true;
+   // Mass update skips bknd's mutator events: no content rules, no lock, no history (#8).
+   if (method === "PATCH" && contentCollectionPath(p)) return true;
    if (p.startsWith("/api/system/config/") && method !== "GET") return true;
    if (p === "/api/system/build") return true;
    return false;

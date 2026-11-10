@@ -10,6 +10,7 @@ import { createApp, registries, StorageR2Adapter, type CloudflareBkndConfig } fr
 import { code } from "bknd/modes";
 import { MEDIA_BINDING, moduleConfig } from "./bknd-config.ts";
 import { contentRulesPlugin } from "./lib/content-rules.ts";
+import { revisionsPlugin } from "./lib/revisions.ts";
 import type { Env, RuntimeConfig } from "./env.ts";
 
 /** 409: an upload would replace an existing media object (bknd serializes an Exception with its code). */
@@ -58,7 +59,7 @@ export function bkndConfig(cfg: RuntimeConfig, db?: D1Database): CloudflareBkndC
       syncSchema: false,
       config: moduleConfig({ jwtSecret: cfg.jwtSecret, secureCookie: !cfg.isLocal, publicUrl: cfg.publicUrl }),
       options: {
-         plugins: [contentRulesPlugin(db)],
+         plugins: [contentRulesPlugin(db), revisionsPlugin(db)],
          // Run async event listeners inline: a cached app must not hold on to an old request's waitUntil.
          asyncEventsMode: "sync",
       },

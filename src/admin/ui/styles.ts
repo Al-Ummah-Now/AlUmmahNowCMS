@@ -302,6 +302,39 @@ details.later>summary:focus-visible{outline:2px solid var(--fanous-color-focus-r
 .later-b input[type=datetime-local]{direction:ltr;text-align:start}
 [dir=rtl] .later-b input[type=datetime-local]{text-align:end}
 
+/* Content history (#8): version list (numbered medallions), field changes, line diff. */
+.revs{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.rev{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start;padding:10px 12px;border-radius:var(--r-lg);color:inherit;text-decoration:none;box-shadow:inset 0 0 0 1px transparent;transition:background var(--fanous-duration-fast),box-shadow var(--fanous-duration-fast)}
+@media(hover:hover){.rev:hover{background:var(--m-hover)}}
+.rev[aria-current=true]{background:color-mix(in srgb,var(--fanous-color-primary) 14%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fanous-color-primary) 55%,transparent)}
+.rev[aria-current=true] .rev-n{background:var(--m-primary);color:var(--fanous-c-button-primary-text);box-shadow:var(--m-primary-edge)}
+.rev-n{display:grid;place-items:center;min-width:32px;height:32px;padding:0 6px;border-radius:var(--r-pill);background:var(--fanous-c-segment-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-form-section-border);font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+.rev-b{display:grid;gap:2px;min-width:0}
+.rev-t{font-weight:600;font-size:14px}
+.rev-w,.rev-f{font-size:13px;color:var(--fanous-color-text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rev-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
+.sub-h{margin:8px 0 0;font-size:15px;color:var(--fanous-color-text-secondary);text-transform:none}
+.badge.act-create,.badge.act-update,.badge.act-restore{background:color-mix(in srgb,var(--fanous-color-primary) 14%,transparent);color:var(--fanous-color-text-primary)}
+.badge.act-restore::before{background:transparent;box-shadow:inset 0 0 0 2px currentColor}
+.fc{display:grid;gap:8px;padding-block-start:14px;border-block-start:1px solid var(--fanous-c-divider-line)}
+.fc h3{margin:0;font-size:15px}
+.ba{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:0;align-items:baseline}
+.ba dt{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--fanous-color-text-muted)}
+html[lang=ar] .ba dt{text-transform:none;letter-spacing:0}
+.ba dd{margin:0;padding:6px 10px;border-radius:var(--r-md);overflow-wrap:anywhere}
+.ba dd.was{background:color-mix(in srgb,var(--fanous-color-error-fill) 12%,transparent);box-shadow:inset 3px 0 0 var(--fanous-c-form-error)}
+.ba dd.now{background:color-mix(in srgb,var(--fanous-c-badge-status-bg) 18%,transparent);box-shadow:inset 3px 0 0 var(--fanous-c-badge-status-bg)}
+[dir=rtl] .ba dd.was{box-shadow:inset -3px 0 0 var(--fanous-c-form-error)}[dir=rtl] .ba dd.now{box-shadow:inset -3px 0 0 var(--fanous-c-badge-status-bg)}[dir=rtl] .dl.add{box-shadow:inset -3px 0 0 var(--fanous-c-badge-status-bg)}
+.diff{list-style:none;margin:0;padding:6px 0;border-radius:var(--r-md);background:var(--fanous-c-form-input-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-form-section-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.6;overflow-x:auto}
+html[lang=ar] .diff,.diff[lang=ar]{font-family:var(--fanous-font-arabic);font-size:14px}
+.dl{display:grid;grid-template-columns:22px minmax(0,1fr);padding-inline-end:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.dl-m{text-align:center;color:var(--fanous-color-text-muted);user-select:none}
+.dl ins,.dl del{text-decoration:none;color:inherit}
+.dl.add{background:color-mix(in srgb,var(--fanous-c-badge-status-bg) 20%,transparent);box-shadow:inset 3px 0 0 var(--fanous-c-badge-status-bg)}.dl.add .dl-m{color:var(--fanous-color-text-primary);font-weight:700}
+.dl.del{background:color-mix(in srgb,var(--fanous-color-error-fill) 14%,transparent)}.dl.del .dl-m{color:var(--fanous-color-text-primary);font-weight:700}
+.dl.del del{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--fanous-c-form-error) 60%,transparent)}
+.dl.skip{display:block;padding:2px 12px;padding-inline-start:22px;font-family:var(--fanous-font-latin);font-size:12px;font-style:italic;color:var(--fanous-color-text-muted)}
+
 /* Overview: what goes live next, as a vertical timeline (start-side rail and dots). */
 .timeline{list-style:none;margin:0;padding:0;display:grid;gap:0}
 .tl{position:relative;display:grid;gap:2px;padding-block:0 18px;padding-inline-start:26px}

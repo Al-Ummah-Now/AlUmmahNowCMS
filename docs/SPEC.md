@@ -88,6 +88,7 @@ also has `created_at`/`updated_at` (maintained by `src/lib/content-rules.ts`).
 | `curated_videos` | `kind` (`video`|`playlist`|`channel`)*, `ref_id`*, `placement` (`home`|`videos`)*, `locale` (`en`|`ar`|`all`), `title_override`, `sort`, `status`, `snapshot` (json: title, thumbnail and channel at pick time; display fallback only) |
 | `site_settings` | `locale`* (unique), `site_title`, `tagline`, `hero_title`, `hero_body`, `social` (json) |
 | media | bknd's media entity, R2 binding `MEDIA` |
+| `content_revisions` (#8, `migrations/0005`) | not a bknd entity (Worker-only, never on the data API): `entity`, `entity_id`, `version`, `action` (create/update/restore), `actor_id`, `actor_email`, `restored_from`, `changed` (json field names), `snapshot` (json, full row), `created_at`. Written after every create/update of a page or post (`src/lib/revisions.ts`); all kept, listed 20 per page. |
 
 Expand-only rules (enforced by CI, §8): migrations only `CREATE TABLE`/`CREATE INDEX`/`ALTER TABLE …
 ADD COLUMN`. No `DROP`, `RENAME` or `ALTER … DROP`. A new required field must have a default.
