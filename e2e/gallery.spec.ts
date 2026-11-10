@@ -10,7 +10,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { writeFileSync } from "node:fs";
 import { sessionPage } from "./support/browser.ts";
 import { ACCOUNTS, CMS_URL, hasCredentials } from "./support/env.ts";
-import { signIn } from "./support/oauth.ts";
+import { sessionCookie } from "./support/sessions.ts";
 
 test.skip(!process.env.E2E_GALLERY || !hasCredentials, "E2E_GALLERY=1 and credentials required");
 test.describe.configure({ mode: "serial" });
@@ -24,7 +24,7 @@ const made: { entity: string; id: number }[] = [];
 let cookie = "";
 
 async function api(method: string, path: string, body?: unknown) {
-   if (!cookie) cookie = (await signIn(ACCOUNTS.admin)).cookie;
+   if (!cookie) cookie = await sessionCookie(ACCOUNTS.admin);
    const res = await fetch(`${CMS_URL}${path}`, {
       method,
       headers: { cookie, origin: CMS_URL, ...(body ? { "content-type": "application/json" } : {}) },

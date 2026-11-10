@@ -26,23 +26,13 @@ export async function browserSignIn(context: BrowserContext, page: Page, account
    return page.goto(pending.callbackUrl);
 }
 
-const sessions = new Map<string, { name: string; value: string }[]>();
-
-/**
- * Like browserSignIn, but signs each account in once per worker and reuses the CMS session
- * cookie (8 h), so a suite run doesn't hit auth's sign-in rate limit.
- */
+/** Opens `returnPath` with the account's CMS session (one sign-in per account per run, see sessions.ts). */
 export async function sessionPage(context: BrowserContext, page: Page, account: Account, returnPath = "/") {
-   let cookies = sessions.get(account.email);
-   if (!cookies) {
-      const { signIn } = await import("./oauth.ts");
-      const res = await signIn(account);
-      cookies = res.cookie
-         .split(/;\s*/)
-         .filter(Boolean)
-         .map((pair) => ({ name: pair.slice(0, pair.indexOf("=")), value: pair.slice(pair.indexOf("=") + 1) }));
-      sessions.set(account.email, cookies);
-   }
+   const { sessionCookie } = await import("./sessions.ts");
+   const cookies = (await sessionCookie(account))
+      .split(/;\s*/)
+      .filter(Boolean)
+      .map((pair) => ({ name: pair.slice(0, pair.indexOf("=")), value: pair.slice(pair.indexOf("=") + 1) }));
    await context.addCookies(cookies.map((c) => ({ ...c, url: CMS_URL, secure: CMS_URL.startsWith("https:"), httpOnly: true, sameSite: "Lax" as const })));
    return page.goto(returnPath);
 }
