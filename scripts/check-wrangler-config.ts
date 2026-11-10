@@ -65,15 +65,16 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
       // AI assist jobs (docs/AI_ASSIST_SPEC.md §3): producer AI_JOBS, a consumer with a DLQ, and the DLQ's consumer.
       const q = c.queues ?? {};
       const { name: aiQueue, dlq } = want.aiQueue;
-      const prod = q.producers ?? [];
-      if (prod.length !== 1 || prod[0].binding !== "AI_JOBS" || prod[0].queue !== aiQueue) errors.push(`${where}: queues.producers must be [AI_JOBS → ${aiQueue}]`);
+      // Other queues (image variants) sit next to these; only the AI ones are checked here.
+      const prod = (q.producers ?? []).filter((p) => p.binding === "AI_JOBS");
+      if (prod.length !== 1 || prod[0].queue !== aiQueue) errors.push(`${where}: queues.producers must bind AI_JOBS → ${aiQueue}`);
       const cons = q.consumers ?? [];
       const main = cons.find((x) => x.queue === aiQueue);
       if (!main || main.dead_letter_queue !== dlq || main.max_batch_size !== 1 || !(main.max_retries && main.max_retries >= 1)) {
          errors.push(`${where}: queues.consumers needs ${aiQueue} (batch 1, retries ≥ 1, DLQ ${dlq})`);
       }
       if (!cons.some((x) => x.queue === dlq)) errors.push(`${where}: queues.consumers needs the DLQ ${dlq}`);
-      if (cons.length !== 2) errors.push(`${where}: queues.consumers must be exactly ${aiQueue} and ${dlq}`);
+      if (cons.filter((x) => x.queue === aiQueue || x.queue === dlq).length !== 2) errors.push(`${where}: queues.consumers must consume ${aiQueue} and ${dlq} once each`);
       const d1 = c.d1_databases ?? [];
       if (d1.length !== 1 || d1[0].binding !== "DB" || d1[0].database_name !== want.d1.name || d1[0].database_id !== want.d1.id) {
          errors.push(`${where}: d1_databases must be [DB → ${want.d1.name} (${want.d1.id})]`);
