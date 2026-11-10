@@ -432,7 +432,7 @@ export function initEditor(): void {
    delBtn?.addEventListener("click", async () => {
       if (!(await askConfirm({ reason: true }))) return;
       try {
-         await api("DELETE", `/api/data/entity/${kind}/${id}`, { reason: takeReason(confirmDlg) });
+         await api("DELETE", `/api/data/entity/${kind}/${id}`, { reason: takeReason($("#confirm")) });
          dirty = false;
          location.assign(`/${kind}?done=deleted`);
       } catch (err) {
