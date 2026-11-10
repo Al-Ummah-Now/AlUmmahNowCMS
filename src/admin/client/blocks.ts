@@ -5,7 +5,7 @@
  * and a preview of the whole page. The DOM is the state (src/admin/screens/blocks.tsx documents the
  * contract); `readBlocks` / `readSlides` read it back and validate with the server's own rules.
  */
-import { liveSearch } from "./live-search.ts";
+import { latestOnly, liveSearch } from "./live-search.ts";
 import { BlockError, isComplete, newBlockId, normalizeBlocks, normalizeSlides, validBlockUrl, type Block, type BlockType, type Slide } from "../../lib/blocks.ts";
 import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
 import { renderMarkdownInto } from "./markdown.ts";
@@ -656,7 +656,9 @@ function initPostsDialog(): void {
    const results = $("[data-posts-results]", dlg)!;
    $("[data-posts-close]", dlg)!.addEventListener("click", () => dlg.close());
    dlg.addEventListener("close", () => postsTarget?.querySelector<HTMLElement>("[data-pick-posts]")?.focus());
+   const begin = latestOnly();
    const search = async (q: string) => {
+      const isCurrent = begin();
       status.textContent = T.blocks.mediaLoading;
       results.replaceChildren();
       try {
@@ -666,6 +668,9 @@ function initPostsDialog(): void {
             "GET",
             `/api/data/entity/posts?where=${encodeURIComponent(JSON.stringify(where))}&sort=-updated_at&limit=30&select=id,title,status,locale`,
          );
+         // A newer search started while this one was in flight: its answer is the one to show.
+         if (!isCurrent()) return;
+         results.replaceChildren();
          status.textContent = res.data.length ? "" : T.blocks.postsNone;
          const list = postsTarget ? $("ol[data-k=post_ids]", postsTarget) : null;
          const have = new Set(list ? listItems(list).map((li) => String(readItem(li).v)) : []);
@@ -694,16 +699,17 @@ function initPostsDialog(): void {
             results.append(el("li", {}, el("span", { class: "ph" }), el("div", {}, el("div", { class: "t", dir: "auto", lang: p.locale }, p.title)), btn));
          }
       } catch {
-         status.textContent = T.blocks.postsFailed;
+         if (isCurrent()) status.textContent = T.blocks.postsFailed;
       }
    };
    const form = $<HTMLFormElement>("[data-posts-form]", dlg)!;
    form.addEventListener("submit", (e) => {
       e.preventDefault();
+      live.cancel();
       void search(String(new FormData(form).get("q") ?? "").trim());
    });
    // Results follow the typing (same pause as the search boxes' suggestions); Enter still searches at once.
-   liveSearch($<HTMLInputElement>("input[name=q]", form), (q) => void search(q));
+   const live = liveSearch($<HTMLInputElement>("input[name=q]", form), (q) => void search(q));
    (dlg as HTMLDialogElement & { search?: typeof search }).search = search;
 }
 

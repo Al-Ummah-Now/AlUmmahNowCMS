@@ -1,6 +1,6 @@
 /** The picker dialog: search the public videos platform and hand the chosen item to a callback. */
 import { $, api, el, strings } from "./dom.ts";
-import { liveSearch } from "./live-search.ts";
+import { latestOnly, liveSearch } from "./live-search.ts";
 
 export interface PickedItem {
    kind: "video" | "playlist" | "channel";
@@ -40,11 +40,14 @@ export function initPicker(): void {
    });
    const pickerForm = $<HTMLFormElement>("[data-picker-form]", dlg);
    // Results follow the typing; a one-letter query waits for more (the submit handler says so on Enter).
-   liveSearch($<HTMLInputElement>("input[name=q]", pickerForm ?? dlg), (q) => {
+   const live = liveSearch($<HTMLInputElement>("input[name=q]", pickerForm ?? dlg), (q) => {
       if (q.length >= 2) pickerForm?.requestSubmit();
    });
+   const begin = latestOnly();
    pickerForm?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
+      live.cancel();
+      const isCurrent = begin();
       const form = ev.target as HTMLFormElement;
       const fd = new FormData(form);
       const q = String(fd.get("q") ?? "").trim();
@@ -57,6 +60,9 @@ export function initPicker(): void {
       results.replaceChildren();
       try {
          const { items } = await api<{ items: PickedItem[] }>("GET", `/picker/api/search?kind=${encodeURIComponent(kind)}&q=${encodeURIComponent(q)}`);
+         // A newer search started while this one was in flight: its answer is the one to show.
+         if (!isCurrent()) return;
+         results.replaceChildren();
          status.textContent = items.length ? `${items.length} · ${T.kinds[kind] ?? kind}` : T.noResults;
          for (const it of items) {
             const li = el("li", { "data-pick-id": it.id });
@@ -78,7 +84,7 @@ export function initPicker(): void {
             results.append(li);
          }
       } catch {
-         status.textContent = T.failed;
+         if (isCurrent()) status.textContent = T.failed;
       }
    });
 }

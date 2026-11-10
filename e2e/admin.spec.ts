@@ -4,6 +4,7 @@
  * Screenshots go to e2e-artifacts/.
  */
 import { expect, test, type Page } from "@playwright/test";
+import { ADMIN_STRINGS } from "../src/admin/i18n.ts";
 import { expectNoAxeViolations, sessionPage, shot } from "./support/browser.ts";
 import { ACCOUNTS, CMS_URL, hasCredentials } from "./support/env.ts";
 import { sessionCookie } from "./support/sessions.ts";
@@ -494,7 +495,8 @@ test.describe("videos (E23–E30, X1)", () => {
       await expect(page.locator(`li[data-id="${rowId}"]`)).toHaveAttribute("data-ref", fresh[1], { timeout: 20_000 });
 
       await page.locator(`li[data-id="${rowId}"]`).getByRole("button", { name: /^Delete:/ }).click();
-      await page.getByRole("dialog", { name: /Delete this permanently/ }).getByRole("button", { name: "Delete" }).click();
+      // Soft delete (docs/SOFT_DELETE.md): the confirm dialog is "Delete this?" and the row moves to Recently deleted.
+      await page.getByRole("dialog", { name: ADMIN_STRINGS.en.common.confirmDelete }).getByRole("button", { name: ADMIN_STRINGS.en.common.delete }).click();
       await expect(page.locator(`li[data-id="${rowId}"]`)).toHaveCount(0);
    });
 });
