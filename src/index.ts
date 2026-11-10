@@ -3,6 +3,8 @@
  *
  *   /healthz                 liveness (+ ?deep=1: config and D1)
  *   /api/public/v1/*         public read API (published rows only), CORS for www
+ *   /api/preview/v1/*        draft preview for www (one row per signed, expiring token; no CORS)
+ *   /preview/:kind/:id       staff: mint a preview token, 303 → www/preview (session required)
  *   /sso/*                   SSO login/callback/logout (PKCE public client)
  *   /admin-assets/*          staff screens' CSS/JS (public, immutable, no data)
  *   /, /pages, /posts, …     staff screens (src/admin; session required, else → /sso/login)
@@ -26,6 +28,7 @@ import { legacyAdminRedirect } from "./admin/legacy.ts";
 import { entityUploadTarget, keepNewestMedia } from "./admin/media-cleanup.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
 import { pickerRoutes } from "./routes/picker.ts";
+import { previewApi, previewRoutes } from "./routes/preview.ts";
 import { publicApi } from "./routes/public-api.ts";
 import { renderStatus, ssoRoutes } from "./routes/sso.ts";
 import type { AppEnv, AuthUser, Ctx, Deps } from "./types.ts";
@@ -93,6 +96,8 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
 
    // Public API: no session, no bknd boot, works even before secrets are set.
    app.route("/api/public/v1", publicApi() as unknown as Hono<AppEnv>);
+   // Preview API: www server-side with a preview token (src/routes/preview.ts). Never cached.
+   app.route("/api/preview/v1", previewApi() as unknown as Hono<AppEnv>);
 
    // Staff screens' CSS/JS: public, immutable, no data (content-hashed names).
    app.route("/admin-assets", adminAssets() as unknown as Hono<AppEnv>);
@@ -138,7 +143,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    // Session gate for the staff screens and the picker.
    app.use("*", async (c, next) => {
       const p = c.req.path;
-      const gated = isStaffScreen(p) || p === "/picker" || p.startsWith("/picker/");
+      const gated = isStaffScreen(p) || p === "/picker" || p.startsWith("/picker/") || p.startsWith("/preview/");
       if (!gated) return next();
       const user = await sessionUser(c, deps);
       if (!user) {
@@ -165,6 +170,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    });
 
    app.route("/picker", pickerRoutes(deps));
+   app.route("/preview", previewRoutes());
    app.route("/", adminRoutes(deps));
 
    app.all("/api/*", async (c) => {

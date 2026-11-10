@@ -288,6 +288,43 @@ async function alternates(env: Env, table: "pages" | "posts", key: unknown, l: L
    return results.map((r) => ({ locale: r.locale, slug: r.slug }));
 }
 
+/** A `pages` row as the public `Page` (also served by the preview API, src/routes/preview.ts). */
+export async function pageOf(env: Env, row: Row) {
+   const l = row.locale as Locale;
+   const body = typeof row.body === "string" ? row.body : "";
+   const [cov, alts, images] = await Promise.all([covers(env, "pages", [row.id]), alternates(env, "pages", row.translation_key, l), bodyImages(env, body)]);
+   const published = toIso(row.published_at) ?? toIso(row.created_at) ?? new Date(0).toISOString();
+   return {
+      slug: String(row.slug),
+      locale: row.locale,
+      title: String(row.title ?? ""),
+      summary: strOrNull(row.summary),
+      body,
+      seo_title: strOrNull(row.seo_title),
+      seo_description: strOrNull(row.seo_description),
+      cover: cov.get(String(row.id)) ?? null,
+      published_at: published,
+      updated_at: toIso(row.updated_at) ?? published,
+      alternates: alts,
+      images,
+   };
+}
+
+/** A `posts` row as the public `Post` (also served by the preview API). */
+export async function postOf(env: Env, row: Row) {
+   const l = row.locale as Locale;
+   const body = typeof row.body === "string" ? row.body : "";
+   const [cov, alts, images] = await Promise.all([covers(env, "posts", [row.id]), alternates(env, "posts", row.translation_key, l), bodyImages(env, body)]);
+   return {
+      ...postSummaryOf(row, cov.get(String(row.id)) ?? null),
+      body,
+      seo_title: strOrNull(row.seo_title),
+      seo_description: strOrNull(row.seo_description),
+      alternates: alts,
+      images,
+   };
+}
+
 async function etagOf(body: string): Promise<string> {
    const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(body));
    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -362,23 +399,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          .bind(c.req.param("slug"), l)
          .first<Row>();
       if (!row) throw new HttpError(404);
-      const body = typeof row.body === "string" ? row.body : "";
-      const [cov, alts, images] = await Promise.all([covers(c.env, "pages", [row.id]), alternates(c.env, "pages", row.translation_key, l), bodyImages(c.env, body)]);
-      const published = toIso(row.published_at) ?? toIso(row.created_at) ?? new Date(0).toISOString();
-      return json(c, {
-         slug: String(row.slug),
-         locale: row.locale,
-         title: String(row.title ?? ""),
-         summary: strOrNull(row.summary),
-         body,
-         seo_title: strOrNull(row.seo_title),
-         seo_description: strOrNull(row.seo_description),
-         cover: cov.get(String(row.id)) ?? null,
-         published_at: published,
-         updated_at: toIso(row.updated_at) ?? published,
-         alternates: alts,
-         images,
-      });
+      return json(c, await pageOf(c.env, row));
    });
 
    api.get("/posts", async (c) => {
@@ -402,16 +423,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          .bind(c.req.param("slug"), l)
          .first<Row>();
       if (!row) throw new HttpError(404);
-      const body = typeof row.body === "string" ? row.body : "";
-      const [cov, alts, images] = await Promise.all([covers(c.env, "posts", [row.id]), alternates(c.env, "posts", row.translation_key, l), bodyImages(c.env, body)]);
-      return json(c, {
-         ...postSummaryOf(row, cov.get(String(row.id)) ?? null),
-         body,
-         seo_title: strOrNull(row.seo_title),
-         seo_description: strOrNull(row.seo_description),
-         alternates: alts,
-         images,
-      });
+      return json(c, await postOf(c.env, row));
    });
 
    api.get("/videos", async (c) => {

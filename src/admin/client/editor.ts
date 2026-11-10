@@ -21,6 +21,7 @@ interface S {
    coverUploading: string;
    schedulePast: string;
    scheduleRequired: string;
+   previewSaveFirst: string;
 }
 
 export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -79,6 +80,14 @@ export function initEditor(): void {
    form.addEventListener("input", markDirty);
    addEventListener("beforeunload", (e) => {
       if (dirty) e.preventDefault();
+   });
+
+   // "Preview on site" shows the last SAVED draft: with unsaved edits, ask for a save first.
+   $<HTMLAnchorElement>("[data-preview]")?.addEventListener("click", (e) => {
+      if (!dirty) return;
+      e.preventDefault();
+      toast(T.previewSaveFirst, "bad");
+      $<HTMLButtonElement>('button[type=submit][data-action="draft"]', form)?.focus();
    });
 
    // Slug: derived from the title until edited by hand.

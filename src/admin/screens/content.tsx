@@ -167,7 +167,7 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
                         </a>
                         <div class="li-meta">
                            <span class="badge loc">{String(r.locale).toUpperCase()}</span>
-                           <span dir="ltr">/{kind === "posts" ? "posts/" : ""}{String(r.slug)}</span>
+                           <span dir="ltr">/{kind === "posts" ? "news/" : ""}{String(r.slug)}</span>
                            {r.author_name ? <span>{String(r.author_name)}</span> : null}
                            {publishState(r) === "scheduled" ? (
                               <span class="when">
@@ -266,7 +266,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    const wentLive = firstPublished !== null && firstPublished <= Date.now();
    const publishAt = scheduled ? new Date(timeOf(row?.publish_at)!).toISOString() : "";
    const base = `/${kind}`;
-   const sitePath = `${v.wwwUrl}/${locale}/${kind === "posts" ? "posts/" : ""}${s("slug")}`;
+   const sitePath = `${v.wwwUrl}/${locale}/${kind === "posts" ? "news/" : ""}${s("slug")}`;
    const title = row ? s("title") : kind === "pages" ? t.content.newPage : t.content.newPost;
    const strings = {
       slugBad: t.content.slugBad,
@@ -291,6 +291,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       coverUploading: t.content.coverUploading,
       schedulePast: t.content.schedulePast,
       scheduleRequired: t.content.scheduleRequired,
+      previewSaveFirst: t.common.previewSaveFirst,
       picker: t.picker,
    };
    return (
@@ -300,6 +301,11 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
             {published ? (
                <a class="btn ghost" href={sitePath} target="_blank" rel="noopener">
                   <Icon name="external" size={18} class="flip" /> {t.common.viewOnSite}
+               </a>
+            ) : id ? (
+               // Mints a signed, 30-minute token for this row and opens www (src/routes/preview.ts).
+               <a class="btn ghost" href={`/preview/${kind}/${id}`} target="_blank" rel="noopener" data-preview aria-describedby="preview-help">
+                  <Icon name="eye" size={18} /> {t.common.previewOnSite}
                </a>
             ) : null}
          </PageHead>
@@ -325,7 +331,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                      <label for="f-slug">{t.content.slug}</label>
                      <div class="search" style="background:var(--fanous-c-form-input-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-form-input-border);border-radius:var(--r-md)" dir="ltr">
                         <span class="muted" style="display:flex;align-items:center;padding-inline-start:14px;white-space:nowrap">
-                           /{locale}/{kind === "posts" ? "posts/" : ""}
+                           /{locale}/{kind === "posts" ? "news/" : ""}
                         </span>
                         <input id="f-slug" name="slug" required maxlength={120} value={s("slug")} pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$" autocapitalize="off" autocorrect="off" spellcheck={false} aria-describedby="f-slug-help f-slug-err" style="padding-inline-start:2px;color:var(--fanous-c-form-input-text)" data-auto-slug={row ? undefined : "1"} />
                      </div>
@@ -441,7 +447,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                   </div>
                   <div class="serp" aria-label={t.content.seoPreview} lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
                      <span class="serp-url" dir="ltr">
-                        {v.wwwUrl.replace(/^https:\/\//, "")} › {locale} › {kind === "posts" ? "posts › " : ""}
+                        {v.wwwUrl.replace(/^https:\/\//, "")} › {locale} › {kind === "posts" ? "news › " : ""}
                         <span data-serp-slug>{s("slug")}</span>
                      </span>
                      <span class="serp-title" data-serp-title>
@@ -556,6 +562,11 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                   <p class="help" data-dirty hidden role="status">
                      {t.common.unsaved}
                   </p>
+                  {row && !published ? (
+                     <p class="help" id="preview-help" data-preview-help>
+                        {t.common.previewHelp}
+                     </p>
+                  ) : null}
                   {row && isAdmin(v) ? (
                      <button class="btn danger sm" type="button" data-delete style="justify-self:start">
                         <Icon name="trash" size={16} /> {t.common.delete}

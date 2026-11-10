@@ -24,7 +24,8 @@ export interface WorkerSecrets {
 export const CMS_SECRETS: RequiredSecret[] = [
    {
       name: "BKND_JWT_SECRET",
-      purpose: "worker secret, `openssl rand -hex 32`; signs bknd session cookies and the SSO state cookie",
+      purpose:
+         "worker secret, `openssl rand -hex 32`; signs bknd session cookies and the SSO state cookie, and is the root of the draft-preview token key (src/lib/preview.ts)",
    },
 ];
 

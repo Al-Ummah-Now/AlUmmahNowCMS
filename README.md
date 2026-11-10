@@ -62,7 +62,7 @@ CMS_URL=http://localhost:8585 npm run e2e       # Playwright (signed-in tests ne
 
 | Where | Name | Notes |
 |---|---|---|
-| Worker (each env) | `BKND_JWT_SECRET` | `openssl rand -hex 32` → `wrangler secret put BKND_JWT_SECRET [--env qa\|stage]`. Required; the Worker serves 503 without it. |
+| Worker (each env) | `BKND_JWT_SECRET` | `openssl rand -hex 32` → `wrangler secret put BKND_JWT_SECRET [--env qa\|stage]`. Required; the Worker serves 503 without it. Also the root of the draft-preview token key (derived, `src/lib/preview.ts`), so preview needs no secret of its own. |
 | GitHub | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Workers, D1 and R2 edit on account `0e4b6e7f…` |
 
 Queues (created once per account, not by deploys): `al-ummah-now-cms-variants[-stage|-qa]` and
