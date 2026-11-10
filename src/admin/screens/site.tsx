@@ -132,7 +132,7 @@ export async function navigationScreen(v: View, data: Data, menu: "header" | "fo
                   </div>
                </div>
                <button class="btn primary" type="submit">
-                  <Icon name="plus" size={18} /> {t.menus.add}
+                  <Icon name="link" size={18} /> {t.menus.add}
                </button>
                <p class="help" id="new-url-help" style="grid-column:1/-1">
                   {t.menus.urlHelp}
@@ -166,7 +166,7 @@ export async function videosScreen(v: View, data: Data, placement: "home" | "vid
          <I18nScript nonce={v.nonce} strings={rowStrings(v, { added: t.videos.added, already: t.videos.already })} />
          <PageHead title={t.videos.title} intro={t.videos.intro}>
             <button class="btn primary" type="button" data-videos-add={placement} data-sort={String(maxSort + 10)} data-auto-open={autoAdd ? "1" : undefined}>
-               <Icon name="plus" size={18} /> {t.videos.add}
+               <Icon name="film" size={18} /> {t.videos.add}
             </button>
          </PageHead>
          <div class="toolbar">
@@ -239,7 +239,7 @@ export async function videosScreen(v: View, data: Data, placement: "home" | "vid
          ) : (
             <Empty icon="play" title={t.videos.empty}>
                <button class="btn primary" type="button" data-videos-add={placement} data-sort="10">
-                  <Icon name="plus" size={18} /> {t.videos.add}
+                  <Icon name="film" size={18} /> {t.videos.add}
                </button>
             </Empty>
          )}
@@ -340,7 +340,7 @@ export async function siteScreen(v: View, data: Data, locale: "en" | "ar") {
                      <SocialRow v={v} kind="youtube" url="" i={999} />
                   </template>
                   <button type="button" class="btn" data-social-add style="justify-self:start">
-                     <Icon name="plus" size={18} /> {t.site.addSocial}
+                     <Icon name="globe" size={18} /> {t.site.addSocial}
                   </button>
                   <p class="err" data-social-err hidden role="alert" />
                </section>

@@ -51,7 +51,7 @@ export async function overviewScreen(v: View, data: Data) {
                <p>{t.overview.intro}</p>
                <div class="ph-actions" style="margin-top:20px">
                   <a class="btn primary" href="/pages/new">
-                     <Icon name="plus" size={18} /> {t.header.newPage}
+                     <Icon name="file" size={18} /> {t.header.newPage}
                   </a>
                   <a class="btn" href="/posts/new">
                      <Icon name="pen" size={18} /> {t.header.newPost}

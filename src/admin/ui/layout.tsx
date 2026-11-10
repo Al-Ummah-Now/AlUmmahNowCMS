@@ -116,7 +116,7 @@ function CreateMenu(props: { v: View }) {
    return (
       <details class="pop" data-pop>
          <summary class="btn primary sm" aria-label={t.header.create}>
-            <Icon name="plus" size={18} /> <span>{t.header.create}</span>
+            <Icon name="pen" size={18} /> <span>{t.header.create}</span>
          </summary>
          <div class="pop-panel" role="menu">
             <a class="mi" role="menuitem" href="/pages/new">

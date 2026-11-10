@@ -213,7 +213,7 @@ a.li-title:hover{text-decoration:underline}
 
 /* Empty state */
 .empty{display:grid;justify-items:center;gap:8px;padding:40px 20px;text-align:center;border-radius:var(--r-xl);border:1.5px dashed color-mix(in srgb,var(--fanous-color-primary) 45%,transparent);background:color-mix(in srgb,var(--fanous-color-surface) 60%,transparent)}
-.empty .icon{width:40px;height:40px;color:var(--fanous-c-empty-icon)}
+.empty>.icon{width:40px;height:40px;color:var(--fanous-c-empty-icon)}
 .empty strong{font-size:18px;color:var(--fanous-c-empty-title)}
 .empty p{margin:0;color:var(--fanous-c-empty-body);max-width:46ch}
 
