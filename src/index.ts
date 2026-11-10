@@ -250,7 +250,7 @@ export default {
          return;
       }
       ctx.waitUntil(
-         refreshCuratedSnapshots(env.DB, env.VIDEOS_API_URL.replace(/\/+$/, "")).then(
+         refreshCuratedSnapshots(env.DB, trimSlash(env.VIDEOS_API_URL)).then(
             (r) => console.log(JSON.stringify({ msg: "curated snapshots refreshed", ...r })),
             (error) => console.error("curated snapshot refresh failed", String(error)),
          ),

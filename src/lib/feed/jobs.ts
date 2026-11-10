@@ -20,7 +20,7 @@
  * head) is written at most once per build, at least HEAD_WRITE_GAP_MS apart (KV allows 1 write/s
  * per key). The consumer runs with max_concurrency 1, so builds never overlap.
  */
-import type { Env } from "../../env.ts";
+import { trimSlash, type Env } from "../../env.ts";
 import { lookupItem } from "../videos.ts";
 import { putSnapshot } from "../video-snapshots.ts";
 import { bodyVideoIds, feedItems, liteItems, liteSig } from "./source.ts";
@@ -412,7 +412,7 @@ async function ensureBodySnapshots(env: Env, postIds: number[]): Promise<void> {
    const have = new Set(results.map((r) => r.ref_id));
    for (const id of list.filter((x) => !have.has(x)).slice(0, 10)) {
       try {
-         const item = await lookupItem(env.VIDEOS_API_URL.replace(/\/+$/, ""), "video", id);
+         const item = await lookupItem(trimSlash(env.VIDEOS_API_URL), "video", id);
          if (item) await putSnapshot(env.DB, item);
       } catch (error) {
          console.warn("feed body video lookup failed", id, String(error));
