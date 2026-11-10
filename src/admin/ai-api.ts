@@ -7,10 +7,16 @@
  *   GET  /jobs/:id                 the job (its owner or an admin)
  *   GET  /usage?from=&to=          admin: daily rollup for the cost dashboard (#266)
  *   POST /failures/:id/dismiss     admin: clear a failure flag
+ *   GET  /settings                 admin: providers, routes, budget, bound AI_KEY_* names, recent audit
+ *   PUT  /settings                 admin: { settings, version } → validated, versioned, audit-logged
+ *   POST /settings/test            admin: { provider, model } → a tiny prompt through that (unsaved) config
  */
 import { Hono } from "hono";
-import type { AppEnv, Ctx } from "../types.ts";
-import { aiConfigured } from "../lib/ai/config.ts";
+import type { AppEnv, Ctx, Deps } from "../types.ts";
+import { budgetState } from "../lib/ai/budget.ts";
+import { aiReady, buildProvider } from "../lib/ai/router.ts";
+import { auditTest, boundSecretNames, loadSettings, recentAudit, saveSettings, SettingsConflict, validateProvider, validateSettings, type SettingsError } from "../lib/ai/settings.ts";
+import { errText, log } from "../lib/log.ts";
 import {
    createJob,
    dedupeKey,
@@ -25,6 +31,7 @@ import {
    type ContentKind,
    type Job,
    type NewJob,
+   recordUsage,
 } from "../lib/ai/jobs.ts";
 import { FEATURES, type Feature, type Locale } from "../lib/ai/prompts.ts";
 
@@ -64,7 +71,7 @@ function readBody(raw: unknown): { ok: true; job: Omit<NewJob, "userId"> } | { o
    return { ok: true, job: { feature, kind, rowId: id, locale, input: { ...fields, ui } } };
 }
 
-export function aiRoutes(): Hono<AppEnv> {
+export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
    const r = new Hono<AppEnv>();
 
    r.use("*", async (c, next) => {
@@ -72,11 +79,11 @@ export function aiRoutes(): Hono<AppEnv> {
       return next();
    });
 
-   r.get("/status", async (c) => c.json({ configured: aiConfigured(c.env) }, 200, { "Cache-Control": "no-store" }));
+   r.get("/status", async (c) => c.json({ configured: await aiReady(c.env) }, 200, { "Cache-Control": "no-store" }));
 
    r.post("/jobs", async (c) => {
       if (!(c.req.header("content-type") ?? "").includes("application/json")) return c.json({ error: "bad_request", message: "JSON body required" }, 415);
-      if (!aiConfigured(c.env)) return c.json({ error: "ai_not_configured" }, 503);
+      if (!(await aiReady(c.env))) return c.json({ error: "ai_not_configured" }, 503);
       const parsed = readBody(await c.req.json().catch(() => null));
       if (!parsed.ok) return c.json({ error: parsed.error }, parsed.status);
       const user = c.get("user");
@@ -86,6 +93,8 @@ export function aiRoutes(): Hono<AppEnv> {
       const key = await dedupeKey(j);
       const existing = await findDuplicate(c.env.DB, key, now);
       if (existing) return c.json({ job: publicJob(await failIfStale(c.env.DB, existing, now)), deduped: true }, 200);
+      const { settings } = await loadSettings(c.env.DB);
+      if ((await budgetState(c.env.DB, c.env.ENVIRONMENT, settings, now)).reached) return c.json({ error: "budget_reached" }, 402);
       const wait = await rateLimitWait(c.env.DB, userId, LIMITS.weight[j.feature], now);
       if (wait > 0) return c.json({ error: "rate_limited", retryAfter: wait }, 429, { "Retry-After": String(wait) });
       const job = await createJob(c.env.DB, j, key, now);
@@ -122,5 +131,67 @@ export function aiRoutes(): Hono<AppEnv> {
       return ok ? c.json({ ok: true }) : c.json({ error: "not_found" }, 404);
    });
 
+   r.get("/settings", async (c) => {
+      if (c.get("user").role !== "admin") return c.json({ error: "forbidden" }, 403);
+      const stored = await loadSettings(c.env.DB);
+      const now = Date.now();
+      return c.json(
+         {
+            ...stored,
+            secrets: boundSecretNames(c.env),
+            budget: await budgetState(c.env.DB, c.env.ENVIRONMENT, stored.settings, now),
+            audit: await recentAudit(c.env.DB),
+         },
+         200,
+         { "Cache-Control": "no-store" },
+      );
+   });
+
+   r.put("/settings", async (c) => {
+      const user = c.get("user");
+      if (user.role !== "admin") return c.json({ error: "forbidden" }, 403);
+      const body = (await c.req.json().catch(() => null)) as { settings?: unknown; version?: unknown } | null;
+      if (!body || !Number.isInteger(body.version)) return c.json({ error: "bad_request" }, 400);
+      const v = validateSettings(body.settings, { local: c.env.ENVIRONMENT === "local" });
+      if (!v.ok) return c.json({ error: "invalid", errors: v.errors }, 400);
+      try {
+         const saved = await saveSettings(c.env.DB, v.settings, body.version as number, { id: Number(user.id) || null, email: user.email ?? null }, Date.now());
+         return c.json(saved);
+      } catch (e) {
+         if (e instanceof SettingsConflict) return c.json({ error: "conflict" }, 409);
+         log.error("ai settings save failed", { error: errText(e) });
+         return c.json({ error: "internal_error" }, 500);
+      }
+   });
+
+   r.post("/settings/test", async (c) => {
+      const user = c.get("user");
+      if (user.role !== "admin") return c.json({ error: "forbidden" }, 403);
+      const body = (await c.req.json().catch(() => null)) as { provider?: unknown; model?: unknown } | null;
+      const errors: SettingsError[] = [];
+      const cfg = validateProvider(body?.provider, "provider", { local: c.env.ENVIRONMENT === "local" }, errors);
+      const model = typeof body?.model === "string" ? body.model.trim() : "";
+      if (!cfg || errors.length || !model) return c.json({ error: "invalid", errors: model ? errors : [...errors, { path: "model", code: "required" }] }, 400);
+      // A disabled provider can still be tested before an admin turns it on.
+      const provider = buildProvider({ ...cfg, enabled: true }, c.env, { fetch: deps?.fetch });
+      if (!provider) return c.json({ ok: false, code: "not_configured", latencyMs: 0 });
+      const result = await provider.complete({ model, system: TEST_SYSTEM, messages: [{ role: "user", content: "ping" }], schema: TEST_SCHEMA, reasoning: "none", maxTokens: 50 });
+      const now = Date.now();
+      const actor = { id: Number(user.id) || null, email: user.email ?? null };
+      if (result.usage) await recordUsage(c.env.DB, { env: c.env.ENVIRONMENT, job: { id: null, user_id: actor.id, feature: "test" }, result, now });
+      await auditTest(c.env.DB, actor, cfg.id, result.ok ? "ok" : result.code, now);
+      return c.json(
+         result.ok
+            ? { ok: true, latencyMs: result.latencyMs, costUsd: result.costUsd, usage: result.usage, model: result.model, answer: result.text.slice(0, 500) }
+            : { ok: false, code: result.code, latencyMs: result.latencyMs, costUsd: result.costUsd ?? 0, detail: result.detail ?? null, raw: result.raw ?? null },
+         200,
+         { "Cache-Control": "no-store" },
+      );
+   });
+
    return r;
 }
+
+/** The "Test connection" prompt: tiny, fixed, and it exercises the JSON answer path every feature uses. */
+const TEST_SYSTEM = 'You are a connection test. Answer with the JSON object {"reply":"ok"} and nothing else.';
+const TEST_SCHEMA = { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false };

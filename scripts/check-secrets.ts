@@ -1,7 +1,8 @@
 /**
  * Live secrets check (pre-promote gate). For each CMS Worker in secrets-manifest.ts, against
- * what is DEPLOYED: the Worker exists, every required secret is bound as a secret, and no
- * forbidden one is bound. Prints names only, never values. Exits 1 on any failure.
+ * what is DEPLOYED: the Worker exists, every required secret is bound as a secret, no forbidden one
+ * is bound, AI provider keys (AI_KEY_*) are secrets, and no other credential-named binding exists.
+ * Prints names only, never values. Exits 1 on any failure.
  *
  *   node --experimental-strip-types scripts/check-secrets.ts [--env production|stage|qa]
  *
@@ -47,6 +48,16 @@ export function checkBindings(entry: WorkerSecrets, bindings: Binding[] | null):
    }
    for (const name of entry.forbidden) {
       if (bindings.some((x) => x.name === name)) out.push({ ...base, ok: false, check: `forbidden ${name}`, detail: "must not be bound" });
+   }
+   const known = new Set([...entry.required.map((r) => r.name), ...(entry.optional ?? []).map((o) => o.name), ...entry.forbidden]);
+   for (const b of bindings) {
+      if (known.has(b.name)) continue;
+      if (entry.optionalPattern?.test(b.name)) {
+         const isSecret = b.type === "secret_text" || b.type === "secrets_store_secret";
+         out.push({ ...base, ok: isSecret, check: `AI provider key ${b.name}`, detail: isSecret ? b.type : `bound as ${b.type}, not a secret` });
+      } else if (entry.keyLike?.test(b.name)) {
+         out.push({ ...base, ok: false, check: `key-like ${b.name}`, detail: "credentials for AI providers must be named AI_KEY_* (docs/AI_PROVIDERS.md)" });
+      }
    }
    return out;
 }

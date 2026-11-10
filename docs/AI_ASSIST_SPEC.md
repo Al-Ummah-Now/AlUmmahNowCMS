@@ -1,6 +1,7 @@
 # AI writing assist for editors — Spec
 
-**Status:** v2, 2026-11-10 (v1 used the Claude API; moved to Workers AI by owner decision the same day)
+**Status:** v3, 2026-11-10 (v1 used the Claude API; v2 moved to Workers AI by owner decision the same day;
+v3: Workers AI default, third-party providers pluggable and admin-enabled — `docs/AI_PROVIDERS.md`)
 **Issue:** AlUmmahNowCMS #17 (salvaged from the superseded Copilot draft #2).
 **Related:** `docs/SPEC.md` (roles, security), `docs/ADMIN_UI_SPEC.md` (staff screens, components, a11y),
 AlUmmahNow `docs/specs/AI-MODERATION.md` (epic 28: policy categories, Islamic-context rules),
@@ -18,11 +19,13 @@ the AI. Publishing stays the editor's Save/Publish button.
 | **SEO and sharing** | "Search & sharing" card, "Suggest" | SEO title (≤ 60 chars), meta description (≤ 160), social summary (≤ 200) | `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, reasoning off |
 | **Pre-publish check** | Publishing card, "Check before publishing" | tone notes, factual claims to verify, community-policy findings | `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, reasoning `low` |
 
-All three run on **Cloudflare Workers AI** through the Worker's `AI` binding: no third-party AI
-vendor, no API key, the text never leaves Cloudflare (the same rule as AI-MODERATION §1.4). One model
-for all three: the best Arabic on the catalogue in our tests (§1.5), a 1M-token context, JSON-schema
-output, and no deprecation date. Every call asks for a JSON schema (`response_format`), so the
-output is checked against it like before. Model ids live in `src/lib/ai/prompts.ts` (`MODELS`).
+**Workers AI default; third-party providers pluggable, admin-enabled.** By default all three run on
+**Cloudflare Workers AI** through the Worker's `AI` binding: no API key, and the text stays in Cloudflare
+(the same rule as AI-MODERATION §1.4). One model for all three: the best Arabic on the catalogue in our
+tests (§1.5), a 1M-token context, JSON-schema output, and no deprecation date. An admin may add any
+other AI service as a generic HTTP provider (configuration, not code: §2.2, `docs/AI_PROVIDERS.md`) and
+choose the provider and model per feature. Every call asks for a JSON schema, so the output is checked
+against it whoever answers. Default model ids live in `src/lib/ai/prompts.ts` (`MODELS`).
 
 ### 1.1 Translate
 
@@ -75,10 +78,12 @@ The check is advisory and never blocks Publish. "Nothing to flag" is a normal re
 
 ### 1.4 Epic 28 alignment
 
-AI in the platform runs on Cloudflare Workers AI, not third-party vendors (owner decision,
-2026-11-10; AI-MODERATION.md §1.4 "no third-party AI vendors"). This feature follows it with no
-exception: drafts go to Workers AI in the same Cloudflare account and nowhere else. We keep the text
-only in the job row, deleted after 30 days (§3).
+AI in the platform runs on Cloudflare Workers AI by default (owner decision, 2026-11-10;
+AI-MODERATION.md §1.4). Out of the box, drafts go to Workers AI in the same Cloudflare account and
+nowhere else. The owner later asked for "a way for any third party provider for the future as a
+writing assistant" (2026-11-10). Third-party providers can now be plugged in, but none ships enabled.
+An admin must add one, bind its key as an `AI_KEY_*` secret, test it and switch it on before a draft
+can reach it (§2.2). We keep the text only in the job row, deleted after 30 days (§3).
 
 ### 1.5 Model choice: evidence (2026-11-10)
 
@@ -113,28 +118,62 @@ characters per call en → ar repeated sections in 2 of 2 runs (the invariant ch
   Admin → `admin`, Moderator → `editor`), the existing `sessionUser` gate. All endpoints are under
   `/admin/api/ai/*`, which is behind the session gate and the same-origin `Origin` check. There is no
   public endpoint. A job is readable only by the user who started it, or by an admin.
-- **Model:** the Workers AI binding, `"ai": { "binding": "AI" }`, declared in every env of
+- **Model:** by default the Workers AI binding, `"ai": { "binding": "AI" }`, declared in every env of
   `wrangler.jsonc` (bindings aren't inherited; `scripts/check-wrangler-config.ts` fails without it).
-  No secret, no key. The feature is on wherever the binding and the `AI_JOBS` queue exist. There is no
-  separate admin setting; turning it off in an env = removing the binding (one-line config PR).
-  `ANTHROPIC_API_KEY` is on the secrets manifest's **forbidden** list: a third-party AI key must not
-  come back.
+  It needs no key. The feature is on wherever the `AI_JOBS` queue exists and some feature's provider can
+  run: the binding for Workers AI, or an enabled HTTP provider (§2.2).
+- **Keys:** a third-party key is only ever a Worker secret or a Secrets Store binding named `AI_KEY_*`.
+  It is referenced by name from the settings and read at call time. It is never in D1, never shown and
+  never logged. The secrets check (pre-promote) allows `AI_KEY_*` only as a secret, and fails on any
+  other credential-named binding. The committed-secrets scan blocks key literals in the repo.
 - **Local runs:** `wrangler dev` always calls the real Workers AI for the `AI` binding (it needs
   Cloudflare credentials and is billed). The local E2E drops the binding from its config and sets
   `AI_MOCK_URL` (honoured only when `ENVIRONMENT=local`) to a mock of the Workers AI REST shape.
-- **Not configured** (no `AI` binding or no queue) in an env:
+- **Not configured** (no queue, or no feature whose provider can run) in an env:
   - `GET /admin/api/ai/status` → `{ configured: false }`; feature endpoints → `503 { error: "ai_not_configured" }`.
-  - Admins see one muted card in the editor: "AI assist isn't set up for this site" with "This
-    environment has no Workers AI binding." No buttons.
+  - Admins see one muted card in the editor: "AI assist isn't set up for this site", which points to
+    AI assist settings. No buttons.
   - Editors (Moderator) see nothing: no card, no buttons.
 - **Errors are never raw.** The client maps every failure to a sentence: rate limit ("You've used AI
   assist a lot just now. Try again in N minutes."), too long, the model declined, temporarily
   unavailable, failed after retries. Provider messages and stack traces stay in logs.
+- **Budget reached** (§5.1): `POST /jobs` → `402 { error: "budget_reached" }`; a running job fails with
+  `budget_reached` before its next call. Editors see "AI assist has reached this month's budget for the
+  site…".
 - **Errors** from Workers AI are classified by their code (developers.cloudflare.com/workers-ai/platform/errors):
   out of capacity (3040), timeouts (3007, 3046), aborted, internal and 5xx → retry with backoff; no
   such model / deprecated / request too large / invalid input (5007, 5028, 3006, 3003, …) → permanent
   `bad_request`; account or model not allowed (3023, 3041, 5018, 5035) → permanent `auth`. Each call
   also has a 5-minute timeout (retryable).
+
+### 2.1 Provider contract
+
+Features call one interface, `WritingAssistProvider.complete({ model, system, messages, schema?,
+reasoning?, maxTokens })` (`src/lib/ai/providers/types.ts`). It returns either `{ ok: true, text, json,
+usage: { inputTokens, outputTokens, cachedTokens, neurons? }, costUsd, provider, model, latencyMs }` or
+`{ ok: false, code, retryable, … }`. An adapter never throws: timeouts, refusals (`declined`), cut-off
+answers (`incomplete`), unusable output (`invalid_output`), rate limits, outages, network, `auth`,
+`bad_request` and `not_configured` (disabled, or the key secret is missing) are classified outcomes.
+Prompts, chunking and output validation stay in `prompts.ts` / `runner.ts`, so they are the same for every
+provider. There are two adapters: `workers-ai` (the binding) and `http` (generic, configured as data). No
+adapter knows any vendor.
+
+### 2.2 Admin settings (`/ai-settings`, admins only)
+
+One row per environment (`ai_settings`, migration `0011_ai_providers.sql`), edited on the
+"AI assist" screen and through `GET/PUT /admin/api/ai/settings` and `POST /admin/api/ai/settings/test`:
+
+- **Providers:** the built-in Workers AI (on by default) and any number of HTTP providers. They start off
+  and each is configured as data: URL and method, key header/prefix or query parameter + `AI_KEY_*`
+  secret name, static headers, a JSON body template with placeholders, JSON response paths for the
+  text, JSON, token counts, error and stop reason, streaming, timeout, price per 1,000 tokens and models.
+  Every field is validated on save (`src/lib/ai/settings.ts`).
+- **Per feature:** provider and model; plus one **fallback** tried once on a failure another provider
+  could fix (not on a refusal or a cut-off answer).
+- **Test connection:** a tiny fixed prompt through the form as it is. It shows latency, tokens and cost,
+  or the failure, the mapped message and the raw response with the key redacted.
+- **Audit:** every save is versioned (a stale form gets 409) and written to `ai_settings_audit` (who,
+  when, changed setting paths, before/after), and tests are audited too. Settings never contain a key.
 
 ## 3. Jobs (queue, idempotency, retries)
 
@@ -182,11 +221,14 @@ Workers AI bills in **Neurons**: $0.011 per 1,000, after 10,000 free Neurons a d
 account is shared with other projects, so don't count on the free part). DeepSeek V4.1 Flash costs
 27,273 Neurons per M input tokens (545 cached) and 109,091 per M output tokens ($0.30 / $1.20 per M).
 
-One `ai_usage` row per model call: `at`, `day` (UTC), `env`, `user_id`, `feature`, `model`,
+One `ai_usage` row per model call (each provider attempt, fallback included; "Test connection" calls
+use feature `test`): `at`, `day` (UTC), `env`, `user_id`, `feature`, `provider` (0011), `model`,
 `job_id`, `input_tokens`, `output_tokens`, `cache_read_tokens` (prompt tokens served from the prefix
 cache), `cache_write_tokens` (always 0 on Workers AI), `neurons` (as Workers AI reports them per call;
 estimated from the tokens with the rates in `src/lib/ai/pricing.ts` when missing), `cost_usd`
-(Neurons × $0.011 / 1,000), `status`. Each call also writes an `ai_usage` JSON line to Workers Logs.
+(Neurons × $0.011 / 1,000 on Workers AI; tokens × the provider's configured price per 1,000 on an HTTP
+provider, with missing token counts estimated high), `status`. Each call also writes an `ai_usage` JSON
+line to Workers Logs.
 
 Measured per action (real runs, 2026-11-10):
 
@@ -202,16 +244,24 @@ Per month: **expected** use, 10 editors × 22 working days × (3 translations of
 5 checks) ≈ 960,000 Neurons ≈ **$11/month**. **Ceiling** set by the per-user rate limit (§4: 60 weight
 a day) if every one of 10 editors maxed it every day of the month with 100,000-character
 translations: 20 × 4,200 × 10 × 30 ≈ 25M Neurons ≈ $277/month. The realistic figure is well inside
-the $500/month whole-platform cap, and even the theoretical ceiling stays under it at 10 editors; a
-monthly budget stop (§10) would remove the dependence on editor count.
+the $500/month whole-platform cap, and even the theoretical ceiling stays under it at 10 editors. The
+monthly budget stop (§5.1) removes the dependence on editor count.
+
+### 5.1 Monthly budget
+
+`monthlyBudgetUsd` in the settings (default $50, at most $500, empty = no cap) per environment. The
+month-to-date sum of `ai_usage.cost_usd` (UTC calendar month, this env) is checked before a job is
+created (`402 budget_reached`) and before every model call of a running job (the job fails with
+`budget_reached`, flagged). The editor sees a plain sentence, and admins see the spend against the cap on
+the settings screen.
 
 - `GET /admin/api/ai/usage?from=YYYY-MM-DD&to=YYYY-MM-DD` (**admin only**, as #266 limits cost data to
   Super Admin and Admin) returns daily rows in the cost spec's `vendor_costs_daily` shape
-  (`{ day, vendor: "cloudflare-workers-ai", line_item: <model>, env, amount_usd, source: "estimate", neurons }`)
+  (`{ day, vendor: "cloudflare-workers-ai" | "http:<provider id>", provider, line_item: <model>, env, amount_usd, source: "estimate", neurons }`)
   plus token and Neuron totals by feature and by user. The account-wide Workers AI bill is also in
   Cloudflare's own usage data (the collector's GraphQL source); this rollup attributes the CMS share of it.
 
-## 6. Data (expand-only migrations `0008_ai_assist.sql`, `0009_ai_usage_neurons.sql`)
+## 6. Data (expand-only migrations `0008_ai_assist.sql`, `0009_ai_usage_neurons.sql`, `0011_ai_providers.sql`)
 
 Worker-owned tables, outside bknd's schema (so bknd's data API never exposes them):
 
@@ -226,8 +276,13 @@ ai_usage(id TEXT PK, at INTEGER NOT NULL, day TEXT NOT NULL, env TEXT NOT NULL, 
          feature TEXT NOT NULL, model TEXT NOT NULL, job_id TEXT, input_tokens INTEGER NOT NULL,
          output_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL DEFAULT 0,
          cache_write_tokens INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL, status TEXT NOT NULL,
-         neurons REAL NOT NULL DEFAULT 0 -- 0009)
-  -- index: (day)
+         neurons REAL NOT NULL DEFAULT 0 -- 0009,
+         provider TEXT NOT NULL DEFAULT 'workers-ai' -- 0011)
+  -- indexes: (day), (env, day)
+ai_settings(id INTEGER PK CHECK (id = 1), data TEXT NOT NULL, version INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL, updated_by TEXT)                       -- 0011, never a key
+ai_settings_audit(id TEXT PK, at INTEGER NOT NULL, user_id INTEGER, email TEXT, action TEXT NOT NULL,
+                  version INTEGER, changed TEXT NOT NULL, before TEXT, after TEXT) -- 0011
 ```
 
 ## 7. Prompts and safety
@@ -239,7 +294,9 @@ ai_usage(id TEXT PK, at INTEGER NOT NULL, day TEXT NOT NULL, env TEXT NOT NULL, 
   parses it (a ```json fence is tolerated), validates the shape and lengths before storing, and retries
   invalid JSON. A refusal or `finish_reason: "content_filter"` → a permanent failure "The AI declined
   this text", no retry; `finish_reason: "length"` → permanent `incomplete`.
-- Nothing leaves Cloudflare: the text and the job's own ids go to Workers AI in the same account.
+- With the default settings nothing leaves Cloudflare: the text and the job's own ids go to Workers AI in
+  the same account. A feature routed to an admin-enabled HTTP provider sends the same request to that
+  provider instead (§2.2).
 
 ## 8. UI
 
@@ -260,6 +317,13 @@ Built with the existing staff components and tokens (`card`, `btn`, `badge`, `di
 
 ## 9. Tests
 
+- **Providers (node, `test/node/ai-providers.test.ts`):** one contract suite run against Workers AI, the
+  generic HTTP provider configured for two unrelated API shapes (header vs query key, nested vs flat
+  JSON, model in body vs URL, one streaming), and a fake provider. It covers request rendering, response
+  paths, error classes, key redaction, settings validation (keys, https, templates, paths, routes,
+  budget) and the fallback router. **Worker (`test/worker/ai-providers.test.ts`):** the settings API
+  (admin-only, versioned, audited, no key in D1), Test connection, the settings screen (en/ar), the
+  budget stop for new and running jobs, features on HTTP providers, and the fallback to Workers AI.
 - **Unit (node):** chunking (fences, blank lines, limits), Markdown invariants check, dedupe key,
   rate-limit windows, price math, policy categories match the epic 28 list, output validators.
 - **Worker (vitest-pool-workers) with a mocked Workers AI binding** (`test/support/workers-ai-mock.ts`;
@@ -282,5 +346,4 @@ Built with the existing staff components and tokens (`card`, `btn`, `badge`, `di
 
 ## 10. Out of scope (queue issues)
 
-- A per-site monthly AI budget with a hard stop (needs #266's budgets).
 - AI assist for navigation labels and site settings.

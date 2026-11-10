@@ -54,6 +54,8 @@ export function defaultReply(req: MockRequest): MockReply {
          },
       };
    }
+   // The admin's "Test connection" (src/admin/ai-api.ts)
+   if (s.includes("connection test")) return { kind: "json", data: { reply: "ok" }, input: 40, output: 6 };
    return { kind: "error", code: 3003, status: 400, message: "unknown prompt" };
 }
 

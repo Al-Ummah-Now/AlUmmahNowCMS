@@ -24,13 +24,14 @@ import { suggestApi } from "./suggest-api.ts";
 import { timelineScreen } from "./screens/timeline.tsx";
 import { parseCursor } from "../lib/feed/model.ts";
 import { aiRoutes } from "./ai-api.ts";
-import { aiConfigured } from "../lib/ai/config.ts";
+import { aiSettingsScreen } from "./screens/ai-settings.tsx";
+import { aiReady } from "../lib/ai/router.ts";
 import { flaggedFailures } from "../lib/ai/jobs.ts";
 import { libraryScreen, navigationScreen, siteScreen, videosScreen } from "./screens/site.tsx";
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
-export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted"];
+export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted", "/ai-settings"];
 export const isStaffScreen = (p: string) => p === "/" || ADMIN_SCREENS.some((x) => p === x || p.startsWith(`${x}/`));
 
 export async function buildView(c: Ctx, deps: Deps): Promise<View> {
@@ -50,7 +51,7 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       adminWebUrl: adminWeb,
       assets: assetUrls(prefs.theme),
       favicon: faviconSvgPath(c.env.ENVIRONMENT),
-      ai: aiConfigured(c.env),
+      ai: await aiReady(c.env).catch(() => false),
    };
 }
 
@@ -103,7 +104,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
 
    r.route("/admin/api/timeline", timelineApi(deps));
    r.route("/admin/api/suggest", suggestApi(deps));
-   r.route("/admin/api/ai", aiRoutes());
+   r.route("/admin/api/ai", aiRoutes(deps));
    r.route("/admin/api/trash", trashApi());
    r.route("/admin/api", mediaAltRoute(deps));
 
@@ -144,6 +145,12 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       const kind = c.req.query("kind");
       const page = Math.min(Math.max(Number.parseInt(c.req.query("page") ?? "1", 10) || 1, 1), 10_000);
       return render(c, v, v.t.trash.title, await trashScreen(v, c.env.DB, isTrashKind(kind) ? kind : null, page));
+   });
+
+   r.get("/ai-settings", async (c) => {
+      const v = await buildView(c, deps);
+      if (v.user.role !== "admin") return render(c, v, v.t.common.adminOnly, <p class="notice">{v.t.common.adminOnly}</p>, 403);
+      return render(c, v, v.t.aiSettings.title, await aiSettingsScreen(v, c.env));
    });
 
    r.get("/people", async (c) => {

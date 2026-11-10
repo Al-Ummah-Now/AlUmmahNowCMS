@@ -6,6 +6,7 @@
 import { $$, api, strings, toast } from "./dom.ts";
 import { initBlocks } from "./blocks.ts";
 import { initAi } from "./ai.ts";
+import { initAiSettings } from "./ai-settings.ts";
 import { initAutocomplete } from "./autocomplete.ts";
 import { initEditor } from "./editor.ts";
 import { initHistory } from "./history.ts";
@@ -28,6 +29,7 @@ initRows();
 initTimeline();
 initFeedFlag();
 initTrash();
+initAiSettings();
 
 // Overview: requeue block videos the snapshot queue gave up on.
 for (const b of $$<HTMLButtonElement>("[data-retry-videos]")) {

@@ -24,6 +24,8 @@ mkdir -p "$dir"
   echo "WWW_ORIGINS=http://localhost:4321"
   if [ "$mode" = on ]; then
     echo "AI_MOCK_URL=$mock"
+    # A fake key for the generic HTTP provider test (e2e/local/mock-server.ts E2E_AI_KEY); not a credential.
+    echo "AI_KEY_E2E=e2e-local-fake-key" # secret-scan:allow
   fi
 } > "$dir/vars.env"
 node --experimental-strip-types --no-warnings e2e/local/wrangler-config.ts "$dir/wrangler.json"
