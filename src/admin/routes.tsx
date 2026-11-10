@@ -18,6 +18,9 @@ import { mediaAltRoute } from "./api.ts";
 import { timelineApi } from "./timeline-api.ts";
 import { timelineScreen } from "./screens/timeline.tsx";
 import { parseCursor } from "../lib/feed/model.ts";
+import { aiRoutes } from "./ai-api.ts";
+import { aiConfigured } from "../lib/ai/config.ts";
+import { flaggedFailures } from "../lib/ai/jobs.ts";
 import { libraryScreen, navigationScreen, siteScreen, videosScreen } from "./screens/site.tsx";
 import { Shell, type View } from "./ui/layout.tsx";
 
@@ -41,6 +44,7 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       wwwUrl: cfg.wwwUrl,
       adminWebUrl: adminWeb,
       assets: assetUrls(prefs.theme),
+      ai: await aiConfigured(c.env),
    };
 }
 
@@ -61,7 +65,8 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
 
    r.get("/", async (c) => {
       const v = await buildView(c, deps);
-      return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps), c.env.DB));
+      const failures = v.user.role === "admin" ? await flaggedFailures(c.env.DB).catch(() => null) : null;
+      return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps), c.env.DB, failures));
    });
 
    for (const kind of ["pages", "posts"] as ContentKind[]) {
@@ -91,6 +96,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    }
 
    r.route("/admin/api/timeline", timelineApi(deps));
+   r.route("/admin/api/ai", aiRoutes());
    r.route("/admin/api", mediaAltRoute(deps));
 
    const loc = (v: string | undefined, fallback: "en" | "ar") => (v === "en" || v === "ar" ? v : fallback);

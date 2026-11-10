@@ -37,6 +37,13 @@ export function checkBindings(entry: WorkerSecrets, bindings: Binding[] | null):
          out.push({ ...base, ok: false, check: `secret ${req.name}`, detail: `bound as ${b.type}, not a secret` });
       } else out.push({ ...base, ok: true, check: `secret ${req.name}`, detail: b.type });
    }
+   for (const opt of entry.optional ?? []) {
+      const b = bindings.find((x) => x.name === opt.name);
+      if (!b) out.push({ ...base, ok: true, check: `optional ${opt.name}`, detail: "not set (feature off)" });
+      else if (b.type !== "secret_text" && b.type !== "secrets_store_secret") {
+         out.push({ ...base, ok: false, check: `optional ${opt.name}`, detail: `bound as ${b.type}, not a secret` });
+      } else out.push({ ...base, ok: true, check: `optional ${opt.name}`, detail: b.type });
+   }
    for (const name of entry.forbidden) {
       if (bindings.some((x) => x.name === name)) out.push({ ...base, ok: false, check: `forbidden ${name}`, detail: "must not be bound" });
    }

@@ -17,6 +17,8 @@ export interface WorkerSecrets {
    env: EnvName;
    worker: string;
    required: RequiredSecret[];
+   /** May be bound (a feature turns on when it is); reported, never a failure — unless bound as a plain var. */
+   optional: RequiredSecret[];
    /** Must NOT be bound (e.g. a retired confidential-client secret). */
    forbidden: string[];
 }
@@ -29,9 +31,18 @@ export const CMS_SECRETS: RequiredSecret[] = [
    },
 ];
 
+/** AI assist (docs/AI_ASSIST_SPEC.md §2): without it the feature shows "isn't set up" to admins. */
+export const CMS_OPTIONAL_SECRETS: RequiredSecret[] = [
+   {
+      name: "ANTHROPIC_API_KEY",
+      purpose: "Claude API key for AI writing assist; a Secrets Store binding (secret anthropic-api-key) or a Worker secret",
+   },
+];
+
 export const SECRETS_MANIFEST: WorkerSecrets[] = (Object.keys(ENVS) as EnvName[]).map((env) => ({
    env,
    worker: ENVS[env].worker,
    required: CMS_SECRETS,
+   optional: CMS_OPTIONAL_SECRETS,
    forbidden: ["CMS_CLIENT_SECRET"],
 }));

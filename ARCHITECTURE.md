@@ -11,10 +11,12 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
                       ├─ /sso/no-access, /sso/accounts account chooser (browser reads auth's accounts API)
                       ├─ /picker, /picker/api/*       video picker → videos.api.alummahnow.net (server-side)
                       ├─ /, /data/*, /media/*, …      bknd admin UI   ┐ session required
+                      ├─ /admin/api/ai/*              AI writing assist (staff only) → queue AI_JOBS → Claude API
                       └─ /api/*                       bknd API        ┘ guard on, same-origin mutations
                       queue  al-ummah-now-cms-variants[-env]  image variant jobs (src/lib/variants)
                       queue  al-ummah-now-cms-feed[-env]      home timeline builds → KV FEED ──► www (docs/FEED.md)
-                      bindings: DB (D1), MEDIA (R2), FEED (KV), VARIANTS + FEED_JOBS (Queues), CF_VERSION_METADATA
+                      queue  al-ummah-now-cms-ai[-dlq][-env]  AI assist jobs (src/lib/ai)
+                      bindings: DB (D1), MEDIA (R2), FEED (KV), VARIANTS + FEED_JOBS + AI_JOBS (Queues; AI with a DLQ), CF_VERSION_METADATA, ANTHROPIC_API_KEY (optional)
 ```
 
 ## Pieces
@@ -37,6 +39,7 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
 | `src/routes/picker.ts`, `src/lib/videos.ts`, `src/lib/embeds.ts` | Picker page (en/ar), videos-API proxy that drops non-public items, embed URL adapter. |
 | `src/lib/security.ts`, `src/lib/paths.ts` | CSP with per-response nonce, no-store/noindex, CSRF Origin check, blocked bknd routes, upload policy (jpeg/png/webp/avif ≤ 10 MB). |
 | `src/lib/variants/` | Image variants (CMS-10, docs/PUBLIC_API.md "Image variants"): `plan.ts` widths/formats/R2 keys, `jobs.ts` queue consumer + D1 `media_variants` state + cron sweep, `codecs.ts` WASM codecs (fresh instance per call, decode read in place), `resize.ts` streaming area resize, `png.ts`, `probe.ts` header size + EXIF orientation. |
+| `src/lib/ai/*`, `src/admin/ai-api.ts`, `src/admin/ui/ai.tsx`, `src/admin/client/ai.ts` | AI writing assist (`docs/AI_ASSIST_SPEC.md`): translate en↔ar, SEO copy, pre-publish checks as queued, deduped, rate-limited jobs; usage log for the cost dashboard. |
 | `scripts/` | Schema check, migration guard, wrangler config check, secrets manifest/check, release (promote/smoke/rollback). |
 
 ## bknd specifics worth knowing (0.21.0)

@@ -17,6 +17,8 @@ export interface View {
    wwwUrl: string;
    adminWebUrl: string;
    assets: { css: string; theme: string; js: string };
+   /** AI writing assist is configured in this env (docs/AI_ASSIST_SPEC.md §2). */
+   ai: boolean;
 }
 
 export const isAdmin = (v: View) => v.user.role === "admin";

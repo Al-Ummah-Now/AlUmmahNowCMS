@@ -6,9 +6,12 @@ import { defineConfig, devices } from "@playwright/test";
  */
 /** The SSO-flow suite tests sign-in itself (one sign-in per test): Chromium projects only. */
 const SSO_FLOW = /cms\.spec\.ts/;
+/** e2e/local runs against wrangler dev + mocks (playwright.local.config.ts), never a deployed CMS. */
+const LOCAL = /[\\/]local[\\/]/;
 
 export default defineConfig({
    testDir: "e2e",
+   testIgnore: LOCAL,
    globalSetup: "./e2e/support/sessions.ts",
    timeout: 120_000,
    expect: { timeout: 15_000 },
@@ -32,10 +35,10 @@ export default defineConfig({
       // E2E_BROWSERS=all: the same suite in Firefox and WebKit, desktop and phone (QA verification).
       ...(process.env.E2E_BROWSERS === "all"
          ? [
-              { name: "firefox", testIgnore: SSO_FLOW, use: { ...devices["Desktop Firefox"] } },
-              { name: "firefox-phone", testIgnore: SSO_FLOW, use: { ...devices["Desktop Firefox"], viewport: { width: 390, height: 844 } } },
-              { name: "webkit", testIgnore: SSO_FLOW, use: { ...devices["Desktop Safari"] } },
-              { name: "webkit-phone", testIgnore: SSO_FLOW, use: { ...devices["iPhone 13"] } },
+              { name: "firefox", testIgnore: [SSO_FLOW, LOCAL], use: { ...devices["Desktop Firefox"] } },
+              { name: "firefox-phone", testIgnore: [SSO_FLOW, LOCAL], use: { ...devices["Desktop Firefox"], viewport: { width: 390, height: 844 } } },
+              { name: "webkit", testIgnore: [SSO_FLOW, LOCAL], use: { ...devices["Desktop Safari"] } },
+              { name: "webkit-phone", testIgnore: [SSO_FLOW, LOCAL], use: { ...devices["iPhone 13"] } },
            ]
          : []),
    ],
