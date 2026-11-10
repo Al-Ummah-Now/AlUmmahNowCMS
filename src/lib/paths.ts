@@ -54,3 +54,33 @@ export function uploadName(path: string): string | null {
       return null;
    }
 }
+
+/** bknd entities whose rows an admin may delete (soft: src/lib/trash.ts). */
+export const DATA_DELETABLE = ["pages", "posts", "nav_items", "curated_videos", "site_settings", "media"] as const;
+export type DataDeletable = (typeof DATA_DELETABLE)[number];
+
+export type DeleteTarget =
+   | { type: "row"; entity: string; id: string }
+   | { type: "bulk"; entity: string }
+   | { type: "file"; path: string | null };
+
+/**
+ * bknd's delete routes (`DELETE /api/data/entity/:e/:id`, `/api/data/entity/:e`, `/api/media/file/:name`).
+ * The Worker answers them itself with a soft delete; none of them reaches bknd.
+ */
+export function deleteTarget(method: string, p: string): DeleteTarget | null {
+   if (method !== "DELETE") return null;
+   let m = /^\/api\/data\/entity\/([^/]+)\/([^/]+)\/?$/.exec(p);
+   if (m) return { type: "row", entity: m[1], id: m[2] };
+   m = /^\/api\/data\/entity\/([^/]+)\/?$/.exec(p);
+   if (m) return { type: "bulk", entity: m[1] };
+   m = /^\/api\/media\/file\/(.+)$/.exec(p);
+   if (m) {
+      try {
+         return { type: "file", path: decodeURIComponent(m[1]) };
+      } catch {
+         return { type: "file", path: null };
+      }
+   }
+   return null;
+}

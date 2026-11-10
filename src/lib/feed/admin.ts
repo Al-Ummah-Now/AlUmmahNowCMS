@@ -8,6 +8,7 @@ import type { Env } from "../../env.ts";
 import { toIso } from "../../routes/public-api.ts";
 import { compareSort, isOlder, parseCursor } from "./model.ts";
 import { markDirty } from "./jobs.ts";
+import { softDelete } from "../trash.ts";
 
 type Row = Record<string, unknown>;
 
@@ -326,14 +327,15 @@ export async function addVideo(env: Env, v: { kind: "video" | "playlist"; ref_id
    return { key, existing: false };
 }
 
-export async function removeVideo(env: Env, key: string, actor: Actor): Promise<void> {
+export async function removeVideo(env: Env, key: string, actor: Actor, reason?: unknown): Promise<void> {
    const { type, id } = parseKey(key);
    if (type !== "v") throw new TimelineError(400, "bad_key");
    const before = await videoRow(env, id);
-   // feed_items still records where it lived, so the build knows which week to rewrite.
-   await env.DB.prepare("DELETE FROM timeline_entries WHERE id = ?1").bind(id).run();
+   // A soft delete (docs/SOFT_DELETE.md): the entry moves to the trash (restorable for 30 days) and
+   // the timeline is rebuilt without it. feed_items still records where it lived, so the build
+   // knows which week to rewrite.
+   await softDelete(env, "timeline_entries", id, actor, reason);
    await logChange(env, actor, "remove", key, String(before.locale ?? "all"), { kind: before.video_kind, ref_id: before.ref_id, entry_date: before.entry_date });
-   await markDirty(env, [key], "video removed");
 }
 
 /**

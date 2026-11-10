@@ -16,6 +16,9 @@ import { contentEditor, contentList, parseListParams, type ContentKind } from ".
 import { historyScreen } from "./screens/history.tsx";
 import { mediaAltRoute } from "./api.ts";
 import { timelineApi } from "./timeline-api.ts";
+import { trashApi } from "./trash-api.ts";
+import { trashScreen } from "./screens/trash.tsx";
+import { isTrashKind } from "../lib/trash.ts";
 import { timelineScreen } from "./screens/timeline.tsx";
 import { parseCursor } from "../lib/feed/model.ts";
 import { aiRoutes } from "./ai-api.ts";
@@ -25,7 +28,7 @@ import { libraryScreen, navigationScreen, siteScreen, videosScreen } from "./scr
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
-export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people"];
+export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted"];
 export const isStaffScreen = (p: string) => p === "/" || ADMIN_SCREENS.some((x) => p === x || p.startsWith(`${x}/`));
 
 export async function buildView(c: Ctx, deps: Deps): Promise<View> {
@@ -97,6 +100,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
 
    r.route("/admin/api/timeline", timelineApi(deps));
    r.route("/admin/api/ai", aiRoutes());
+   r.route("/admin/api/trash", trashApi());
    r.route("/admin/api", mediaAltRoute(deps));
 
    const loc = (v: string | undefined, fallback: "en" | "ar") => (v === "en" || v === "ar" ? v : fallback);
@@ -128,6 +132,14 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    r.get("/library", async (c) => {
       const v = await buildView(c, deps);
       return render(c, v, v.t.library.title, await libraryScreen(v, new Data(c, deps)));
+   });
+
+   r.get("/deleted", async (c) => {
+      const v = await buildView(c, deps);
+      if (v.user.role !== "admin") return render(c, v, v.t.common.adminOnly, <p class="notice">{v.t.common.adminOnly}</p>, 403);
+      const kind = c.req.query("kind");
+      const page = Math.min(Math.max(Number.parseInt(c.req.query("page") ?? "1", 10) || 1, 1), 10_000);
+      return render(c, v, v.t.trash.title, await trashScreen(v, c.env.DB, isTrashKind(kind) ? kind : null, page));
    });
 
    r.get("/people", async (c) => {

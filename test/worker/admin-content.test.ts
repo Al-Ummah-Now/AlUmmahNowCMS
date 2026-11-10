@@ -134,7 +134,11 @@ describe("cover upload and replace through bknd (what the editor does)", () => {
       expect(first.status).toBe(201);
       expect(second.status).toBe(201);
       const oldPath = ((await first.json()) as { result: { path: string } }).result.path;
-      expect(await env.MEDIA.head(oldPath)).toBeNull();
+      // The replaced cover is soft-deleted (docs/SOFT_DELETE.md): its file stays until the cleanup.
+      expect(await env.MEDIA.head(oldPath)).not.toBeNull();
+      const trashed = await env.DB.prepare("SELECT reason, deleted_by FROM trash WHERE kind = 'media' AND ref = ?1").bind(oldPath).first<{ reason: string; deleted_by: string }>();
+      expect(trashed).toEqual({ reason: "replaced", deleted_by: "cover-ed@example.com" });
+      expect((await f(`/api/public/v1/media/${oldPath}`)).status).toBe(404);
       const rows = await env.DB.prepare("SELECT path FROM media WHERE reference = 'pages.cover' AND entity_id = ?1").bind(String(id)).all<{ path: string }>();
       expect(rows.results).toHaveLength(1);
       const html = await (await f(`/pages/${id}`, { headers: { cookie } })).text();

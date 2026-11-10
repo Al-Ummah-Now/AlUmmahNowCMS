@@ -89,6 +89,15 @@ export async function deleteVariants(env: Env, path: string): Promise<void> {
    await env.DB.prepare("DELETE FROM media_variants WHERE path = ?1").bind(path).run();
 }
 
+/**
+ * The original has no media row: its variants go, unless it is in the trash (soft-deleted,
+ * docs/SOFT_DELETE.md), whose variants stay until the cleanup purges it (and they go with it).
+ */
+async function dropIfGone(env: Env, path: string): Promise<void> {
+   const trashed = await env.DB.prepare("SELECT 1 AS x FROM trash WHERE kind = 'media' AND ref = ?1 LIMIT 1").bind(path).first();
+   if (!trashed) await deleteVariants(env, path);
+}
+
 async function markFailed(env: Env, path: string, reason: string): Promise<void> {
    console.error(JSON.stringify({ msg: "image variants failed", path, reason }));
    await env.DB.prepare("UPDATE media_variants SET status = 'failed', error = ?2, updated_at = ?3 WHERE path = ?1")
@@ -108,7 +117,7 @@ async function original(env: Env, path: string): Promise<{ type: string; bytes: 
 async function plan(env: Env, path: string): Promise<void> {
    const src = await original(env, path);
    if (!src) {
-      await deleteVariants(env, path); // the original is gone; nothing to make
+      await dropIfGone(env, path); // the original is gone; nothing to make
       return;
    }
    if (!isSourceType(src.type)) throw new PermanentVariantError(`unsupported type ${src.type || "(none)"}`);
@@ -148,7 +157,7 @@ async function makeWidth(env: Env, path: string, width: number): Promise<void> {
    }
    const src = await original(env, path);
    if (!src) {
-      await deleteVariants(env, path);
+      await dropIfGone(env, path);
       return;
    }
    if (!isSourceType(src.type)) throw new PermanentVariantError(`unsupported type ${src.type}`);
@@ -223,7 +232,8 @@ export async function consumeVariants(batch: MessageBatch<VariantMessage>, env: 
 
 /**
  * Cron (every 30 min): queue originals that have no row yet (backfill and missed uploads), resend
- * rows whose message was lost, drop rows (and objects) of deleted originals.
+ * rows whose message was lost, drop rows (and objects) of deleted originals (not of soft-deleted
+ * ones in the trash: the cleanup purges those).
  */
 export async function sweepVariants(env: Env, limit = 25): Promise<{ queued: number; resent: number; removed: number }> {
    if (!env.VARIANTS) return { queued: 0, resent: 0, removed: 0 };
@@ -244,7 +254,7 @@ export async function sweepVariants(env: Env, limit = 25): Promise<{ queued: num
    if (stale.length) await env.VARIANTS.sendBatch(stale.map(({ path }) => ({ body: { kind: "plan", path } satisfies VariantMessage })));
 
    const { results: orphans } = await env.DB.prepare(
-      "SELECT v.path FROM media_variants v LEFT JOIN media m ON m.path = v.path WHERE m.path IS NULL LIMIT ?1",
+      "SELECT v.path FROM media_variants v LEFT JOIN media m ON m.path = v.path WHERE m.path IS NULL AND NOT EXISTS (SELECT 1 FROM trash t WHERE t.kind = 'media' AND t.ref = v.path) LIMIT ?1",
    )
       .bind(limit)
       .all<{ path: string }>();

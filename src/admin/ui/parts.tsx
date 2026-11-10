@@ -40,7 +40,8 @@ export function I18nScript(props: { nonce: string; strings: unknown }) {
    );
 }
 
-export function ConfirmDialog(props: { v: View; title: string; body: string; ok?: string; okIcon?: "trash" | "x" }) {
+/** In-app confirmation (never a browser prompt). `reason`: an optional reason field (soft deletes, docs/SOFT_DELETE.md). */
+export function ConfirmDialog(props: { v: View; title: string; body: string; ok?: string; okIcon?: "trash" | "x"; reason?: boolean }) {
    const { t } = props.v;
    return (
       <dialog class="dlg sm" id="confirm" aria-labelledby="confirm-h">
@@ -50,6 +51,12 @@ export function ConfirmDialog(props: { v: View; title: string; body: string; ok?
             </div>
             <div class="dlg-b">
                <p style="margin:0">{props.body}</p>
+               {props.reason ? (
+                  <div class="field" style="margin-block-start:14px">
+                     <label for="confirm-reason">{t.common.reason}</label>
+                     <textarea id="confirm-reason" class="input" rows={2} maxlength={500} dir="auto" data-confirm-reason />
+                  </div>
+               ) : null}
             </div>
             <div class="dlg-f">
                <button class="btn" value="cancel" autofocus>

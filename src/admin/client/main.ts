@@ -13,6 +13,7 @@ import { initRows } from "./rows.ts";
 import { initShell } from "./shell.ts";
 import { initFeedFlag, initTimeline } from "./timeline.ts";
 import { initTimes } from "./time.ts";
+import { initTrash } from "./trash.ts";
 
 initShell();
 initTimes();
@@ -24,6 +25,7 @@ initAi();
 initRows();
 initTimeline();
 initFeedFlag();
+initTrash();
 
 // Overview: requeue block videos the snapshot queue gave up on.
 for (const b of $$<HTMLButtonElement>("[data-retry-videos]")) {

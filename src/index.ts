@@ -15,11 +15,11 @@
 import { Hono } from "hono";
 import { getBkndApp, MediaExistsError } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
-import { ALLOWED_UPLOAD, blockedApiPath, contentCollectionPath, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
+import { ALLOWED_UPLOAD, blockedApiPath, contentCollectionPath, deleteTarget, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
 import { ConfigError, runtimeConfig, trimSlash, type Env } from "./env.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
-import { consumeVariants, deleteVariants, sweepVariants, type VariantMessage } from "./lib/variants/jobs.ts";
+import { consumeVariants, sweepVariants, type VariantMessage } from "./lib/variants/jobs.ts";
 import { VARIANT_ROOT } from "./lib/variants/plan.ts";
 import { withActor } from "./lib/revisions.ts";
 import { slugConflictOf } from "./lib/content-rules.ts";
@@ -31,7 +31,10 @@ import { handleAiQueue, isAiQueue } from "./lib/ai/runner.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
 import { legacyAdminRedirect } from "./admin/legacy.ts";
-import { entityUploadTarget, keepNewestMedia } from "./admin/media-cleanup.ts";
+import { entityUploadTarget, keepNewestMedia, trashForReplace, undoReplace } from "./admin/media-cleanup.ts";
+import { handleDelete } from "./admin/trash-api.ts";
+import { purgeDue } from "./lib/trash.ts";
+import { errText, log } from "./lib/log.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
 import { pickerRoutes } from "./routes/picker.ts";
 import { previewApi, previewRoutes } from "./routes/preview.ts";
@@ -181,6 +184,9 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
 
    app.all("/api/*", async (c) => {
       const p = c.req.path;
+      // Every bknd delete route is a soft delete (docs/SOFT_DELETE.md): answered here, never by bknd.
+      const del = deleteTarget(c.req.method, p);
+      if (del) return handleDelete(c, await sessionUser(c, deps), del);
       if (c.req.method === "POST" && (p.startsWith("/api/media/upload") || p.startsWith("/api/media/entity/"))) {
          const verdict = uploadAllowed(c.req.raw, p);
          if (!verdict.ok) return c.json({ error: "unsupported_media", message: verdict.message }, verdict.status);
@@ -204,29 +210,30 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       const bknd = await deps.getApp(c);
       // Writes run with the signed-in user as the actor, so content history records who (#8).
       const actor = c.req.method === "GET" || c.req.method === "HEAD" ? undefined : await sessionUser(c, deps);
+      const who = { id: actor?.id ?? null, email: actor?.email ?? null };
       const write = c.req.method === "POST" || c.req.method === "PATCH" || c.req.method === "PUT";
       const sent = write && p.startsWith("/api/data/entity/") ? await c.req.raw.clone().text() : null;
-      const res = await withActor({ id: actor?.id ?? null, email: actor?.email ?? null }, () => bknd.fetch(c.req.raw, c.env, c.executionCtx));
+      const target = c.req.method === "POST" ? entityUploadTarget(p) : null;
+      let request = c.req.raw;
+      let replaced: number[] = [];
+      if (target && new URL(c.req.url).searchParams.get("overwrite") === "true" && actor) {
+         // Replace = the old file goes to the trash (soft), and bknd gets a plain upload (no hard delete).
+         replaced = await trashForReplace(bknd, c.env, target, who);
+         const url = new URL(c.req.url);
+         url.searchParams.delete("overwrite");
+         request = new Request(url, c.req.raw);
+      }
+      const res = await withActor(who, () => bknd.fetch(request, c.env, c.executionCtx));
+      if (replaced.length && !res.ok) await undoReplace(c.env, replaced, who);
       if (res.status === 500 && sent !== null) {
          // A (slug, locale) clash that raced past the content rules reaches D1's UNIQUE index as a 500 (#50).
          const conflict = await slugConflictOf(c.env.DB, c.req.method, p, sent).catch(() => null);
          if (conflict) return c.json({ error: conflict.message, type: conflict.name }, 409);
       }
-      const target = c.req.method === "POST" && res.ok ? entityUploadTarget(p) : null;
-      if (target) await keepNewestMedia(bknd, c.env.MEDIA, target, (path) => deleteVariants(c.env, path));
+      if (target && res.ok) await keepNewestMedia(bknd, c.env, target, who);
       if (res.ok && c.req.method === "POST" && (p.startsWith("/api/media/upload") || target)) {
          // Image variants for the new original (CMS-10): queue it now instead of waiting for the cron.
          c.executionCtx.waitUntil(sweepVariants(c.env, 5).catch((e) => console.error("variant enqueue failed", String(e))));
-      }
-      const deleted = c.req.method === "DELETE" && res.ok ? /^\/api\/media\/file\/(.+)$/.exec(p) : null;
-      if (deleted) {
-         let path: string | null = null;
-         try {
-            path = decodeURIComponent(deleted[1]);
-         } catch {
-            /* not a name bknd accepted either */
-         }
-         if (path) c.executionCtx.waitUntil(deleteVariants(c.env, path).catch((e) => console.error("variant cleanup failed", String(e))));
       }
       return res;
    });
@@ -253,7 +260,8 @@ const worker = createWorker({
 export default {
    fetch: (request: Request, env: Env, ctx: ExecutionContext) => worker.fetch(request, env, ctx),
    // Cron (wrangler.jsonc triggers). Every minute: scheduled posts going live onto the home timeline.
-   // Every 30 minutes: snapshot refreshes, image variants, the feed verifier and its garbage.
+   // Every 30 minutes: snapshot refreshes, image variants, the feed verifier and its garbage, the
+   // soft-delete cleanup (purges admin-deleted items after 30 days, or at once when an admin asked).
    scheduled: async (event: ScheduledController, env: Env, ctx: ExecutionContext) => {
       if (event.cron === "* * * * *") {
          ctx.waitUntil(duePosts(env).catch((error) => console.error("feed due check failed", String(error))));
@@ -287,6 +295,9 @@ export default {
             .then(() => collectGarbage(env))
             .catch((error) => console.error("feed verify failed", String(error))),
       );
+      // Soft-deleted items: purge those deleted 30+ days ago or queued by an admin (docs/SOFT_DELETE.md).
+      // The only hard delete there is; bounded per run, failures retried on the next run.
+      ctx.waitUntil(purgeDue(env).catch((error) => log.error("trash purge failed", { error: errText(error) })));
       // AI job rows hold draft text: 30-day retention (docs/AI_ASSIST_SPEC.md §3).
       ctx.waitUntil(pruneJobs(env.DB, Date.now()).catch((error) => console.error("ai job prune failed", String(error))));
    },
