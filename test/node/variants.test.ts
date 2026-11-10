@@ -156,6 +156,14 @@ describe("PNG", () => {
       new DataView(bomb.buffer).setUint32(16, 2);
       new DataView(bomb.buffer).setUint32(20, 2);
       await expect(decodePngRows(bomb, () => {}, () => {})).rejects.toThrow(/larger than its header says/);
+
+      // Under the pixel cap but 16-bit RGBA: refused on bytes, before inflating.
+      const deep = new Uint8Array(png);
+      new DataView(deep.buffer).setUint32(16, 4000);
+      new DataView(deep.buffer).setUint32(20, 4000);
+      deep[24] = 16;
+      deep[25] = 6;
+      await expect(decodePngRows(deep, () => {}, () => {}, 4096 * 4096)).rejects.toThrow(/at 16 bits per channel/);
    });
 });
 

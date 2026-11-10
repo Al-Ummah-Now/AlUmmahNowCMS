@@ -20,8 +20,8 @@ export class PngError extends PermanentVariantError {}
 
 const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
 
-/** Runs `bytes` through `stream`; with `limit`, stops (and throws) once the output would exceed it. */
-async function pump(bytes: Uint8Array, stream: CompressionStream | DecompressionStream, limit = Infinity): Promise<Uint8Array> {
+/** Runs `bytes` through `stream`, collecting the output. */
+async function pump(bytes: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
    const writer = stream.writable.getWriter();
    void writer.write(bytes).then(() => writer.close()).catch(() => {});
    const chunks: Uint8Array[] = [];
@@ -32,12 +32,7 @@ async function pump(bytes: Uint8Array, stream: CompressionStream | Decompression
       if (done) break;
       chunks.push(value);
       total += value.length;
-      if (total > limit) {
-         await reader.cancel().catch(() => {});
-         throw new PngError("image data is larger than its header says");
-      }
    }
-   if (chunks.length === 1) return chunks[0];
    const out = new Uint8Array(total);
    let o = 0;
    for (const c of chunks) {
@@ -46,6 +41,31 @@ async function pump(bytes: Uint8Array, stream: CompressionStream | Decompression
    }
    return out;
 }
+
+/** Inflates into one buffer of exactly `size` bytes; throws as soon as the data would exceed it. */
+async function inflateExact(bytes: Uint8Array, size: number): Promise<Uint8Array> {
+   const stream = new DecompressionStream("deflate");
+   const writer = stream.writable.getWriter();
+   void writer.write(bytes).then(() => writer.close()).catch(() => {});
+   const out = new Uint8Array(size);
+   let o = 0;
+   const reader = stream.readable.getReader();
+   for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (o + value.length > size) {
+         await reader.cancel().catch(() => {});
+         throw new PngError("image data is larger than its header says");
+      }
+      out.set(value, o);
+      o += value.length;
+   }
+   if (o < size) throw new PngError("truncated image data");
+   return out;
+}
+
+/** Most inflated scanline bytes decoded at once (16-bit RGBA doubles the bytes per pixel). */
+export const MAX_PNG_DATA_BYTES = 64 * 1024 * 1024;
 
 /**
  * Decodes `bytes`, calling `onRow(rgba)` once per row top to bottom (the buffer is reused).
@@ -95,8 +115,9 @@ export async function decodePngRows(bytes: Uint8Array, onHeader: (h: PngHeader) 
    const bitsPerPixel = channels * bitDepth;
    const stride = Math.ceil((width * bitsPerPixel) / 8);
    const bpp = Math.max(1, bitsPerPixel >> 3);
-   const raw = await pump(joined, new DecompressionStream("deflate"), height * (stride + 1));
-   if (raw.length < height * (stride + 1)) throw new PngError("truncated image data");
+   const rawSize = height * (stride + 1);
+   if (rawSize > MAX_PNG_DATA_BYTES) throw new PngError(`too large to resize (${width}×${height} at ${bitDepth} bits per channel)`);
+   const raw = await inflateExact(joined, rawSize);
    const rgba = new Uint8ClampedArray(width * 4);
    const maxSample = (1 << bitDepth) - 1;
    const trnsGray = trns && colorType === 0 && trns.length >= 2 ? (trns[0] << 8) | trns[1] : -1;
