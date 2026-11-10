@@ -72,7 +72,15 @@
           "snapshot": {
             "title": "Talk one",
             "thumbnail_url": "https://cdn.test/1.jpg",
-            "channel_name": "Channel"
+            "channel_name": "Channel",
+            "refreshed_at": "<iso-date>",
+            "handle": null,
+            "description": null,
+            "titles": {},
+            "descriptions": {},
+            "duration_seconds": null,
+            "upload_date": null,
+            "video_count": null
           },
           "sort": 10
         }
@@ -269,7 +277,15 @@
           "snapshot": {
             "title": "Series",
             "thumbnail_url": null,
-            "channel_name": "Channel"
+            "channel_name": "Channel",
+            "refreshed_at": "<iso-date>",
+            "handle": null,
+            "description": null,
+            "titles": {},
+            "descriptions": {},
+            "duration_seconds": null,
+            "upload_date": null,
+            "video_count": null
           },
           "sort": 10
         }
@@ -290,7 +306,15 @@
           "snapshot": {
             "title": "Talk one",
             "thumbnail_url": "https://cdn.test/1.jpg",
-            "channel_name": "Channel"
+            "channel_name": "Channel",
+            "refreshed_at": "<iso-date>",
+            "handle": null,
+            "description": null,
+            "titles": {},
+            "descriptions": {},
+            "duration_seconds": null,
+            "upload_date": null,
+            "video_count": null
           },
           "sort": 10
         }
