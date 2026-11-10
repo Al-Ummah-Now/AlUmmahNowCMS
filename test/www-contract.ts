@@ -111,6 +111,8 @@ const postSummary = (cms: string) => ({
    kind: optional(oneOf("article", "cards")),
    slide_count: optional(int),
    first_slide: optional(nullable(slide(cms))),
+   /** Added: a card post's first slides (at most 10; slide_count counts them all), [] for articles. */
+   slides: optional(arrayOf(slide(cms))),
 });
 
 const localized = (c: Check): Check => (v, p, o) => {

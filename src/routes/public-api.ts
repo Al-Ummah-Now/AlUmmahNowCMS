@@ -227,7 +227,17 @@ export async function postSummaries(env: Env, rows: Row[]) {
    });
 }
 
-/** `kind`, `slide_count` and `first_slide` are additive (card posts); articles have 0 and null. */
+/**
+ * Slides a summary carries (lists, home, /cards, the home timeline feed), so www can show a card post
+ * whole in a list without one more read per post. `slide_count` still counts every slide; the full set
+ * is on GET /posts/{slug}.
+ */
+export const SUMMARY_SLIDES_MAX = 10;
+
+/**
+ * `kind`, `slide_count`, `first_slide` and `slides` are additive (card posts); articles have 0, null
+ * and []. A summary's `slides` stops at SUMMARY_SLIDES_MAX; the full post (postOf) carries them all.
+ */
 function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[]) {
    const published = toIso(r.published_at) ?? toIso(r.created_at) ?? new Date(0).toISOString();
    const tags = parseJson<unknown>(r.tags, []);
@@ -244,6 +254,7 @@ function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[]) {
       kind: r.kind === "cards" ? ("cards" as const) : ("article" as const),
       slide_count: slides.length,
       first_slide: slides[0] ?? null,
+      slides: slides.slice(0, SUMMARY_SLIDES_MAX),
    };
 }
 
@@ -305,7 +316,7 @@ export async function postOf(env: Env, row: Row) {
    const slides = publicSlides(slideRows, media);
    return {
       ...postSummaryOf(row, cov.get(String(row.id)) ?? null, slides),
-      slides,
+      slides, // all of them (a summary stops at SUMMARY_SLIDES_MAX)
       body,
       seo_title: strOrNull(row.seo_title),
       seo_description: strOrNull(row.seo_description),

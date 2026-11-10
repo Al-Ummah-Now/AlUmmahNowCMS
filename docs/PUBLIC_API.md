@@ -58,11 +58,13 @@ interface PostSummary {
   kind?: 'article' | 'cards';   // added; absent = article
   slide_count?: number;         // added; cards only (0 for articles)
   first_slide?: Slide | null;   // added; the card's face: its first slide (null for articles)
+  slides?: Slide[];             // added; cards: the first ≤ 10 served slides, so a list can show the
+                                // post whole without another read ([] for articles). slide_count counts all.
 }
 interface Post extends PostSummary {
   body: string; seo_title: string | null; seo_description: string | null; alternates: Alternate[];
   images: MediaRef[];           // as Page.images (CMS-10, additive)
-  slides?: Slide[];             // added; cards only ([] for articles). body is the slides' text as markdown.
+  slides?: Slide[];             // added; cards: every served slide ([] for articles). body is the slides' text as markdown.
 }
 
 interface CuratedVideo {
@@ -233,6 +235,11 @@ interface Slide {
 }
 ```
 
-Slides without an image are not served. `slide_count` and `first_slide` count only served slides.
+Slides without an image are not served. `slide_count`, `first_slide` and `slides` count only served slides.
+
+Every summary (`GET /posts`, `/home`, `/cards`, `posts` blocks and the home timeline feed in Workers
+KV, docs/FEED.md) carries `slides`: the first `SUMMARY_SLIDES_MAX` (10) served slides, each with its
+image's `variants`. www renders the card viewer inline in lists from them; when `slide_count` is
+larger it ends with a link to the post. `GET /posts/{slug}` carries every slide (at most 40).
 For SEO, www uses the first slide's image as `og:image` and, when the post has no excerpt, its
 heading/body as the description.

@@ -34,6 +34,8 @@ and rebuilt on its own, and each binding has its own config check. Keys exist pe
 | `feed:{l}:y:{isoYear}:{build}` | that year's weeks (key, count, newest and oldest cursor), newest first. This is the fallback index. | a new version when one of its weeks changes |
 
 - **Item:** `{ key: "p<id>" | "v<id>", type, date, pinned, post?: PostSummary & { videos }, video?: { kind, ref_id, snapshot, title_override } }`.
+  A card post's `PostSummary` includes `slides` (its first 10; docs/PUBLIC_API.md "Card posts"), so www shows
+  every card inline in the timeline. That is about 1.5 KB per slide, so a 40-item head stays well under 1 MB.
   `post.videos` holds the `::video[ID]` lines of the post body, at most 4, with their snapshots,
   so www can play them inline.
 - **Order:** date descending. Ties go `v` before `p`, then id descending (`compareSort`).
