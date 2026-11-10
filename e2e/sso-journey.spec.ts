@@ -14,13 +14,10 @@ test.skip(!hasCredentials, "QA_SEED_PASSWORD is not set");
 // Types the seed password on auth's form: traces would hold it
 test.use({ trace: "off" });
 
-/** Sets an input's value without it reaching the report (fill() records it in the step title). */
+/** Sets an input's value without it reaching the report (fill() records it in the step title). auth's form is plain HTML. */
 async function fillSecret(locator: Locator, value: string): Promise<void> {
    await locator.evaluate((el, v) => {
-      const input = el as HTMLInputElement;
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, v);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      (el as unknown as { value: string }).value = v;
    }, value);
 }
 
