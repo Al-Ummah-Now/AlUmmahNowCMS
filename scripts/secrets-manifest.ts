@@ -41,8 +41,14 @@ export const CMS_SECRETS: RequiredSecret[] = [
    },
 ];
 
-/** None by name. AI provider keys are optional by pattern (AI_KEY_PATTERN); Workers AI needs no key. */
-export const CMS_OPTIONAL_SECRETS: RequiredSecret[] = [];
+/** AI provider keys are optional by pattern (AI_KEY_PATTERN); Workers AI needs no key. */
+export const CMS_OPTIONAL_SECRETS: RequiredSecret[] = [
+   {
+      name: "VIDEOS_INTERNAL_API_KEY",
+      purpose:
+         "Secrets Store binding (internal-api-key[-qa|-stage]); service-to-service key for api-videos, used to mirror scholar articles to their channel Community tab (docs/SCHOLARS.md). Unbound = mirroring off.",
+   },
+];
 
 /** Must equal SECRET_NAME in src/lib/ai/settings.ts (a test checks). */
 export const AI_KEY_PATTERN = /^AI_KEY_[A-Z0-9_]{1,48}$/;

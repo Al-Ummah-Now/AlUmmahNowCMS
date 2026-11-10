@@ -242,6 +242,8 @@ describe("release: queue consumers, the AI binding and secrets", () => {
             expect(checkBindings(entry, [...base, { type: "secret_text", name }]).some((f) => !f.ok)).toBe(true);
          }
          expect(checkBindings(entry, [...base, { type: "secret_text", name: "CMS_CLIENT_SECRET" }]).some((f) => !f.ok)).toBe(true);
+         // The scholar community-post key (docs/SCHOLARS.md) is a known optional secret, not an AI key
+         expect(checkBindings(entry, [...base, { type: "secrets_store_secret", name: "VIDEOS_INTERNAL_API_KEY" }]).every((f) => f.ok)).toBe(true);
       }
    });
 
