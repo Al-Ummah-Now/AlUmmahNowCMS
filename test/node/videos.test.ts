@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fromSearchResult, isPublicItem, lookupItem, searchVideos } from "../../src/lib/videos.ts";
+import { fromSearchResult, imageUrl, isPublicItem, lookupItem, searchVideos, toItem } from "../../src/lib/videos.ts";
+import { applyRules } from "../../src/lib/content-rules.ts";
 import { embedUrl, watchUrl } from "../../src/lib/embeds.ts";
 
 const video = (over: Record<string, unknown> = {}) => ({
@@ -96,4 +97,30 @@ describe("embeds adapter (placeholder contract)", () => {
       expect(embedUrl("https://videos.test", "video", "a/b")).toBeNull();
    });
    it("builds watch URLs", () => expect(watchUrl("https://videos.test", "channel", "c 1")).toBe("https://videos.test/channel/c%201"));
+});
+
+describe("imageUrl (thumbnails from the videos API)", () => {
+   it("keeps https URLs, including signed ones", () => {
+      expect(imageUrl("https://vz-1.b-cdn.net/v/thumbnail.jpg?token=abc&expires=1")).toBe("https://vz-1.b-cdn.net/v/thumbnail.jpg?token=abc&expires=1");
+   });
+   it("adds https and encodes legacy scheme-less thumbnails", () => {
+      const out = imageUrl("images.alummahnow.net/مواقف من السيرة ｜ (٤).jpg");
+      expect(out).toMatch(/^https:\/\/images\.alummahnow\.net\/%D9%85/);
+      expect(out).not.toContain(" ");
+      expect(imageUrl("//images.alummahnow.net/a b.jpg")).toBe("https://images.alummahnow.net/a%20b.jpg");
+   });
+   it("upgrades our own http images and drops anything else", () => {
+      expect(imageUrl("http://images.alummahnow.net/x.jpg")).toBe("https://images.alummahnow.net/x.jpg");
+      expect(imageUrl("http://elsewhere.example/x.jpg")).toBeNull();
+      expect(imageUrl("/relative/x.jpg")).toBeNull();
+      expect(imageUrl("javascript:alert(1)")).toBeNull();
+      expect(imageUrl("")).toBeNull();
+      expect(imageUrl(null)).toBeNull();
+      expect(imageUrl(`https://a.example/${"x".repeat(2100)}`)).toBeNull();
+   });
+   it("a legacy video is pickable: its snapshot passes the curated rules", () => {
+      const item = toItem("video", { id: "v1", title: "Legacy", thumbnailUrl: "images.alummahnow.net/legacy talk.jpg" });
+      expect(item?.thumbnail_url).toBe("https://images.alummahnow.net/legacy%20talk.jpg");
+      expect(() => applyRules("curated_videos", { kind: "video", ref_id: "v1", snapshot: { title: item!.title, thumbnail_url: item!.thumbnail_url, channel_name: null } }, "create")).not.toThrow();
+   });
 });

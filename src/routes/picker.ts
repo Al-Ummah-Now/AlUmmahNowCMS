@@ -149,7 +149,8 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
          const { data } = await app.em.mutator("curated_videos").updateOne(id, {
             kind,
             ref_id: item.id,
-            snapshot: { title: item.title, thumbnail_url: item.thumbnail_url, channel_name: item.channel_name },
+            // The same full snapshot as a new pick (public, refreshed_at, localized titles…)
+            snapshot: snapshotOf(item, new Date()),
          } as never);
          return c.json({ data }, 200);
       } catch (error) {

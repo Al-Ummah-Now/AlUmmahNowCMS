@@ -16,6 +16,29 @@ export interface PickerItem {
 type Obj = Record<string, unknown>;
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 
+/**
+ * An image URL from the videos API as an absolute https URL, or null. Imported legacy videos store
+ * their thumbnail without a scheme and unencoded ("images.alummahnow.net/<title>.jpg"); those load
+ * fine as https with the path percent-encoded, so they are normalised here instead of making a
+ * curated row (or its whole add) invalid. Anything that still isn't https becomes null: the row
+ * then shows its kind icon, never an error.
+ */
+export function imageUrl(v: unknown): string | null {
+   const raw = str(v)?.trim();
+   if (!raw) return null;
+   const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : raw.startsWith("//") ? `https:${raw}` : /^[a-z0-9.-]+\.[a-z]{2,}(?::\d+)?\//i.test(raw) ? `https://${raw}` : null;
+   if (!withScheme) return null;
+   try {
+      const url = new URL(withScheme);
+      if (url.protocol === "http:" && url.hostname.endsWith("alummahnow.net")) url.protocol = "https:";
+      if (url.protocol !== "https:") return null;
+      const out = url.href;
+      return out.length <= 2048 ? out : null;
+   } catch {
+      return null;
+   }
+}
+
 /** False for anything the videos platform marks as not public (or a video that isn't ready). */
 export function isPublicItem(kind: VideoKind, o: Obj | null | undefined): boolean {
    if (!o || typeof o !== "object") return false;
@@ -49,7 +72,7 @@ export function toItem(kind: VideoKind, o: Obj, channel?: Obj | null): PickerIte
       kind,
       id,
       title,
-      thumbnail_url: kind === "video" ? str(o.thumbnailUrl) : (str(o.thumbnailUrl) ?? str(o.avatarUrl)),
+      thumbnail_url: kind === "video" ? imageUrl(o.thumbnailUrl) : (imageUrl(o.thumbnailUrl) ?? imageUrl(o.avatarUrl)),
       channel_name: kind === "channel" ? null : (str(o.channelName) ?? str(channel?.name)),
    };
 }
@@ -87,7 +110,7 @@ export function toDetail(kind: VideoKind, o: Obj): ItemDetail | null {
    if (!base) return null;
    return {
       ...base,
-      thumbnail_url: base.thumbnail_url ?? str(o.coverUrl),
+      thumbnail_url: base.thumbnail_url ?? imageUrl(o.coverUrl),
       handle: kind === "channel" ? str(o.handle) : null,
       description: text(o.description),
       titles: localized(kind === "channel" ? o.nameLocalized : o.titleLocalized),

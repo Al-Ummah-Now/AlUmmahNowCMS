@@ -14,6 +14,7 @@ const videosApi = (url: URL) => {
       });
    }
    if (url.pathname === "/api/videos/v1") return Response.json({ id: "v1", title: "Public talk", thumbnailUrl: "https://cdn/1.jpg", channelName: "Ch", isPublic: true, uploadStatus: "ready" });
+   if (url.pathname === "/api/videos/v4") return Response.json({ id: "v4", title: "Second talk", thumbnailUrl: "https://cdn/4.jpg", channelName: "Ch", isPublic: true, uploadStatus: "ready" });
    if (url.pathname === "/api/videos/v2") return Response.json({ id: "v2", title: "Private talk", isPublic: false });
    return new Response("nf", { status: 404 });
 };
@@ -68,6 +69,37 @@ describe("picker", () => {
       expect(cross.status).toBe(403);
       const bad = await f("/picker/api/items", { method: "POST", headers, body: JSON.stringify({ ...body, placement: "sidebar" }) });
       expect(bad.status).toBe(400);
+   });
+
+   it("changes the video of a row with a fresh server-side snapshot", async () => {
+      const cookie = await session();
+      const f = makeWorker(videosApi);
+      const headers = { cookie, "content-type": "application/json", origin: CMS };
+      const created = await f("/picker/api/items", { method: "POST", headers, body: JSON.stringify({ kind: "video", ref_id: "v1", placement: "videos", locale: "all", sort: 1, status: "draft" }) });
+      expect(created.status).toBe(201);
+      const { data } = (await created.json()) as { data: { id: number } };
+      const res = await f(`/picker/api/items/${data.id}`, { method: "PUT", headers, body: JSON.stringify({ kind: "video", ref_id: "v4" }) });
+      expect(res.status, await res.clone().text()).toBe(200);
+      const row = await env.DB.prepare("SELECT ref_id, snapshot FROM curated_videos WHERE id = ?1").bind(data.id).first<Record<string, unknown>>();
+      expect(row!.ref_id).toBe("v4");
+      expect(JSON.parse(String(row!.snapshot))).toMatchObject({ title: "Second talk", thumbnail_url: "https://cdn/4.jpg", channel_name: "Ch", public: true, refreshed_at: expect.any(String) });
+   });
+});
+
+describe("curated row edits", () => {
+   it("publishes, renames and re-localises a picked row through the data API", async () => {
+      const cookie = await session();
+      const f = makeWorker(videosApi);
+      const headers = { cookie, "content-type": "application/json", origin: CMS };
+      const created = await f("/picker/api/items", { method: "POST", headers, body: JSON.stringify({ kind: "video", ref_id: "v1", placement: "videos", locale: "all", sort: 1, status: "draft" }) });
+      expect(created.status).toBe(201);
+      const { data } = (await created.json()) as { data: { id: number } };
+      for (const body of [{ status: "published" }, { title_override: "On the site" }, { locale: "ar" }, { sort: 20 }]) {
+         const res = await f(`/api/data/entity/curated_videos/${data.id}`, { method: "PATCH", headers, body: JSON.stringify(body) });
+         expect(res.status, `${JSON.stringify(body)}: ${await res.clone().text()}`).toBe(200);
+      }
+      const row = await env.DB.prepare("SELECT status, title_override, locale, sort FROM curated_videos WHERE id = ?1").bind(data.id).first();
+      expect(row).toMatchObject({ status: "published", title_override: "On the site", locale: "ar", sort: 20 });
    });
 });
 
