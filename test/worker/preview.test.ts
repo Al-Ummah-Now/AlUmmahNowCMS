@@ -11,12 +11,16 @@ const now = "2026-11-08T10:00:00.000Z";
 beforeAll(async () => {
    const db = env.DB;
    await db.batch([
-      db.prepare("DELETE FROM pages WHERE id IN (901, 902, 903)"),
+      db.prepare("DELETE FROM pages WHERE id IN (901, 902, 903, 904)"),
       db.prepare("DELETE FROM posts WHERE id IN (901, 902)"),
       db.prepare(
          `INSERT INTO pages (id, slug, locale, translation_key, title, summary, body, status, published_at, show_in_sitemap, created_at, updated_at) VALUES
           (901, 'pv-draft', 'en', 'pv', '${DRAFT}', 'Sum', '# Draft body', 'draft', NULL, 1, '${now}', '${now}'),
           (902, 'pv-ar', 'ar', 'pv', 'مسودة', NULL, 'نص', 'published', '${now}', 1, '${now}', '${now}')`,
+      ),
+      db.prepare(
+         `INSERT INTO pages (id, slug, locale, title, body, status, publish_at, published_at, show_in_sitemap, created_at, updated_at) VALUES
+          (904, 'pv-later', 'en', 'Later', 'Soon', 'published', '2999-01-01T00:00:00.000Z', '2999-01-01T00:00:00.000Z', 1, '${now}', '${now}')`,
       ),
       db.prepare(
          `INSERT INTO posts (id, slug, locale, translation_key, title, excerpt, body, status, published_at, tags, author_name, created_at, updated_at) VALUES
@@ -103,6 +107,14 @@ describe("preview API (GET /api/preview/v1/:kind/:id)", () => {
       expect(Object.keys(body.content).sort()).toEqual(
          ["alternates", "body", "cover", "locale", "published_at", "seo_description", "seo_title", "slug", "summary", "title", "updated_at"].sort(),
       );
+   });
+
+   it("a scheduled row previews as scheduled while the public API still hides it", async () => {
+      const f = makeWorker();
+      const res = await f("/api/preview/v1/pages/904", auth(await tokenFor("pages", 904)));
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as { status: string }).status).toBe("scheduled");
+      expect((await f("/api/public/v1/pages/pv-later?locale=en")).status).toBe(404);
    });
 
    it("serves an Arabic draft post in the public Post shape", async () => {
