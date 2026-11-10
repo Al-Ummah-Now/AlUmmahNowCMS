@@ -41,8 +41,17 @@ export const CMS_SECRETS: RequiredSecret[] = [
    },
 ];
 
-/** None by name. AI provider keys are optional by pattern (AI_KEY_PATTERN); Workers AI needs no key. */
-export const CMS_OPTIONAL_SECRETS: RequiredSecret[] = [];
+/**
+ * AI provider keys are optional by pattern (AI_KEY_PATTERN); Workers AI needs no key. By name: the
+ * videos API's service-to-service key (scholar channels and community posts, docs/SCHOLARS.md §4),
+ * a Secrets Store binding in wrangler.jsonc; never reachable from AI settings (not AI_KEY_*).
+ */
+export const CMS_OPTIONAL_SECRETS: RequiredSecret[] = [
+   {
+      name: "VIDEOS_INTERNAL_API_KEY",
+      purpose: "Secrets Store `internal-api-key[-env]` (api-videos INTERNAL_API_KEY); scholar channels and community posts (src/lib/scholars/videos-internal.ts)",
+   },
+];
 
 /** Must equal SECRET_NAME in src/lib/ai/settings.ts (a test checks). */
 export const AI_KEY_PATTERN = /^AI_KEY_[A-Z0-9_]{1,48}$/;

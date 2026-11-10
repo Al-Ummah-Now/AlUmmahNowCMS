@@ -242,6 +242,9 @@ describe("release: queue consumers, the AI binding and secrets", () => {
             expect(checkBindings(entry, [...base, { type: "secret_text", name }]).some((f) => !f.ok)).toBe(true);
          }
          expect(checkBindings(entry, [...base, { type: "secret_text", name: "CMS_CLIENT_SECRET" }]).some((f) => !f.ok)).toBe(true);
+         // The videos API's service key (scholars) is known by name: a Secrets Store binding, never a plain var
+         expect(checkBindings(entry, [...base, { type: "secrets_store_secret", name: "VIDEOS_INTERNAL_API_KEY" }]).every((f) => f.ok)).toBe(true);
+         expect(checkBindings(entry, [...base, { type: "plain_text", name: "VIDEOS_INTERNAL_API_KEY" }]).some((f) => !f.ok)).toBe(true);
       }
    });
 
