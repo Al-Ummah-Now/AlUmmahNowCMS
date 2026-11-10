@@ -200,7 +200,7 @@ describe("queue consumers (scripts/release/queue-consumers.ts)", () => {
    it("registers the feed queue and its DLQ on stage when they are missing, and nothing already there", () => {
       const consumers = consumersFor(config as never, "stage");
       const plan = consumerPlan("al-ummah-now-cms-stage", consumers, (q) =>
-         q === "al-ummah-now-cms-variants-stage" ? "Consumers: worker:al-ummah-now-cms-stage" : "Consumers: ",
+         q.includes("-feed") ? "Consumers: " : "Consumers: worker:al-ummah-now-cms-stage",
       );
       expect(plan.map((a) => a[3])).toEqual(["al-ummah-now-cms-feed-stage", "al-ummah-now-cms-feed-dlq-stage"]);
       expect(plan[0]).toEqual(expect.arrayContaining(["--dead-letter-queue", "al-ummah-now-cms-feed-dlq-stage", "--max-concurrency", "1"]));

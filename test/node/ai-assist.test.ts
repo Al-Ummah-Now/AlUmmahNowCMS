@@ -176,14 +176,13 @@ describe("release: queue consumers and the optional secret", () => {
 
    it("plans a consumer add only for queues that don't list the Worker yet", () => {
       const consumers = consumersFor(config as never, "stage");
-      expect(consumers.map((c) => c.queue)).toEqual(["al-ummah-now-cms-variants-stage", "al-ummah-now-cms-ai-stage", "al-ummah-now-cms-ai-dlq-stage"]);
+      expect(consumers.map((c) => c.queue)).toEqual(expect.arrayContaining(["al-ummah-now-cms-variants-stage", "al-ummah-now-cms-ai-stage", "al-ummah-now-cms-ai-dlq-stage"]));
+      const aiQueue = consumers.find((c) => c.queue === "al-ummah-now-cms-ai-stage")!;
       expect(listedConsumers("Number of Consumers: 1\nConsumers: worker:al-ummah-now-cms-stage, worker:other")).toEqual(["al-ummah-now-cms-stage", "other"]);
       expect(listedConsumers("Number of Consumers: 0")).toEqual([]);
-      // The variants queue and the AI DLQ already list the Worker; only the AI queue needs adding
-      const plan = consumerPlan("al-ummah-now-cms-stage", consumers, (q) => (q.includes("dlq") || q.includes("variants") ? "Consumers: worker:al-ummah-now-cms-stage" : "Number of Consumers: 0"));
-      expect(plan).toEqual([
-         addArgs("al-ummah-now-cms-stage", consumers[1]),
-      ]);
+      // Every other queue already lists the Worker; only the AI queue needs adding
+      const plan = consumerPlan("al-ummah-now-cms-stage", consumers, (q) => (q === "al-ummah-now-cms-ai-stage" ? "Number of Consumers: 0" : "Consumers: worker:al-ummah-now-cms-stage"));
+      expect(plan).toEqual([addArgs("al-ummah-now-cms-stage", aiQueue)]);
       expect(plan[0]).toEqual([
          "queues", "consumer", "add", "al-ummah-now-cms-ai-stage", "al-ummah-now-cms-stage",
          "--batch-size", "1", "--batch-timeout", "1", "--message-retries", "5", "--max-concurrency", "5", "--dead-letter-queue", "al-ummah-now-cms-ai-dlq-stage",
