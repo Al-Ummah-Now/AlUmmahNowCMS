@@ -6,7 +6,9 @@
  */
 import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
-import { expectNoAxeViolations, sessionPage } from "./support/browser.ts";
+import AxeBuilder from "@axe-core/playwright";
+import { writeFileSync } from "node:fs";
+import { sessionPage } from "./support/browser.ts";
 import { ACCOUNTS, CMS_URL, hasCredentials } from "./support/env.ts";
 import { signIn } from "./support/oauth.ts";
 
@@ -77,6 +79,7 @@ test("gallery", async ({ context, page }, info) => {
       ["library", "/library"],
       ["people", "/people"],
    ];
+   const violations: string[] = [];
    await sessionPage(context, page, ACCOUNTS.admin, "/");
    for (const theme of THEMES) {
       for (const mode of MODES) {
@@ -88,8 +91,9 @@ test("gallery", async ({ context, page }, info) => {
                await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
                await page.waitForLoadState("networkidle").catch(() => undefined);
                await page.screenshot({ path: `${dir}/${name}__${theme}__${mode}__${lang}.png`, fullPage: true });
-               // axe once per screen and language (contrast depends on theme and mode: checked for all).
-               await expectNoAxeViolations(page);
+               // axe on every combination (contrast depends on theme and mode); collected, asserted at the end.
+               const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+               for (const v of axe.violations) violations.push(`${name} ${theme} ${mode} ${lang} — ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
             }
          }
       }
@@ -106,4 +110,6 @@ test("gallery", async ({ context, page }, info) => {
       await page.screenshot({ path: `${dir}/drawer__fawanees__dark__ar.png` });
    }
    await page.goto("/?theme=site");
+   writeFileSync(`${dir}/axe.txt`, violations.join("\n") + "\n");
+   expect(violations).toEqual([]);
 });
