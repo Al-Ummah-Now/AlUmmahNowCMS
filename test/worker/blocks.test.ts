@@ -7,6 +7,7 @@ import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
 
 const ORIGIN = "https://cms.test";
 import { PNG_16X9 as PNG } from "../fixtures/png-16x9.ts";
+import { SUMMARY_SLIDES_MAX } from "../../src/routes/public-api.ts";
 let videosUp = true;
 const videosApi = (url: URL) => {
    if (!videosUp) return new Response("down", { status: 503 });
@@ -314,5 +315,29 @@ describe("card posts", () => {
       // The news list keeps every post, now with kind.
       const news = await json(await f("/api/public/v1/posts?locale=en"));
       expect(news.items.map((p: { kind: string }) => p.kind).sort()).toEqual(["article", "cards", "cards"]);
+      // Summaries carry the served slides too, so www shows a card post whole inside a list.
+      const listed = news.items.find((p: { slug: string }) => p.slug === "story");
+      expect(listed.slides.map((s: { id: string }) => s.id)).toEqual(["s1", "s3"]);
+      expect(listed.slides[0]).toEqual(post.slides[0]);
+      expect(news.items.find((p: { slug: string }) => p.slug === "article")).toMatchObject({ slides: [] });
+      expect(grid.items[0].slides.map((s: { id: string }) => s.id)).toEqual(["x"]);
+      const home = await json(await f("/api/public/v1/home?locale=en"));
+      expect(home.posts.find((p: { slug: string }) => p.slug === "story").slides).toHaveLength(2);
+   });
+
+   it("caps a summary's slides at SUMMARY_SLIDES_MAX; the post itself serves them all", async () => {
+      const { f, send, upload } = await session();
+      const img = await upload("long.png");
+      const slides = Array.from({ length: SUMMARY_SLIDES_MAX + 3 }, (_, i) => ({ id: `l${i + 1}`, media_id: img, heading: `Card ${i + 1}` }));
+      await send("POST", "/api/data/entity/posts", { slug: "long", locale: "en", title: "Long", kind: "cards", slides, status: "published" });
+      const full = await json(await f("/api/public/v1/posts/long?locale=en"));
+      expect(full.slides).toHaveLength(SUMMARY_SLIDES_MAX + 3);
+      expect(full.slide_count).toBe(SUMMARY_SLIDES_MAX + 3);
+      const list = await json(await f("/api/public/v1/posts?locale=en"));
+      const item = list.items.find((p: { slug: string }) => p.slug === "long");
+      expect(item.slide_count).toBe(SUMMARY_SLIDES_MAX + 3);
+      expect(item.slides.map((s: { id: string }) => s.id)).toEqual(slides.slice(0, SUMMARY_SLIDES_MAX).map((s) => s.id));
+      const cards = await json(await f("/api/public/v1/cards?locale=en"));
+      expect(cards.items.find((p: { slug: string }) => p.slug === "long").slides).toHaveLength(SUMMARY_SLIDES_MAX);
    });
 });

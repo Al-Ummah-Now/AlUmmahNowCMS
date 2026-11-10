@@ -98,7 +98,8 @@
                "updated_at": "<iso-date>",
                "kind": "article",
                "slide_count": 0,
-               "first_slide": null
+               "first_slide": null,
+               "slides": []
             },
             {
                "slug": "first",
@@ -114,7 +115,8 @@
                "updated_at": "<iso-date>",
                "kind": "article",
                "slide_count": 0,
-               "first_slide": null
+               "first_slide": null,
+               "slides": []
             }
          ]
       }
@@ -213,7 +215,8 @@
                "updated_at": "<iso-date>",
                "kind": "article",
                "slide_count": 0,
-               "first_slide": null
+               "first_slide": null,
+               "slides": []
             },
             {
                "slug": "first",
@@ -229,7 +232,8 @@
                "updated_at": "<iso-date>",
                "kind": "article",
                "slide_count": 0,
-               "first_slide": null
+               "first_slide": null,
+               "slides": []
             }
          ],
          "page": 1,
@@ -257,7 +261,8 @@
                "updated_at": "<iso-date>",
                "kind": "article",
                "slide_count": 0,
-               "first_slide": null
+               "first_slide": null,
+               "slides": []
             }
          ],
          "page": 2,
@@ -543,7 +548,51 @@
                         "heading": "The beginning",
                         "body": "Where it started",
                         "position": "bottom"
-                     }
+                     },
+                     "slides": [
+                        {
+                           "id": "s1",
+                           "image": {
+                              "url": "https://cms.test/api/public/v1/media/<file>",
+                              "alt": "Lantern at dusk",
+                              "width": 16,
+                              "height": 9,
+                              "variants": {
+                                 "widths": [
+                                    16
+                                 ],
+                                 "fallback_type": "image/png",
+                                 "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                                 "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                                 "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                              }
+                           },
+                           "heading": "The beginning",
+                           "body": "Where it started",
+                           "position": "bottom"
+                        },
+                        {
+                           "id": "s2",
+                           "image": {
+                              "url": "https://cms.test/api/public/v1/media/<file>",
+                              "alt": "Second",
+                              "width": 16,
+                              "height": 9,
+                              "variants": {
+                                 "widths": [
+                                    16
+                                 ],
+                                 "fallback_type": "image/png",
+                                 "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                                 "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                                 "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                              }
+                           },
+                           "heading": "Then",
+                           "body": null,
+                           "position": "top"
+                        }
+                     ]
                   },
                   {
                      "slug": "second",
@@ -557,7 +606,8 @@
                      "updated_at": "<iso-date>",
                      "kind": "article",
                      "slide_count": 0,
-                     "first_slide": null
+                     "first_slide": null,
+                     "slides": []
                   }
                ]
             },
@@ -601,7 +651,51 @@
                         "heading": "The beginning",
                         "body": "Where it started",
                         "position": "bottom"
-                     }
+                     },
+                     "slides": [
+                        {
+                           "id": "s1",
+                           "image": {
+                              "url": "https://cms.test/api/public/v1/media/<file>",
+                              "alt": "Lantern at dusk",
+                              "width": 16,
+                              "height": 9,
+                              "variants": {
+                                 "widths": [
+                                    16
+                                 ],
+                                 "fallback_type": "image/png",
+                                 "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                                 "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                                 "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                              }
+                           },
+                           "heading": "The beginning",
+                           "body": "Where it started",
+                           "position": "bottom"
+                        },
+                        {
+                           "id": "s2",
+                           "image": {
+                              "url": "https://cms.test/api/public/v1/media/<file>",
+                              "alt": "Second",
+                              "width": 16,
+                              "height": 9,
+                              "variants": {
+                                 "widths": [
+                                    16
+                                 ],
+                                 "fallback_type": "image/png",
+                                 "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                                 "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                                 "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                              }
+                           },
+                           "heading": "Then",
+                           "body": null,
+                           "position": "top"
+                        }
+                     ]
                   }
                ]
             },
@@ -853,7 +947,51 @@
                   "heading": "The beginning",
                   "body": "Where it started",
                   "position": "bottom"
-               }
+               },
+               "slides": [
+                  {
+                     "id": "s1",
+                     "image": {
+                        "url": "https://cms.test/api/public/v1/media/<file>",
+                        "alt": "Lantern at dusk",
+                        "width": 16,
+                        "height": 9,
+                        "variants": {
+                           "widths": [
+                              16
+                           ],
+                           "fallback_type": "image/png",
+                           "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                           "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                           "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                        }
+                     },
+                     "heading": "The beginning",
+                     "body": "Where it started",
+                     "position": "bottom"
+                  },
+                  {
+                     "id": "s2",
+                     "image": {
+                        "url": "https://cms.test/api/public/v1/media/<file>",
+                        "alt": "Second",
+                        "width": 16,
+                        "height": 9,
+                        "variants": {
+                           "widths": [
+                              16
+                           ],
+                           "fallback_type": "image/png",
+                           "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                           "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                           "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                        }
+                     },
+                     "heading": "Then",
+                     "body": null,
+                     "position": "top"
+                  }
+               ]
             }
          ],
          "page": 1,
@@ -904,7 +1042,51 @@
                   "heading": "The beginning",
                   "body": "Where it started",
                   "position": "bottom"
-               }
+               },
+               "slides": [
+                  {
+                     "id": "s1",
+                     "image": {
+                        "url": "https://cms.test/api/public/v1/media/<file>",
+                        "alt": "Lantern at dusk",
+                        "width": 16,
+                        "height": 9,
+                        "variants": {
+                           "widths": [
+                              16
+                           ],
+                           "fallback_type": "image/png",
+                           "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                           "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                           "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                        }
+                     },
+                     "heading": "The beginning",
+                     "body": "Where it started",
+                     "position": "bottom"
+                  },
+                  {
+                     "id": "s2",
+                     "image": {
+                        "url": "https://cms.test/api/public/v1/media/<file>",
+                        "alt": "Second",
+                        "width": 16,
+                        "height": 9,
+                        "variants": {
+                           "widths": [
+                              16
+                           ],
+                           "fallback_type": "image/png",
+                           "avif": "https://cms.test/api/public/v1/media/<file>?w=16&f=avif 16w",
+                           "webp": "https://cms.test/api/public/v1/media/<file>?w=16&f=webp 16w",
+                           "fallback": "https://cms.test/api/public/v1/media/<file>?w=16&f=png 16w"
+                        }
+                     },
+                     "heading": "Then",
+                     "body": null,
+                     "position": "top"
+                  }
+               ]
             }
          ],
          "page": 1,
