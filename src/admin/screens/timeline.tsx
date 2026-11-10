@@ -125,7 +125,8 @@ function Status(props: { v: View; s: FeedStatus }) {
       <section class="card tl-status" aria-labelledby="tl-status-h">
          <div class="tl-status-row">
             <span class={`tl-led${s.deadAt ? " bad" : s.pending || s.full ? " busy" : ""}`} aria-hidden="true" />
-            <div style="flex:1;min-width:0">
+            {/* 14rem basis: in a narrow column the button wraps below instead of squeezing the text to a word per line */}
+            <div style="flex:1 1 14rem;min-width:0">
                <h2 id="tl-status-h" class="tl-status-h">
                   {t.status}
                </h2>
