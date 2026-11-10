@@ -8,6 +8,7 @@
  *
  * The public API (/api/public/v1) is untouched: it still serves published rows only.
  */
+import { postAuthor, subOfUser } from "../lib/scholars/ownership.ts";
 import { Hono, type Context } from "hono";
 import { ConfigError, runtimeConfig, type Env } from "../env.ts";
 import { bearer, isPreviewKind, mintPreviewToken, verifyPreviewToken, type PreviewKind } from "../lib/preview.ts";
@@ -82,9 +83,11 @@ export function previewRoutes(): Hono<AppEnv> {
    r.get("/:kind/:id{[0-9]{1,15}}", async (c) => {
       const kind = c.req.param("kind");
       const role = c.get("user")?.role;
-      if (role !== "admin" && role !== "editor") return renderStatus(c, "no_access", 403);
+      if (role !== "admin" && role !== "editor" && role !== "writer") return renderStatus(c, "no_access", 403);
       if (!isPreviewKind(kind)) return renderStatus(c, "not_found", 404);
       const id = Number(c.req.param("id"));
+      // A writer previews only their own posts (docs/SCHOLARS.md §2).
+      if (role === "writer" && (kind !== "posts" || (await postAuthor(c.env.DB, id)) !== (await subOfUser(c.env.DB, c.get("user").id)))) return renderStatus(c, "not_found", 404);
       const row = await c.env.DB.prepare(`SELECT id FROM ${kind} WHERE id = ?1 LIMIT 1`).bind(id).first();
       if (!row) return renderStatus(c, "not_found", 404);
       const cfg = c.get("cfg");

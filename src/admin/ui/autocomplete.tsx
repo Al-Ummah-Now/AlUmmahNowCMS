@@ -16,7 +16,7 @@ export function comboboxProps(listId: string) {
    } as const;
 }
 
-export function Autocomplete(props: { kind: "content" | "pages" | "posts"; listId: string; label: string; locale?: string; children: Child }) {
+export function Autocomplete(props: { kind: "content" | "pages" | "posts" | "scholars" | "scholar-posts"; listId: string; label: string; locale?: string; children: Child }) {
    return (
       <div class="ac" data-ac={props.kind} data-ac-locale={props.locale || undefined}>
          {props.children}

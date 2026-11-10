@@ -36,7 +36,11 @@ import { legacyAdminRedirect } from "./admin/legacy.ts";
 import { entityUploadTarget, keepNewestMedia, trashForReplace, undoReplace } from "./admin/media-cleanup.ts";
 import { handleDelete } from "./admin/trash-api.ts";
 import { purgeDue } from "./lib/trash.ts";
+import { syncCommunity } from "./lib/scholars/community.ts";
 import { errText, log } from "./lib/log.ts";
+import { isCmsRole } from "./lib/roles.ts";
+import { postAuthor, scopeListUrl, scopeWhere, subOfUser, writerApiVerdict } from "./lib/scholars/ownership.ts";
+import { writerScreenAllowed } from "./lib/scholars/access.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
 import { pickerRoutes } from "./routes/picker.ts";
 import { previewApi, previewRoutes } from "./routes/preview.ts";
@@ -77,10 +81,41 @@ async function sessionUser(c: Ctx, deps: Deps): Promise<AuthUser | undefined> {
    if (!/(?:^|;\s*)auth=/.test(c.req.header("Cookie") ?? "")) return undefined;
    const app = await deps.getApp(c);
    const user = (await app.module.auth.authenticator.resolveAuthFromRequest(c.req.raw)) as AuthUser | undefined;
-   if (!user || (user.role !== "admin" && user.role !== "editor")) return undefined;
+   if (!user || !isCmsRole(user.role)) return undefined;
    // Single sign-out: a session issued before the account signed out is over (copied cookies too)
    if (await endedBySignOut(c.env.DB, user.id, user.iat)) return undefined;
    return user;
+}
+
+/**
+ * A writer's bknd API call, scoped to their own posts (src/lib/scholars/ownership.ts). Returns the
+ * request to forward, or a response that ends it (403 for anything a writer may not use, 404 for a
+ * post that is not theirs, so other scholars' post ids are not even confirmed).
+ */
+async function scopeWriterRequest(c: Ctx, user: AuthUser): Promise<Request | Response> {
+   const verdict = writerApiVerdict(c.req.method, c.req.path);
+   if (verdict.kind === "allow" || verdict.kind === "create-post") return c.req.raw;
+   if (verdict.kind === "deny") return c.json({ error: "forbidden" }, 403);
+   const sub = await subOfUser(c.env.DB, user.id);
+   if (!sub) return c.json({ error: "forbidden" }, 403);
+   if (verdict.kind === "scope-list") return new Request(scopeListUrl(new URL(c.req.url), sub), c.req.raw);
+   if (verdict.kind === "scope-count") {
+      const text = c.req.method === "POST" ? await c.req.raw.clone().text() : "";
+      let where: Record<string, unknown> = {};
+      try {
+         const parsed = text ? (JSON.parse(text) as unknown) : {};
+         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) where = parsed as Record<string, unknown>;
+      } catch {
+         where = {};
+      }
+      const headers = new Headers(c.req.raw.headers);
+      headers.set("content-type", "application/json");
+      headers.delete("content-length");
+      return new Request(c.req.url, { method: "POST", headers, body: JSON.stringify(scopeWhere(where, sub)) });
+   }
+   const owner = await postAuthor(c.env.DB, verdict.id);
+   if (owner !== sub) return c.json({ error: "not_found" }, 404);
+   return c.req.raw;
 }
 
 export function createWorker(deps: Deps): Hono<AppEnv> {
@@ -168,6 +203,11 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          const url = new URL(c.req.url);
          return c.redirect(`/sso/login?return=${encodeURIComponent(url.pathname + url.search)}`, 302);
       }
+      if (user.role === "writer" && !writerScreenAllowed(c.req.method, p)) {
+         if (p.startsWith("/picker/api/") || p.startsWith("/admin/api/")) return c.json({ error: "forbidden" }, 403);
+         if (p === "/scholars") return c.redirect("/scholars/me", 302);
+         return renderStatus(c, "no_access", 403);
+      }
       c.set("user", user);
       return next();
    });
@@ -192,9 +232,17 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
 
    app.all("/api/*", async (c) => {
       const p = c.req.path;
+      const signedIn = await sessionUser(c, deps);
+      // A writer (auth "Scholar") reaches only their own posts and media (docs/SCHOLARS.md §2).
+      let writerRequest: Request | null = null;
+      if (signedIn?.role === "writer") {
+         const scoped = await scopeWriterRequest(c, signedIn);
+         if (scoped instanceof Response) return scoped;
+         writerRequest = scoped;
+      }
       // Every bknd delete route is a soft delete (docs/SOFT_DELETE.md): answered here, never by bknd.
       const del = deleteTarget(c.req.method, p);
-      if (del) return handleDelete(c, await sessionUser(c, deps), del);
+      if (del) return handleDelete(c, signedIn, del);
       if (c.req.method === "POST" && (p.startsWith("/api/media/upload") || p.startsWith("/api/media/entity/"))) {
          const verdict = uploadAllowed(c.req.raw, p);
          if (!verdict.ok) return c.json({ error: "unsupported_media", message: verdict.message }, verdict.status);
@@ -217,12 +265,12 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       }
       const bknd = await deps.getApp(c);
       // Writes run with the signed-in user as the actor, so content history records who (#8).
-      const actor = c.req.method === "GET" || c.req.method === "HEAD" ? undefined : await sessionUser(c, deps);
-      const who = { id: actor?.id ?? null, email: actor?.email ?? null };
+      const actor = c.req.method === "GET" || c.req.method === "HEAD" ? undefined : signedIn;
+      const who = { id: actor?.id ?? null, email: actor?.email ?? null, role: actor?.role };
       const write = c.req.method === "POST" || c.req.method === "PATCH" || c.req.method === "PUT";
       const sent = write && p.startsWith("/api/data/entity/") ? await c.req.raw.clone().text() : null;
       const target = c.req.method === "POST" ? entityUploadTarget(p) : null;
-      let request = c.req.raw;
+      let request = writerRequest ?? c.req.raw;
       let replaced: number[] = [];
       if (target && new URL(c.req.url).searchParams.get("overwrite") === "true" && actor) {
          // Replace = the old file goes to the trash (soft), and bknd gets a plain upload (no hard delete).
@@ -239,6 +287,10 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          if (conflict) return c.json({ error: conflict.message, type: conflict.name }, 409);
       }
       if (target && res.ok) await keepNewestMedia(bknd, c.env, target, who);
+      if (res.ok && write && p.startsWith("/api/data/entity/posts")) {
+         // A scholar post's community post follows at once (the minute cron retries a failure).
+         c.executionCtx.waitUntil(syncCommunity(c.env, { fetch: deps.fetch }).catch((e) => log.warn("community sync after save failed", { error: errText(e) })));
+      }
       if (res.ok && c.req.method === "POST" && (p.startsWith("/api/media/upload") || target)) {
          // Image variants for the new original (CMS-10): queue it now instead of waiting for the cron.
          c.executionCtx.waitUntil(sweepVariants(c.env, 5).catch((e) => console.error("variant enqueue failed", String(e))));
@@ -273,6 +325,8 @@ export default {
    scheduled: async (event: ScheduledController, env: Env, ctx: ExecutionContext) => {
       if (event.cron === "* * * * *") {
          ctx.waitUntil(duePosts(env).catch((error) => console.error("feed due check failed", String(error))));
+         // Scholar articles ↔ their channel's community posts: due syncs and retries (docs/SCHOLARS.md §4).
+         ctx.waitUntil(syncCommunity(env).catch((error) => log.error("community sync failed", { error: errText(error) })));
          return;
       }
       ctx.waitUntil(

@@ -7,6 +7,9 @@
 import { Hono, type Context } from "hono";
 import { trimSlash, type Env } from "../env.ts";
 import { LIVE_SQL } from "../lib/schedule.ts";
+import { MAIN_SITE_SQL, mainSiteSql } from "../lib/scholars/main-site.ts";
+import { scholarName, scholarsBySubs, type Scholar } from "../lib/scholars/profiles.ts";
+import { scholarRoutes } from "./public-scholars.ts";
 import { bodyImagePaths } from "../lib/variants/body-images.ts";
 import { enqueueVariants } from "../lib/variants/jobs.ts";
 import { parseVariantQuery, VARIANT_TYPES, variantKey } from "../lib/variants/plan.ts";
@@ -215,21 +218,48 @@ async function curated(env: Env, l: Locale, placement: "home" | "videos") {
    return results.map(curatedOf);
 }
 
-export const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, tags, kind, slides, published_at, updated_at, created_at";
+export const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, author_sub, tags, kind, slides, published_at, updated_at, created_at";
+
+/** A scholar post's byline (docs/SCHOLARS.md §3): the scholar's name in the post's language and their page. */
+export interface PostAuthor {
+   slug: string;
+   name: string;
+   avatar: MediaRef | null;
+}
+
+/** Bylines for posts written by scholars (one query for the profiles, one for their photos). */
+export async function postAuthors(env: Env, rows: Row[]): Promise<Map<string, Scholar & { avatar: MediaRef | null }>> {
+   const subs = rows.map((r) => (typeof r.author_sub === "string" ? r.author_sub : "")).filter(Boolean);
+   const out = new Map<string, Scholar & { avatar: MediaRef | null }>();
+   if (!subs.length) return out;
+   const profiles = await scholarsBySubs(env.DB, subs);
+   const avatars = await mediaByIds(
+      env,
+      [...profiles.values()].flatMap((p) => (p.avatar_media_id ? [p.avatar_media_id] : [])),
+   );
+   for (const [sub, p] of profiles) out.set(sub, { ...p, avatar: p.avatar_media_id ? (avatars.get(p.avatar_media_id) ?? null) : null });
+   return out;
+}
+
+function authorOf(r: Row, authors: Map<string, Scholar & { avatar: MediaRef | null }>): PostAuthor | null {
+   const p = typeof r.author_sub === "string" ? authors.get(r.author_sub) : undefined;
+   return p ? { slug: p.slug, name: scholarName(p, r.locale === "ar" ? "ar" : "en"), avatar: p.avatar } : null;
+}
 
 export async function postSummaries(env: Env, rows: Row[]) {
    const firstIds = rows.flatMap((r) => slideMediaIds(rowSlides(r)));
-   const [cov, media] = await Promise.all([
+   const [cov, media, authors] = await Promise.all([
       covers(
          env,
          "posts",
          rows.map((r) => r.id),
       ),
       mediaByIds(env, firstIds),
+      postAuthors(env, rows),
    ]);
    return rows.map((r) => {
       const slides = publicSlides(rowSlides(r), media);
-      return postSummaryOf(r, cov.get(String(r.id)) ?? null, slides);
+      return postSummaryOf(r, cov.get(String(r.id)) ?? null, slides, authorOf(r, authors));
    });
 }
 
@@ -244,7 +274,7 @@ export const SUMMARY_SLIDES_MAX = 10;
  * `kind`, `slide_count`, `first_slide` and `slides` are additive (card posts); articles have 0, null
  * and []. A summary's `slides` stops at SUMMARY_SLIDES_MAX; the full post (postOf) carries them all.
  */
-function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[]) {
+function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[], author: PostAuthor | null) {
    const published = toIso(r.published_at) ?? toIso(r.created_at) ?? new Date(0).toISOString();
    const tags = parseJson<unknown>(r.tags, []);
    return {
@@ -253,7 +283,9 @@ function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[]) {
       title: String(r.title ?? ""),
       excerpt: strOrNull(r.excerpt),
       cover,
-      author_name: strOrNull(r.author_name),
+      // A scholar's post: their name (in the post's language) and page. Additive; null for staff posts.
+      author: author,
+      author_name: author ? author.name : strOrNull(r.author_name),
       tags: Array.isArray(tags) ? tags.filter((t): t is string => typeof t === "string") : [],
       published_at: published,
       updated_at: toIso(r.updated_at) ?? published,
@@ -313,15 +345,16 @@ export async function postOf(env: Env, row: Row) {
    const l = row.locale as Locale;
    const body = typeof row.body === "string" ? row.body : "";
    const slideRows = rowSlides(row);
-   const [cov, alts, images, media] = await Promise.all([
+   const [cov, alts, images, media, authors] = await Promise.all([
       covers(env, "posts", [row.id]),
       alternates(env, "posts", row.translation_key, l),
       bodyImages(env, body),
       mediaByIds(env, slideMediaIds(slideRows)),
+      postAuthors(env, [row]),
    ]);
    const slides = publicSlides(slideRows, media);
    return {
-      ...postSummaryOf(row, cov.get(String(row.id)) ?? null, slides),
+      ...postSummaryOf(row, cov.get(String(row.id)) ?? null, slides, authorOf(row, authors)),
       slides, // all of them (a summary stops at SUMMARY_SLIDES_MAX)
       body,
       seo_title: strOrNull(row.seo_title),
@@ -463,7 +496,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          getSettings(c.env, l),
          curated(c.env, l, "home"),
          c.env.DB.prepare(
-            `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} ORDER BY published_at DESC, id DESC LIMIT 3`,
+            `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} AND ${MAIN_SITE_SQL} ORDER BY published_at DESC, id DESC LIMIT 3`,
          )
             .bind(l)
             .all<Row>(),
@@ -485,9 +518,9 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       const page = intParam(c.req.query("page"), 1, 1, 100_000, "page");
       const limit = intParam(c.req.query("limit"), 10, 1, 20, "limit");
       const [count, rows] = await Promise.all([
-         c.env.DB.prepare(`SELECT COUNT(*) AS n FROM posts WHERE locale = ?1 AND ${LIVE_SQL}`).bind(l).first<{ n: number }>(),
+         c.env.DB.prepare(`SELECT COUNT(*) AS n FROM posts WHERE locale = ?1 AND ${LIVE_SQL} AND ${MAIN_SITE_SQL}`).bind(l).first<{ n: number }>(),
          c.env.DB.prepare(
-            `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} ORDER BY published_at DESC, id DESC LIMIT ?2 OFFSET ?3`,
+            `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} AND ${MAIN_SITE_SQL} ORDER BY published_at DESC, id DESC LIMIT ?2 OFFSET ?3`,
          )
             .bind(l, limit, (page - 1) * limit)
             .all<Row>(),
@@ -513,7 +546,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       const tag = (c.req.query("tag") ?? "").trim();
       if (tag.length > 40) throw new HttpError(400, "tag must be at most 40 characters");
       const byTag = tag ? "AND EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(posts.tags) THEN posts.tags ELSE '[]' END) WHERE value = ?2)" : "";
-      const where = `locale = ?1 AND kind = 'cards' AND ${LIVE_SQL} ${byTag}`;
+      const where = `locale = ?1 AND kind = 'cards' AND ${LIVE_SQL} AND ${MAIN_SITE_SQL} ${byTag}`;
       const binds = tag ? [l, tag] : [l];
       const n = binds.length;
       const [count, rows, tags] = await Promise.all([
@@ -523,7 +556,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
             .all<Row>(),
          c.env.DB.prepare(
             `SELECT DISTINCT j.value AS tag FROM posts, json_each(CASE WHEN json_valid(posts.tags) THEN posts.tags ELSE '[]' END) j
-             WHERE posts.locale = ?1 AND posts.kind = 'cards' AND ${LIVE_SQL.replace(/\b(status|publish_at)\b/g, "posts.$1")} AND typeof(j.value) = 'text' ORDER BY j.value LIMIT 50`,
+             WHERE posts.locale = ?1 AND posts.kind = 'cards' AND ${LIVE_SQL.replace(/\b(status|publish_at)\b/g, "posts.$1")} AND ${mainSiteSql("posts")} AND typeof(j.value) = 'text' ORDER BY j.value LIMIT 50`,
          )
             .bind(l)
             .all<{ tag: string }>(),
@@ -591,14 +624,22 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          ).all<Row>(),
       ]);
       const updated = (r: Row) => toIso(r.updated_at) ?? toIso(r.published_at) ?? toIso(r.created_at) ?? new Date(0).toISOString();
+      // Scholar pages (docs/SCHOLARS.md §3), in both languages. A separate list: additive for readers
+      // that only know pages and posts. Their newest live post moves updated_at too.
+      const scholars = await c.env.DB.prepare(
+         `SELECT s.slug, max(s.updated_at, coalesce((SELECT max(p.updated_at) FROM posts p WHERE p.author_sub = s.sso_sub AND ${LIVE_SQL.replace(/\b(status|publish_at)\b/g, "p.$1")}), '')) AS updated_at
+          FROM scholars s ORDER BY s.slug`,
+      ).all<Row>();
       const items = [
          ...pages.results
             .filter((r) => truthy(r.show_in_sitemap, true))
             .map((r) => ({ type: "page" as const, locale: r.locale as Locale, slug: String(r.slug), updated_at: updated(r) })),
          ...posts.results.map((r) => ({ type: "post" as const, locale: r.locale as Locale, slug: String(r.slug), updated_at: updated(r) })),
       ];
-      return json(c, { items });
+      return json(c, { items, scholars: scholars.results.map((r) => ({ slug: String(r.slug), updated_at: toIso(r.updated_at) ?? new Date(0).toISOString() })) });
    });
+
+   scholarRoutes(api, { json, locale, intParam, postSummaries, HttpError, CACHE });
 
    api.get("/media/*", async (c) => {
       const prefix = "/api/public/v1/media/";

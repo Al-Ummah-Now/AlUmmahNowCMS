@@ -29,6 +29,7 @@
 import { DatabaseEvents, Exception, type AppPlugin } from "bknd";
 import { CONTENT_ENTITIES } from "../schema.ts";
 import { timeOf } from "./schedule.ts";
+import { applyOwnership } from "./scholars/ownership.ts";
 import { BlockError, blocksToMarkdown, normalizeBlocks, normalizeSlides, slidesToMarkdown } from "./blocks.ts";
 
 const CONTENT = new Set<string>(CONTENT_ENTITIES);
@@ -278,6 +279,7 @@ export function contentRulesPlugin(db?: D1Database): AppPlugin {
             DatabaseEvents.MutatorInsertBefore,
             async (event) => {
                const { entity, data } = event.params as { entity: { name: string }; data: Row };
+               await applyOwnership(db, entity.name, data, "create");
                applyRules(entity.name, data, "create");
                const target = db ? slugTarget(entity.name, data) : null;
                if (target) await assertSlugFree(db!, entity.name, target);
@@ -295,6 +297,7 @@ export function contentRulesPlugin(db?: D1Database): AppPlugin {
                   const { data: row } = await app.em.repo(entity.name).findId(entityId);
                   current = (row ?? null) as Row | null;
                }
+               await applyOwnership(db, entity.name, data, "update", current);
                const now = locked ? nextVersion(expected) : new Date();
                applyRules(entity.name, data, "update", current, now);
                const target = db ? slugTarget(entity.name, data, current) : null;

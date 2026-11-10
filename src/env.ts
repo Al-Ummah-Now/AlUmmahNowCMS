@@ -31,6 +31,12 @@ export interface Env {
    AI_JOBS?: Queue<{ jobId: string }>;
    /** Per-IP limit on the public search (src/routes/public-api.ts). Without it search is unlimited. */
    SEARCH_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+   /**
+    * api-videos' service-to-service key (Secrets Store; its /internal/* routes): scholar channels and
+    * community posts (src/lib/scholars/videos-internal.ts). Without it those features wait and retry.
+    * A plain string in tests and local runs.
+    */
+   VIDEOS_INTERNAL_API_KEY?: string | { get(): Promise<string> };
 }
 
 export interface RuntimeConfig {

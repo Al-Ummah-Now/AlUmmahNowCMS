@@ -6,6 +6,7 @@
 import { DatabaseEvents, type AppPlugin } from "bknd";
 import type { Env } from "../../env.ts";
 import { markDirty } from "./jobs.ts";
+import { noteCommunityChange } from "../scholars/community.ts";
 
 export function feedPlugin(env?: Env): AppPlugin {
    return (app) => ({
@@ -18,6 +19,8 @@ export function feedPlugin(env?: Env): AppPlugin {
             const rows = Array.isArray(data) ? data : [data];
             const ids = rows.map((r) => Number((r as { id?: unknown } | null)?.id)).filter((n) => Number.isInteger(n) && n > 0);
             await markDirty(env, ids.map((id) => `p${id}`), why);
+            // Scholar posts: their channel's community post follows (src/lib/scholars/community.ts).
+            await noteCommunityChange(env, ids);
          };
          app.emgr.onEvent(DatabaseEvents.MutatorInsertAfter, (e) => touch(e, "post created"), { mode: "sync", id: "aun-feed-insert" });
          app.emgr.onEvent(DatabaseEvents.MutatorUpdateAfter, (e) => touch(e, "post updated"), { mode: "sync", id: "aun-feed-update" });

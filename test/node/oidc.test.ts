@@ -34,7 +34,7 @@ async function token(over: { iss?: string; aud?: string; exp?: number; key?: Cry
 describe("verifyAccessToken (local JWKS)", () => {
    it("accepts a valid token and extracts the identity", async () => {
       const id = await verifyAccessToken(await token(), { issuer: ISSUER, clientId: CLIENT, jwks });
-      expect(id).toEqual({ sub: "u1", email: "admin@example.com", roles: ["Admin"] });
+      expect(id).toEqual({ sub: "u1", email: "admin@example.com", roles: ["Admin"], name: null });
    });
    it.each([
       ["wrong issuer", { iss: "https://evil.test" }],

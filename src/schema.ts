@@ -70,6 +70,12 @@ export const schema = em(
             cover: medium(),
             seo_title: text(),
             seo_description: text(),
+            // Scholar posts (migrations/0012, docs/SCHOLARS.md). Set by the Worker only: content rules
+            // strip them from data API writes (src/lib/scholars/ownership.ts).
+            author_sub: text({ hidden: ["create", "update"] }),
+            featured_at: datetime({ hidden: ["create", "update"] }),
+            featured_by: text({ hidden: ["create", "update"] }),
+            community_post_id: text({ hidden: ["create", "update"] }),
             ...timestamps(),
          },
          { primary_format: "integer" },
@@ -128,6 +134,7 @@ export const schema = em(
       index(e.users).on(["sso_sub"], true);
       index(e.posts).on(["status", "locale", "published_at"]);
       index(e.posts).on(["kind", "status", "locale", "published_at"]);
+      index(e.posts).on(["author_sub", "status", "locale", "published_at"]);
       index(e.curated_videos).on(["placement", "status"]);
       // One row per video per placement and locale (migrations/0002): the picker inserts ON CONFLICT DO NOTHING.
       index(e.curated_videos).on(["kind", "ref_id", "placement", "locale"], true);

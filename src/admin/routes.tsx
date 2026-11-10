@@ -4,6 +4,12 @@
  * src/index.ts; every handler renders complete HTML from bknd reads (src/admin/data.ts).
  */
 import { Hono } from "hono";
+import { subOfUser } from "../lib/scholars/ownership.ts";
+import { scholarById, scholarName, scholarOfSub, type Scholar } from "../lib/scholars/profiles.ts";
+import { ownedChannels } from "../lib/scholars/videos-internal.ts";
+import { errText, log } from "../lib/log.ts";
+import { featuringApi, scholarsApi } from "./scholars-api.ts";
+import { featuringScreen, parseFeaturingParams, profileScreen, scholarsListScreen } from "./screens/scholars.tsx";
 import { faviconSvgPath } from "../lib/app-icons.ts";
 import type { Child } from "hono/jsx";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
@@ -31,7 +37,7 @@ import { libraryScreen, navigationScreen, siteScreen, videosScreen } from "./scr
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
-export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted", "/ai-settings"];
+export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted", "/ai-settings", "/scholars", "/featuring"];
 export const isStaffScreen = (p: string) => p === "/" || ADMIN_SCREENS.some((x) => p === x || p.startsWith(`${x}/`));
 
 export async function buildView(c: Ctx, deps: Deps): Promise<View> {
@@ -46,7 +52,11 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       path: url.pathname,
       search: url.searchParams.toString(),
       nonce: c.get("nonce"),
-      user: { email: user.email, role: user.role === "admin" ? "admin" : "editor" },
+      user: {
+         email: user.email,
+         role: user.role === "admin" ? "admin" : user.role === "writer" ? "writer" : "editor",
+         sub: user.role === "writer" ? await subOfUser(c.env.DB, user.id) : null,
+      },
       wwwUrl: cfg.wwwUrl,
       adminWebUrl: adminWeb,
       assets: assetUrls(prefs.theme),
@@ -71,6 +81,8 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    const r = new Hono<AppEnv>();
 
    r.get("/", async (c) => {
+      // A scholar's home is their articles.
+      if (c.get("user")?.role === "writer") return c.redirect("/posts", 302);
       const v = await buildView(c, deps);
       const failures = v.user.role === "admin" ? await flaggedFailures(c.env.DB).catch(() => null) : null;
       return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps), c.env.DB, failures));
@@ -103,6 +115,8 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    }
 
    r.route("/admin/api/timeline", timelineApi(deps));
+   r.route("/admin/api/scholars", scholarsApi(deps));
+   r.route("/admin/api/featuring", featuringApi());
    r.route("/admin/api/suggest", suggestApi(deps));
    r.route("/admin/api/ai", aiRoutes(deps));
    r.route("/admin/api/trash", trashApi());
@@ -151,6 +165,35 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       const v = await buildView(c, deps);
       if (v.user.role !== "admin") return render(c, v, v.t.common.adminOnly, <p class="notice">{v.t.common.adminOnly}</p>, 403);
       return render(c, v, v.t.aiSettings.title, await aiSettingsScreen(v, c.env));
+   });
+
+   // Scholars (docs/SCHOLARS.md): a writer's own profile; staff list and edit every profile.
+   const profile = async (c: Ctx, scholar: Scholar | null, endpoint: string) => {
+      const v = await buildView(c, deps);
+      if (!scholar) return render(c, v, v.t.common.notFound, <p class="notice">{v.t.scholars.noProfile}</p>, 404);
+      const [channels, avatar] = await Promise.all([
+         ownedChannels(c.env, scholar.sso_sub, deps.fetch).catch((error) => {
+            log.warn("scholar channels unavailable", { error: errText(error) });
+            return null;
+         }),
+         scholar.avatar_media_id ? c.env.DB.prepare("SELECT path FROM media WHERE id = ?1").bind(scholar.avatar_media_id).first<{ path: string | null }>() : Promise.resolve(null),
+      ]);
+      return render(c, v, v.user.role === "writer" ? v.t.scholars.myProfile : scholarName(scholar, v.prefs.lang), profileScreen(v, { scholar, channels, avatarPath: avatar?.path ?? null, endpoint, publicUrl: c.get("cfg").publicUrl }));
+   };
+   r.get("/scholars/me", async (c) => {
+      const sub = await subOfUser(c.env.DB, c.get("user").id);
+      return profile(c, await scholarOfSub(c.env.DB, sub), "/admin/api/scholars/me");
+   });
+   r.get("/scholars", async (c) => {
+      const v = await buildView(c, deps);
+      const q = (c.req.query("q") ?? "").trim().slice(0, 100);
+      const page = Math.min(Math.max(Number.parseInt(c.req.query("page") ?? "1", 10) || 1, 1), 10_000);
+      return render(c, v, v.t.scholars.title, await scholarsListScreen(v, c.env.DB, q, page));
+   });
+   r.get("/scholars/:id{[0-9]+}", async (c) => profile(c, await scholarById(c.env.DB, Number(c.req.param("id"))), `/admin/api/scholars/${c.req.param("id")}`));
+   r.get("/featuring", async (c) => {
+      const v = await buildView(c, deps);
+      return render(c, v, v.t.featuring.title, await featuringScreen(v, c.env, parseFeaturingParams(new URL(c.req.url)), c.get("cfg").videosApiUrl, deps.fetch));
    });
 
    r.get("/people", async (c) => {

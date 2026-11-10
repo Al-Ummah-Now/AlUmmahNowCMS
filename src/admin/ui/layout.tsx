@@ -16,7 +16,8 @@ export interface View {
    path: string;
    search: string;
    nonce: string;
-   user: { email: string; role: "admin" | "editor" };
+   /** `sub` is the writer's auth user id (writers only: they see their own posts, docs/SCHOLARS.md). */
+   user: { email: string; role: "admin" | "editor" | "writer"; sub?: string | null };
    wwwUrl: string;
    adminWebUrl: string;
    assets: { css: string; theme: string; js: string };
@@ -27,25 +28,34 @@ export interface View {
 }
 
 export const isAdmin = (v: View) => v.user.role === "admin";
+/** A scholar (auth "Scholar"): their own posts and profile only. */
+export const isWriter = (v: View) => v.user.role === "writer";
 
 interface NavItem {
    href: string;
    label: keyof AdminStrings["nav"];
    icon: IconName;
    admin?: boolean;
+   /** Shown to writers (scholars). Everything else is staff only. */
+   writer?: boolean;
+   /** Shown to writers only. */
+   writerOnly?: boolean;
 }
 
 const CONTENT: NavItem[] = [
    { href: "/", label: "overview", icon: "home" },
    { href: "/pages", label: "pages", icon: "file" },
-   { href: "/posts", label: "posts", icon: "pen" },
+   { href: "/posts", label: "posts", icon: "pen", writer: true },
+   { href: "/scholars/me", label: "myProfile", icon: "user", writer: true, writerOnly: true },
    { href: "/timeline", label: "timeline", icon: "timeline" },
+   { href: "/featuring", label: "featuring", icon: "star" },
    { href: "/videos", label: "videos", icon: "play" },
 ];
 const SITE: NavItem[] = [
    { href: "/navigation", label: "navigation", icon: "list" },
    { href: "/site", label: "site", icon: "globe" },
    { href: "/library", label: "library", icon: "image" },
+   { href: "/scholars", label: "scholars", icon: "users" },
    { href: "/people", label: "people", icon: "users", admin: true },
    { href: "/deleted", label: "deleted", icon: "trash", admin: true },
    { href: "/ai-settings", label: "aiSettings", icon: "sparkle", admin: true },
@@ -57,7 +67,7 @@ function NavLinks(props: { v: View; items: NavItem[] }) {
    return (
       <>
          {props.items
-            .filter((i) => !i.admin || isAdmin(props.v))
+            .filter((i) => (isWriter(props.v) ? !!i.writer : !i.writerOnly && (!i.admin || isAdmin(props.v))))
             .map((i) => (
                <a class="ri" href={i.href} aria-current={current(props.v.path, i.href) ? "page" : undefined}>
                   <Icon name={i.icon} />
@@ -105,7 +115,7 @@ function AccountMenu(props: { v: View }) {
          <div class="pop-panel" role="menu">
             <div class="pop-head">
                <strong>{v.user.email}</strong>
-               <span>{isAdmin(v) ? v.t.header.roleAdmin : v.t.header.roleEditor}</span>
+               <span>{isAdmin(v) ? v.t.header.roleAdmin : isWriter(v) ? v.t.header.roleWriter : v.t.header.roleEditor}</span>
             </div>
             <a class="mi" role="menuitem" href={`/sso/accounts?return=${ret}`}>
                <Icon name="swap" /> {v.t.header.accounts}
@@ -123,6 +133,13 @@ function AccountMenu(props: { v: View }) {
 
 function CreateMenu(props: { v: View }) {
    const { t } = props.v;
+   if (isWriter(props.v)) {
+      return (
+         <a class="btn primary sm" href="/posts/new">
+            <Icon name="pen" size={18} /> <span>{t.scholars.writeArticle}</span>
+         </a>
+      );
+   }
    return (
       <details class="pop" data-pop>
          <summary class="btn primary sm" aria-label={t.header.create}>
@@ -200,8 +217,8 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                         </span>
                      </a>
                   </div>
-                  <Autocomplete kind="content" listId="global-q-list" label={t.header.search}>
-                     <form class="search" role="search" action="/pages" method="get">
+                  <Autocomplete kind={isWriter(v) ? "posts" : "content"} listId="global-q-list" label={t.header.search}>
+                     <form class="search" role="search" action={isWriter(v) ? "/posts" : "/pages"} method="get">
                         <label class="vh" for="global-q">
                            {t.header.search}
                         </label>
@@ -265,6 +282,19 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                      acNone: t.autocomplete.none,
                      acCount: t.autocomplete.count,
                      acSearchAll: t.autocomplete.searchAll,
+                     // Scholars and featuring (src/admin/client/scholars.ts).
+                     sch: {
+                        saved: t.scholars.saved,
+                        deleted: t.scholars.deleted,
+                        errors: t.scholars.errors,
+                        failed: t.common.failed,
+                        featuredDone: t.featuring.featuredDone,
+                        unfeaturedDone: t.featuring.unfeaturedDone,
+                        videoAdded: t.featuring.videoAdded,
+                        videoAlready: t.featuring.videoAlready,
+                        videoRemoved: t.featuring.videoRemoved,
+                     },
+                     scholarDeleted: t.scholars.deleted,
                      published: t.content.published,
                      unpublished: t.content.unpublished,
                      draft: t.content.draftSaved,

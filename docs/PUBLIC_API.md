@@ -60,7 +60,10 @@ interface PostSummary {
   first_slide?: Slide | null;   // added; the card's face: its first slide (null for articles)
   slides?: Slide[];             // added; cards: the first ≤ 10 served slides, so a list can show the
                                 // post whole without another read ([] for articles). slide_count counts all.
+  author?: PostAuthor | null;   // added (docs/SCHOLARS.md): a scholar's post: their name and page; null for staff posts.
+                                // author_name is then the scholar's name in the post's language.
 }
+interface PostAuthor { slug: string; name: string; avatar: MediaRef | null }  // www: /{l}/scholars/{slug}/
 interface Post extends PostSummary {
   body: string; seo_title: string | null; seo_description: string | null; alternates: Alternate[];
   images: MediaRef[];           // as Page.images (CMS-10, additive)
@@ -102,12 +105,39 @@ interface CuratedSnapshot {
 | `/timeline` | `locale`, `limit` (1–40, default 20), `before` (cursor from `next`) | `{ pinned: TimelineItem[], items: TimelineItem[], next: string \| null }`: the home timeline (see "Timeline"); `pinned` only on the first page; bad `before` → 400 |
 | `/search/suggest` | `locale` (or `lang`), `q`, `limit` (1–10, default 6) | `SearchHit[]`: the best few live posts for `q` (see "Search"); empty `q` → `[]` |
 | `/search` | `locale` (or `lang`), `q`, `page`, `limit` (1–20, default 10) | `{ items: SearchHit[], page, limit, total }`: every match, best first |
-| `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string }[] }` (pages with show_in_sitemap only) |
+| `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string }[], scholars: { slug: string, updated_at: string }[] }` (pages with show_in_sitemap only; `scholars` added: every scholar page, both locales) |
+| `/scholars` | `locale`, `page`, `limit` (1–48, default 24) | `{ items: ScholarSummary[], page, limit, total }` by name (see "Scholars") |
+| `/scholars/:slug` | `locale`, `page`, `limit` (1–24, default 12) | `{ scholar: Scholar, posts: { items: PostSummary[], page, limit, total }, post_counts: { en, ar } }` or 404 |
+| `/scholars/by-channel/:channelId` | — | `{ slug, name_en, name_ar }` of the scholar who linked that videos channel, or 404 |
+| `/search/scholars` | `locale` (or `lang`), `q`, `limit` (1–10, default 3) | `{ type: 'scholar', slug, title, href, thumbnailUrl, post_count }[]` (q shorter than 2 → `[]`) |
 | `/media/*` | — | the R2 object, `Cache-Control: public, max-age=31536000, immutable` |
 | `/media/*` | `w` (1–1600), `f` (`avif` \| `webp` \| `jpeg` \| `png`) | the variant: `Content-Type` of `f`, immutable cache, `X-Variant: hit`. Not made yet: the **original**, `Cache-Control: public, max-age=60, s-maxage=60`, `X-Variant: pending`, and the job is queued. Malformed `w`/`f` → 400 |
 
 The page slug `home` is reserved (not used as a page route on www). An empty CMS returns empty
 arrays and `settings: null`, never an error.
+
+## Scholars
+
+Scholars write their own posts in the CMS (docs/SCHOLARS.md). Their posts are live at their own
+address like any post, and listed on their scholar page, but `/posts`, `/home`, `/cards`, the timeline
+and "latest / by tag" post blocks only include a scholar's post once an editor featured it. Search and
+the sitemap include every live post.
+
+```ts
+interface ScholarSummary {
+  slug: string; name: string;             // name in the asked locale, falling back to the other, then the slug
+  name_en: string | null; name_ar: string | null;
+  bio_excerpt: string | null;             // plain text, ≤ 200 characters
+  avatar: MediaRef | null; updated_at: string;
+  post_count?: number;                    // the directory: their posts in any state (www shows the live counts on the page)
+}
+interface Scholar extends ScholarSummary {
+  bio: string | null;                     // plain text (line breaks kept), in the asked locale with the same fallback
+  bio_en: string | null; bio_ar: string | null;
+  channel_ids: string[];                  // their own videos channels; www lists the public videos from the videos API
+  created_at: string;
+}
+```
 
 ## Timeline
 

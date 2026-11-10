@@ -33,9 +33,11 @@ import {
    type NewJob,
    recordUsage,
 } from "../lib/ai/jobs.ts";
+import { postAuthor, subOfUser } from "../lib/scholars/ownership.ts";
 import { FEATURES, type Feature, type Locale } from "../lib/ai/prompts.ts";
 
-const isStaff = (role?: string) => role === "admin" || role === "editor";
+// Writers (auth "Scholar") use AI assist on their own posts, under the same per-user budget.
+const isStaff = (role?: string) => role === "admin" || role === "editor" || role === "writer";
 
 /** What the browser sees of a job (never the input text back, never provider errors). */
 export function publicJob(j: Job) {
@@ -87,6 +89,10 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
       const parsed = readBody(await c.req.json().catch(() => null));
       if (!parsed.ok) return c.json({ error: parsed.error }, parsed.status);
       const user = c.get("user");
+      if (user.role === "writer") {
+         if (parsed.job.kind !== "posts") return c.json({ error: "forbidden" }, 403);
+         if (parsed.job.rowId !== null && (await postAuthor(c.env.DB, parsed.job.rowId)) !== (await subOfUser(c.env.DB, user.id))) return c.json({ error: "not_found" }, 404);
+      }
       const userId = Number(user.id);
       const now = Date.now();
       const j: NewJob = { ...parsed.job, userId };

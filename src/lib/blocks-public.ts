@@ -9,6 +9,7 @@ import type { Env } from "../env.ts";
 import { isComplete, storedBlocks, storedSlides, type Block, type Slide, type SlidePosition } from "./blocks.ts";
 import { MEDIA_COLS, mediaRefOf, type MediaRef, type MediaRow } from "./media-ref.ts";
 import { LIVE_SQL } from "./schedule.ts";
+import { MAIN_SITE_SQL } from "./scholars/main-site.ts";
 import { getSnapshots } from "./video-snapshots.ts";
 
 type Locale = "en" | "ar";
@@ -80,7 +81,7 @@ async function postsFor(env: Env, b: Extract<Block, { type: "posts" }>, l: Local
    const order = "ORDER BY published_at DESC, id DESC";
    if (b.mode === "latest" || b.mode === "tag") {
       const tag = b.mode === "tag" ? "AND EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(posts.tags) THEN posts.tags ELSE '[]' END) WHERE value = ?3)" : "";
-      const stmt = env.DB.prepare(`SELECT ${deps.postCols} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} ${tag} ${order} LIMIT ?2`);
+      const stmt = env.DB.prepare(`SELECT ${deps.postCols} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} AND ${MAIN_SITE_SQL} ${tag} ${order} LIMIT ?2`);
       const { results } = await (b.mode === "tag" ? stmt.bind(l, b.limit, b.tag) : stmt.bind(l, b.limit)).all<Row>();
       return deps.summaries(results);
    }

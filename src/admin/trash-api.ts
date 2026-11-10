@@ -40,7 +40,10 @@ async function reasonOf(req: Request): Promise<unknown> {
 /** bknd's delete routes, answered with a soft delete. `user` is the signed-in staff member, if any. */
 export async function handleDelete(c: Context<AppEnv>, user: AuthUser | undefined, target: DeleteTarget): Promise<Response> {
    if (!user) return c.json({ error: "unauthorized" }, 401);
-   if (user.role !== "admin") return c.json({ error: "forbidden" }, 403);
+   // A writer deletes their own posts (the wrapper already checked ownership, src/index.ts); restoring
+   // them is an admin's job on Recently deleted, as for everything else.
+   const writerOwnPost = user.role === "writer" && target.type === "row" && target.entity === "posts";
+   if (user.role !== "admin" && !writerOwnPost) return c.json({ error: "forbidden" }, 403);
    if (target.type === "bulk") return c.json({ error: "method_not_allowed", message: "Delete one item at a time" }, 405);
    const reason = await reasonOf(c.req.raw);
    try {

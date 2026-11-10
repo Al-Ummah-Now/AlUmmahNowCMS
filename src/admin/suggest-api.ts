@@ -1,7 +1,7 @@
 /**
  * The search boxes' live suggestions (staff session, same-origin; src/index.ts gates /admin/api/*).
  *
- *   GET /admin/api/suggest?kind=content|pages|posts&q=&locale=
+ *   GET /admin/api/suggest?kind=content|pages|posts|scholars|scholar-posts&q=&locale=
  *     → { items: [{ kind, id, label, secondary, imageUrl, href, lang }] }
  *
  * Reads through bknd with the editor's own cookie (Data), so a suggestion never shows a row the
@@ -9,6 +9,9 @@
  * AND-only branches as screens/content.tsx). A number matches that row's id first. Reads only: no
  * revision or log row.
  */
+import { scopeWhere, subOfUser } from "../lib/scholars/ownership.ts";
+import { listScholars, scholarName } from "../lib/scholars/profiles.ts";
+import { articleCandidates } from "../lib/scholars/featuring.ts";
 import { Hono, type Context } from "hono";
 import { getCookie } from "hono/cookie";
 import type { AppEnv, Deps } from "../types.ts";
@@ -36,7 +39,7 @@ export interface SuggestItem {
 
 const staff = (c: C) => {
    const role = c.get("user")?.role;
-   return role === "admin" || role === "editor";
+   return role === "admin" || role === "editor" || role === "writer";
 };
 
 export function suggestApi(deps: Deps): Hono<AppEnv> {
@@ -45,8 +48,57 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
 
    r.get("/", async (c) => {
       const kind = c.req.query("kind") ?? "content";
-      const kinds: ContentKind[] = kind === "pages" ? ["pages"] : kind === "posts" ? ["posts"] : kind === "content" ? ["pages", "posts"] : [];
+      if (kind === "scholars" || kind === "scholar-posts") {
+         // Scholars screen and the Featuring screen (staff only).
+         if (c.get("user")?.role === "writer") return c.json({ error: "forbidden" }, 403);
+         const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
+         if (!q) return c.json({ items: [] }, 200, { "Cache-Control": "no-store" });
+         const lang = getCookie(c, LANG_COOKIE) === "ar" ? "ar" : "en";
+         const t = ADMIN_STRINGS[lang];
+         if (kind === "scholars") {
+            const { items } = await listScholars(c.env.DB, { q, limit: SUGGEST_LIMIT });
+            return c.json(
+               {
+                  items: items.map((sch) => ({
+                     kind: "scholars",
+                     id: String(sch.id),
+                     label: scholarName(sch, lang),
+                     secondary: `/${sch.slug} · ${t.scholars.postsCount(sch.posts)}`,
+                     imageUrl: null,
+                     href: `/scholars/${sch.id}`,
+                     lang: null,
+                  })),
+               },
+               200,
+               { "Cache-Control": "no-store" },
+            );
+         }
+         const { items } = await articleCandidates(c.env, { q, limit: SUGGEST_LIMIT });
+         return c.json(
+            {
+               items: items.map((a) => ({
+                  kind: "posts",
+                  id: String(a.id),
+                  label: a.title || `#${a.id}`,
+                  secondary: [a.scholar ? scholarName(a.scholar, lang) : null, a.featured_at ? t.featuring.featured : t.featuring.notFeatured, t.locales[a.locale]].filter(Boolean).join(" · "),
+                  imageUrl: null,
+                  href: `/posts/${a.id}`,
+                  lang: a.locale,
+               })),
+            },
+            200,
+            { "Cache-Control": "no-store" },
+         );
+      }
+      const writer = c.get("user")?.role === "writer";
+      let kinds: ContentKind[] = kind === "pages" ? ["pages"] : kind === "posts" ? ["posts"] : kind === "content" ? ["pages", "posts"] : [];
       if (!kinds.length) return c.json({ error: "bad_request" }, 400);
+      // A writer (auth "Scholar") only ever sees their own posts (docs/SCHOLARS.md §2).
+      const sub = writer ? await subOfUser(c.env.DB, c.get("user").id) : null;
+      if (writer) {
+         kinds = kinds.filter((k) => k === "posts");
+         if (!kinds.length || !sub) return c.json({ items: [] }, 200, { "Cache-Control": "no-store" });
+      }
       const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
       if (!q) return c.json({ items: [] }, 200, { "Cache-Control": "no-store" });
       const l = c.req.query("locale");
@@ -61,7 +113,9 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
             const branches = listWheres({ q, status: "", locale });
             if (/^[0-9]{1,12}$/.test(q)) branches.unshift({ where: { id: Number(q), ...(locale ? { locale } : {}) } });
             // data.get, not data.list: a suggestion needs no total (list() may count)
-            const parts = await Promise.all(branches.map((b) => data.get<{ data: Row[] }>(listUrl(k, { limit: SUGGEST_LIMIT, sort: "-updated_at", where: b.where, select: SELECT }))));
+            const parts = await Promise.all(
+               branches.map((b) => data.get<{ data: Row[] }>(listUrl(k, { limit: SUGGEST_LIMIT, sort: "-updated_at", where: sub ? scopeWhere(b.where, sub) : b.where, select: SELECT }))),
+            );
             const seen = new Map<string, Row>();
             for (const row of parts.flatMap((p) => p.data)) if (!seen.has(String(row.id))) seen.set(String(row.id), row);
             return [...seen.values()].map((row) => ({ k, row }));
