@@ -135,23 +135,42 @@ export async function promote(env: ReleaseEnv, bundle: string, message: string, 
    return released;
 }
 
-/** Polls /healthz until the given version answers (deployments take a few seconds to propagate). */
-export async function waitForVersion(env: EnvName, version: string, override: boolean, timeoutMs = 90_000): Promise<void> {
+/**
+ * Polls /healthz until the given version answers `steady` times in a row. One answer is not
+ * enough: Cloudflare rolls a deployment (and an override target) out across the edge gradually,
+ * so the request right after the first match can still reach the old version (2026-11-10: www's
+ * production pre-traffic smoke got the old version one request after the wait passed).
+ */
+export async function waitForVersion(
+   env: EnvName,
+   version: string,
+   override: boolean,
+   timeoutMs = 120_000,
+   steady = 3,
+   doFetch: typeof fetch = fetch,
+   pauseMs = 3000,
+): Promise<void> {
    const info = ENVS[env];
    const headers: Record<string, string> = { "User-Agent": "al-ummah-now-cms-release" };
    if (override) headers["Cloudflare-Workers-Version-Overrides"] = `${info.worker}="${version}"`;
    const deadline = Date.now() + timeoutMs;
    let last = "no response";
+   let inARow = 0;
    while (Date.now() < deadline) {
       try {
-         const res = await fetch(`${info.url}/healthz`, { headers });
+         const res = await doFetch(`${info.url}/healthz`, { headers });
          const body = (await res.json()) as { version?: string | null };
-         if (body.version === version) return;
+         if (body.version === version) {
+            if (++inARow >= steady) return;
+            await new Promise((r) => setTimeout(r, Math.min(pauseMs, 1000)));
+            continue;
+         }
          last = `version ${body.version}`;
       } catch (error) {
          last = (error as Error).message;
       }
-      await new Promise((r) => setTimeout(r, 3000));
+      inARow = 0;
+      await new Promise((r) => setTimeout(r, pauseMs));
    }
    throw new Error(`${info.worker} did not serve ${version} within ${timeoutMs / 1000}s (last: ${last})`);
 }

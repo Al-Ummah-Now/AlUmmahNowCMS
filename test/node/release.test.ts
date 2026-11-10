@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { checkBindings } from "../../scripts/check-secrets.ts";
 import { checkWranglerConfig } from "../../scripts/check-wrangler-config.ts";
 import { parseJsonc } from "../../scripts/lib/jsonc.ts";
-import { currentVersion, isNotDeployed, parseVersionId, promote, type PromoteDeps } from "../../scripts/release/promote.ts";
+import { currentVersion, isNotDeployed, parseVersionId, promote, type PromoteDeps, waitForVersion } from "../../scripts/release/promote.ts";
 import { lastReleasedSha } from "../../scripts/release/last-released.ts";
 import { parseRollbackArgs, rollbackArgv, rollbackTarget, targetFromResult } from "../../scripts/release/rollback.ts";
 import { overrideHeader, runSmoke } from "../../scripts/release/smoke.ts";
@@ -194,5 +194,31 @@ describe("last released", () => {
    });
    it("ignores short SHAs and returns undefined when nothing was released", () => {
       expect(lastReleasedSha(JSON.stringify([{ created_on: "1", annotations: { "workers/message": "release abc1234" } }, { created_on: "2" }]))).toBeUndefined();
+   });
+});
+
+describe("waitForVersion: the edge must serve the candidate steadily", () => {
+   const V = "0ea73b06-7c5a-4061-af56-ddaabcfe1e60";
+   const OLD = "e62c5482-c227-428f-995f-46f1038c893a";
+   const serving = (versions: string[]) => {
+      let i = 0;
+      const seen: string[] = [];
+      const doFetch = (async () => {
+         const v = versions[Math.min(i++, versions.length - 1)];
+         seen.push(v);
+         return new Response(JSON.stringify({ version: v }));
+      }) as unknown as typeof fetch;
+      return { doFetch, seen };
+   };
+
+   it("does not return on a single match that the edge then contradicts", async () => {
+      const f = serving([V, OLD, V, V, V]);
+      await waitForVersion("stage", V, true, 5_000, 3, f.doFetch, 1);
+      expect(f.seen).toEqual([V, OLD, V, V, V]);
+   });
+
+   it("gives up with the last version seen when the candidate never holds", async () => {
+      const f = serving([V, OLD]);
+      await expect(waitForVersion("stage", V, true, 50, 3, f.doFetch, 1)).rejects.toThrow(`last: version ${OLD}`);
    });
 });
