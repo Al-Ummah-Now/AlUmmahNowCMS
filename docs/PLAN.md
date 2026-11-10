@@ -69,6 +69,6 @@ prod only via stage-then-promote; out-of-scope work becomes `queue` issues.
 
 ## Out of scope → `queue` issues
 
-Content Editor auth role; scheduled publishing (done: #7); revisions/history; embedded discussions on www
+Content Editor auth role; scheduled publishing (done: #7); revisions/history (done: #8); embedded discussions on www
 (epic 26 consumer); "continue watching" on www; retire the `al-ummah-now-ui` and `bknd` Workers
 and the stale docs; image resizing via CF Images; preview of drafts on www.

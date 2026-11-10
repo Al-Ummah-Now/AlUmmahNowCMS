@@ -351,6 +351,73 @@ test.describe("scheduled publishing (#7)", () => {
    });
 });
 
+test.describe("content history (#8)", () => {
+   test("an editor sees each version, the diff of what changed, and restores an old one through the lock (en/ar, axe)", async ({ context, page }) => {
+      await sessionPage(context, page, ACCOUNTS.moderator, "/pages/new?locale=en");
+      await page.getByLabel("Title", { exact: true }).fill(`History ${STAMP}`);
+      await page.locator("#f-body").fill("First line\nSecond line");
+      await page.getByRole("button", { name: "Publish" }).first().click();
+      await expect(page).toHaveURL(/\/pages\/\d+$/);
+      const id = idFromUrl(page);
+      created.push({ entity: "pages", id });
+      await page.locator("#f-body").fill("First line\nA changed line");
+      await page.getByLabel("Title", { exact: true }).fill(`History ${STAMP} edited`);
+      await page.getByRole("button", { name: "Save", exact: true }).first().click();
+      await page.waitForURL(/done=published/, { timeout: 30_000 }).catch(() => undefined);
+      await page.waitForLoadState("load");
+      const card = page.locator("[data-history-card]");
+      await expect(card).toContainText("See all 2 versions");
+
+      // Followed by its address: on phones the sticky action bar sits over the card's end.
+      await page.goto((await card.getByRole("link", { name: "See all 2 versions" }).getAttribute("href"))!);
+      await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 2, name: "Version 2" })).toBeVisible();
+      await expect(page.locator(".diff del")).toHaveText("Second line");
+      await expect(page.locator(".diff ins")).toHaveText("A changed line");
+      await expect(page.getByText("This is the current version.")).toBeVisible();
+      await expectNoAxeViolations(page);
+      await shot(page, "admin-history");
+
+      // Restore version 1 (confirm dialog); the site serves its text again, status unchanged.
+      await page.locator(".rev").filter({ hasText: "Created" }).click();
+      await expect(page.getByRole("heading", { level: 2, name: "Version 1" })).toBeVisible();
+      await page.getByRole("button", { name: "Restore this version" }).click();
+      const dlg = page.getByRole("dialog", { name: "Restore this version?" });
+      await expect(dlg).toBeVisible();
+      const restored = page.waitForURL(/done=restored/, { timeout: 30_000 });
+      await dlg.getByRole("button", { name: "Restore this version" }).click();
+      await restored;
+      await page.waitForLoadState("load");
+      await expect(page.getByLabel("Title", { exact: true })).toHaveValue(`History ${STAMP}`);
+      await expect(page.locator("[data-status-badge]")).toHaveText("Published");
+      const pub = await publicApi(`/pages/history-${STAMP}?locale=en`);
+      expect(pub.status).toBe(200);
+      expect(pub.body.body).toBe("First line\nSecond line");
+
+      await page.goto(`/pages/${id}/history?lang=ar`);
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await expect(page.getByRole("heading", { level: 2, name: "النسخة 3" })).toBeVisible();
+      await expect(page.getByText("مستعادة من النسخة 1")).toBeVisible();
+      await expectNoAxeViolations(page);
+      await shot(page, "admin-history-ar");
+      await page.goto(`/pages/${id}/history?lang=en&mode=dark`);
+      await expect(page.locator("html")).toHaveClass(/dark/);
+      await expectNoAxeViolations(page);
+      await shot(page, "admin-history-dark");
+      await page.goto(`/pages/${id}/history?mode=system`);
+
+      // Someone saves meanwhile: restoring from the stale screen is refused with a clear message.
+      await page.goto(`/pages/${id}/history?lang=en`);
+      await page.locator(".rev").filter({ hasText: "Edited" }).first().click();
+      const row = (await adminApi("GET", `/api/data/entity/pages/${id}`)).json?.data as { updated_at: string };
+      expect((await adminApi("PATCH", `/api/data/entity/pages/${id}`, { summary: "Changed elsewhere", updated_at: row.updated_at })).status).toBe(200);
+      await page.getByRole("button", { name: "Restore this version" }).click();
+      await page.getByRole("dialog", { name: "Restore this version?" }).getByRole("button", { name: "Restore this version" }).click();
+      await expect(page.locator(".toast.bad")).toContainText("Someone else changed this");
+      expect(((await adminApi("GET", `/api/data/entity/pages/${id}`)).json?.data as { title: string }).title).toBe(`History ${STAMP}`);
+   });
+});
+
 test.describe("navigation (E17–E22, A8)", () => {
    test("add with the URL rule, hide, reorder with the buttons, delete", async ({ context, page }) => {
       await sessionPage(context, page, ACCOUNTS.admin, "/navigation?menu=footer&locale=en");

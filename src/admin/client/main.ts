@@ -5,6 +5,7 @@
  */
 import { $$, strings, toast } from "./dom.ts";
 import { initEditor } from "./editor.ts";
+import { initHistory } from "./history.ts";
 import { initPicker } from "./picker.ts";
 import { initRows } from "./rows.ts";
 import { initShell } from "./shell.ts";
@@ -14,6 +15,7 @@ initShell();
 initTimes();
 initPicker();
 initEditor();
+initHistory();
 initRows();
 
 // <select data-autosubmit> submits its form (list sort).

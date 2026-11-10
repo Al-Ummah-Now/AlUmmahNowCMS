@@ -13,12 +13,13 @@
 import { Hono } from "hono";
 import { getBkndApp, MediaExistsError } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
-import { ALLOWED_UPLOAD, blockedApiPath, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
+import { ALLOWED_UPLOAD, blockedApiPath, contentCollectionPath, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
 import { ConfigError, runtimeConfig, type Env } from "./env.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
 import { consumeVariants, deleteVariants, sweepVariants, type VariantMessage } from "./lib/variants/jobs.ts";
 import { VARIANT_ROOT } from "./lib/variants/plan.ts";
+import { withActor } from "./lib/revisions.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
 import { legacyAdminRedirect } from "./admin/legacy.ts";
@@ -176,6 +177,10 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
             return c.json({ error: "unsupported_media", message: "Only JPEG, PNG, WebP and AVIF images up to 10 MB" }, 415);
          }
       }
+      // A JSON array is bknd's bulk insert, which skips the mutator events (content rules, history).
+      if (c.req.method === "POST" && contentCollectionPath(p) && (await c.req.raw.clone().text()).trimStart().startsWith("[")) {
+         return c.json({ error: "bad_request", message: "Create one item per request" }, 400);
+      }
       const named = c.req.method === "POST" ? uploadName(p) : null;
       if (named?.startsWith(VARIANT_ROOT)) {
          return c.json({ error: "bad_request", message: `Names starting with "${VARIANT_ROOT}" are reserved` }, 400);
@@ -185,7 +190,9 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          return c.json({ error: "conflict", message: new MediaExistsError(named).message }, 409);
       }
       const bknd = await deps.getApp(c);
-      const res = await bknd.fetch(c.req.raw, c.env, c.executionCtx);
+      // Writes run with the signed-in user as the actor, so content history records who (#8).
+      const actor = c.req.method === "GET" || c.req.method === "HEAD" ? undefined : await sessionUser(c, deps);
+      const res = await withActor({ id: actor?.id ?? null, email: actor?.email ?? null }, () => bknd.fetch(c.req.raw, c.env, c.executionCtx));
       const target = c.req.method === "POST" && res.ok ? entityUploadTarget(p) : null;
       if (target) await keepNewestMedia(bknd, c.env.MEDIA, target, (path) => deleteVariants(c.env, path));
       if (res.ok && c.req.method === "POST" && (p.startsWith("/api/media/upload") || target)) {

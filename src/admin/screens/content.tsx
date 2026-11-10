@@ -7,6 +7,7 @@ import { Icon } from "../ui/icons.tsx";
 import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { PickerDialog } from "../ui/picker.tsx";
 import { ConfirmDialog, I18nScript, LocalTime, StateBadge } from "../ui/parts.tsx";
+import { historyCard } from "./history.tsx";
 
 export type ContentKind = "pages" | "posts";
 const PAGE_SIZE = 20;
@@ -256,6 +257,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
          : Promise.resolve({ data: [] as Row[], total: 0 }),
    ]);
    const cover = covers.data[0];
+   const history = id ? await historyCard({ v, data, kind, id }) : null;
    const s = (k: string) => (row && row[k] != null ? String(row[k]) : "");
    const state = publishState(row);
    const published = state === "published";
@@ -630,6 +632,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                   )}
                   {row ? <p class="help">{t.content.lockedLocale}</p> : null}
                </section>
+               {history}
             </aside>
             <div class="actbar" role="group" aria-label={t.content.publishing}>
                <button class="btn primary" type="submit" data-action={scheduled ? "schedule" : "published"}>

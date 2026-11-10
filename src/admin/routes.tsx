@@ -13,6 +13,7 @@ import { resolvePrefs } from "./prefs.ts";
 import { overviewScreen } from "./screens/overview.tsx";
 import { peopleScreen } from "./screens/people.tsx";
 import { contentEditor, contentList, parseListParams, type ContentKind } from "./screens/content.tsx";
+import { historyScreen } from "./screens/history.tsx";
 import { mediaAltRoute } from "./api.ts";
 import { libraryScreen, navigationScreen, siteScreen, videosScreen } from "./screens/site.tsx";
 import { Shell, type View } from "./ui/layout.tsx";
@@ -75,6 +76,14 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
          const body = await contentEditor(v, new Data(c, deps), kind, Number(c.req.param("id")), v.prefs.lang);
          if (!body) return render(c, v, v.t.common.notFound, <p class="notice">{v.t.common.notFound}</p>, 404);
          return render(c, v, v.t.entities[kind].one, body);
+      });
+      r.get(`/${kind}/:id{[0-9]+}/history`, async (c) => {
+         const v = await buildView(c, deps);
+         const page = Math.min(Math.max(Number.parseInt(c.req.query("page") ?? "1", 10) || 1, 1), 10_000);
+         const rev = Number.parseInt(c.req.query("rev") ?? "", 10);
+         const body = await historyScreen(v, new Data(c, deps), kind, Number(c.req.param("id")), page, Number.isFinite(rev) ? rev : null);
+         if (!body) return render(c, v, v.t.common.notFound, <p class="notice">{v.t.common.notFound}</p>, 404);
+         return render(c, v, v.t.history.title, body);
       });
    }
 

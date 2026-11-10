@@ -46,6 +46,11 @@ export class Data {
       return this.c.env;
    }
 
+   /** D1, for the Worker's own tables (content history) that are not bknd entities. */
+   get db(): D1Database {
+      return this.c.env.DB;
+   }
+
    async get<T = unknown>(path: string): Promise<T> {
       const app = await this.deps.getApp(this.c);
       const url = new URL(path, this.c.get("cfg").publicUrl);
