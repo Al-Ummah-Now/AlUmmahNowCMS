@@ -23,6 +23,8 @@ import { consumeVariants, deleteVariants, sweepVariants, type VariantMessage } f
 import { VARIANT_ROOT } from "./lib/variants/plan.ts";
 import { withActor } from "./lib/revisions.ts";
 import { runSnapshotQueue } from "./lib/video-snapshots.ts";
+import { collectGarbage, consumeFeed, consumeFeedDlq, duePosts, verifyFeed, videoChanged, type FeedMessage } from "./lib/feed/jobs.ts";
+import { isFeedDlq, isFeedQueue } from "./lib/feed/queues.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
 import { legacyAdminRedirect } from "./admin/legacy.ts";
@@ -240,8 +242,13 @@ const worker = createWorker({
 
 export default {
    fetch: (request: Request, env: Env, ctx: ExecutionContext) => worker.fetch(request, env, ctx),
-   // Cron (wrangler.jsonc triggers): refresh curated snapshots so www renders without per-item calls.
-   scheduled: async (_event: ScheduledController, env: Env, ctx: ExecutionContext) => {
+   // Cron (wrangler.jsonc triggers). Every minute: scheduled posts going live onto the home timeline.
+   // Every 30 minutes: snapshot refreshes, image variants, the feed verifier and its garbage.
+   scheduled: async (event: ScheduledController, env: Env, ctx: ExecutionContext) => {
+      if (event.cron === "* * * * *") {
+         ctx.waitUntil(duePosts(env).catch((error) => console.error("feed due check failed", String(error))));
+         return;
+      }
       ctx.waitUntil(
          refreshCuratedSnapshots(env.DB, env.VIDEOS_API_URL.replace(/\/+$/, "")).then(
             (r) => console.log(JSON.stringify({ msg: "curated snapshots refreshed", ...r })),
@@ -255,14 +262,28 @@ export default {
             (error) => console.error("image variant sweep failed", String(error)),
          ),
       );
-      // Block video snapshots: a retrying queue in D1; dead-lettered rows are flagged on the Overview.
+      // Block and timeline video snapshots: a retrying queue in D1; dead-lettered rows are flagged on
+      // the Overview. A snapshot that changed marks the timeline items showing it dirty.
       ctx.waitUntil(
-         runSnapshotQueue(env.DB, trimSlash(env.VIDEOS_API_URL)).then(
+         runSnapshotQueue(env.DB, trimSlash(env.VIDEOS_API_URL), fetch, { onChange: (kind, ref) => videoChanged(env, kind, ref) }).then(
             (r) => console.log(JSON.stringify({ msg: "block video snapshots", ...r })),
             (error) => console.error("block video snapshot queue failed", String(error)),
          ),
       );
+      // Home timeline safety net: repair only the KV buckets that drifted from D1; drop old keys.
+      ctx.waitUntil(
+         verifyFeed(env)
+            .then((r) => console.log(JSON.stringify({ msg: "feed verified", ...r })))
+            .then(() => collectGarbage(env))
+            .catch((error) => console.error("feed verify failed", String(error))),
+      );
    },
-   // Image variant jobs (wrangler.jsonc queues.consumers).
-   queue: (batch: MessageBatch, env: Env) => consumeVariants(batch as MessageBatch<VariantMessage>, env),
+   // One queue() for every consumer in wrangler.jsonc: home timeline builds and their DLQ, otherwise
+   // image variant jobs (CMS-10).
+   queue: (batch: MessageBatch, env: Env) =>
+      isFeedQueue(batch.queue)
+         ? consumeFeed(batch as MessageBatch<FeedMessage>, env)
+         : isFeedDlq(batch.queue)
+           ? consumeFeedDlq(batch, env)
+           : consumeVariants(batch as MessageBatch<VariantMessage>, env),
 } satisfies ExportedHandler<Env>;

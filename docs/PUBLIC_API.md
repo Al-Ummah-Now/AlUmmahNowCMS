@@ -97,12 +97,34 @@ interface CuratedSnapshot {
 | `/posts/:slug` | `locale` | `Post` or 404 |
 | `/videos` | `locale`, `placement` (`home` \| `videos`, default `videos`) | `{ items: CuratedVideo[] }` (by sort, at most 48) |
 | `/cards` | `locale`, `tag` (optional), `page` (1-based, default 1), `limit` (1–24, default 12) | `{ items: PostSummary[], page: number, limit: number, total: number, tags: string[] }` card posts only, newest first; `tags` = every tag on this locale's live card posts (for the filter) |
+| `/timeline` | `locale`, `limit` (1–40, default 20), `before` (cursor from `next`) | `{ pinned: TimelineItem[], items: TimelineItem[], next: string \| null }`: the home timeline (see "Timeline"); `pinned` only on the first page; bad `before` → 400 |
 | `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string }[] }` (pages with show_in_sitemap only) |
 | `/media/*` | — | the R2 object, `Cache-Control: public, max-age=31536000, immutable` |
 | `/media/*` | `w` (1–1600), `f` (`avif` \| `webp` \| `jpeg` \| `png`) | the variant: `Content-Type` of `f`, immutable cache, `X-Variant: hit`. Not made yet: the **original**, `Cache-Control: public, max-age=60, s-maxage=60`, `X-Variant: pending`, and the job is queued. Malformed `w`/`f` → 400 |
 
 The page slug `home` is reserved (not used as a page route on www). An empty CMS returns empty
 arrays and `settings: null`, never an error.
+
+## Timeline
+
+The home timeline is managed on the CMS Timeline screen (docs/FEED.md). www reads it from Workers
+KV, not from this endpoint. This endpoint serves the same items from D1 for other clients and checks.
+
+```ts
+interface TimelineItem {
+  key: string;                  // "p<id>" (post) or "v<id>" (video entry)
+  type: 'post' | 'video';
+  date: string;                 // ISO; what it sorts by
+  pinned: boolean;
+  post?: PostSummary & { videos: { kind: 'video'; ref_id: string; snapshot: CuratedSnapshot | null }[] };  // ::video lines of the body (≤ 4)
+  video?: { kind: 'video' | 'playlist'; ref_id: string; snapshot: CuratedSnapshot; title_override: string | null };
+}
+```
+
+On it: live posts with "Show on home timeline" on (the default), and video entries for the locale
+or both languages whose video is still public, minus hidden items. Pinned first (pin order). The
+rest go newest first, ties `v` before `p`, then id descending. `next` is a cursor (`<ms>-<key>`),
+so pages never shift when items are added.
 
 ## Image variants (CMS-10)
 

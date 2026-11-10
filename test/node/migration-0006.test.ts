@@ -27,8 +27,8 @@ function seeded() {
 }
 
 describe("migration 0006_page_blocks_card_posts", () => {
-   it("is the next migration and allows rewriting only pages", () => {
-      expect(files.at(-1)).toBe("0006_page_blocks_card_posts.sql");
+   it("follows 0005 and allows rewriting only pages", () => {
+      expect(files[files.indexOf("0006_page_blocks_card_posts.sql") - 1]).toMatch(/^0005_/);
       expect(sql("0006_page_blocks_card_posts.sql")).toMatch(/^-- migration-guard: allow-data-rewrite pages$/m);
    });
 

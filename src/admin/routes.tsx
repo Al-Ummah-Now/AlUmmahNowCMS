@@ -15,11 +15,14 @@ import { peopleScreen } from "./screens/people.tsx";
 import { contentEditor, contentList, parseListParams, type ContentKind } from "./screens/content.tsx";
 import { historyScreen } from "./screens/history.tsx";
 import { mediaAltRoute } from "./api.ts";
+import { timelineApi } from "./timeline-api.ts";
+import { timelineScreen } from "./screens/timeline.tsx";
+import { parseCursor } from "../lib/feed/model.ts";
 import { libraryScreen, navigationScreen, siteScreen, videosScreen } from "./screens/site.tsx";
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
-export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/navigation", "/videos", "/site", "/library", "/people"];
+export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people"];
 export const isStaffScreen = (p: string) => p === "/" || ADMIN_SCREENS.some((x) => p === x || p.startsWith(`${x}/`));
 
 export async function buildView(c: Ctx, deps: Deps): Promise<View> {
@@ -87,6 +90,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       });
    }
 
+   r.route("/admin/api/timeline", timelineApi(deps));
    r.route("/admin/api", mediaAltRoute(deps));
 
    const loc = (v: string | undefined, fallback: "en" | "ar") => (v === "en" || v === "ar" ? v : fallback);
@@ -101,6 +105,13 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       const v = await buildView(c, deps);
       const placement = c.req.query("placement") === "videos" ? "videos" : "home";
       return render(c, v, v.t.videos.title, await videosScreen(v, new Data(c, deps), placement, c.get("cfg").videosWebUrl, c.req.query("add") === "1"));
+   });
+
+   r.get("/timeline", async (c) => {
+      const v = await buildView(c, deps);
+      const raw = c.req.query("before") ?? null;
+      const before = raw && parseCursor(raw) ? raw : null;
+      return render(c, v, v.t.timeline.title, await timelineScreen(v, c.env, loc(c.req.query("locale"), v.prefs.lang), before, c.get("cfg").videosWebUrl));
    });
 
    r.get("/site", async (c) => {

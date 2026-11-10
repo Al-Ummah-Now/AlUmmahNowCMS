@@ -10,6 +10,7 @@ import { initHistory } from "./history.ts";
 import { initPicker } from "./picker.ts";
 import { initRows } from "./rows.ts";
 import { initShell } from "./shell.ts";
+import { initFeedFlag, initTimeline } from "./timeline.ts";
 import { initTimes } from "./time.ts";
 
 initShell();
@@ -19,6 +20,8 @@ initBlocks();
 initEditor();
 initHistory();
 initRows();
+initTimeline();
+initFeedFlag();
 
 // Overview: requeue block videos the snapshot queue gave up on.
 for (const b of $$<HTMLButtonElement>("[data-retry-videos]")) {

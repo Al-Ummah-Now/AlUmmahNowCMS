@@ -40,7 +40,7 @@ export function I18nScript(props: { nonce: string; strings: unknown }) {
    );
 }
 
-export function ConfirmDialog(props: { v: View; title: string; body: string }) {
+export function ConfirmDialog(props: { v: View; title: string; body: string; ok?: string; okIcon?: "trash" | "x" }) {
    const { t } = props.v;
    return (
       <dialog class="dlg sm" id="confirm" aria-labelledby="confirm-h">
@@ -56,7 +56,7 @@ export function ConfirmDialog(props: { v: View; title: string; body: string }) {
                   {t.common.cancel}
                </button>
                <button class="btn danger" value="ok" data-confirm-ok>
-                  <Icon name="trash" size={16} /> {t.common.delete}
+                  <Icon name={props.okIcon ?? "trash"} size={16} /> {props.ok ?? t.common.delete}
                </button>
             </div>
          </form>

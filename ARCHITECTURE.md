@@ -13,7 +13,8 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
                       ├─ /, /data/*, /media/*, …      bknd admin UI   ┐ session required
                       └─ /api/*                       bknd API        ┘ guard on, same-origin mutations
                       queue  al-ummah-now-cms-variants[-env]  image variant jobs (src/lib/variants)
-                      bindings: DB (D1), MEDIA (R2), VARIANTS (Queue), CF_VERSION_METADATA
+                      queue  al-ummah-now-cms-feed[-env]      home timeline builds → KV FEED ──► www (docs/FEED.md)
+                      bindings: DB (D1), MEDIA (R2), FEED (KV), VARIANTS + FEED_JOBS (Queues), CF_VERSION_METADATA
 ```
 
 ## Pieces
@@ -32,6 +33,7 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
 | `src/lib/blocks-public.ts` | Resolves blocks and slides for the public API at read time (media → MediaRef, picked posts → live summaries in the page's locale, videos → snapshots); drops incomplete or non-public blocks. |
 | `src/lib/video-snapshots.ts` | Snapshots of videos used in blocks and their D1 refresh queue (cron): backoff, dead-letter, compare-and-set, Overview flag + Retry. |
 | `src/admin/screens/blocks.tsx`, `src/admin/client/blocks.ts` | Block and slide editors: server-rendered items and templates, client-side ordered lists (buttons, Alt+↑/↓, drag, Undo), media and posts choosers, preview. |
+| `src/lib/feed/`, `src/admin/screens/timeline.tsx`, `src/admin/timeline-api.ts` | www's home timeline (docs/FEED.md): what is on it (`source.ts`), the KV layout and reader (`model.ts`), the coalesced queued build, verifier and DLQ flag (`jobs.ts`), the post plugin, the Timeline screen and its API (`admin.ts`). |
 | `src/routes/picker.ts`, `src/lib/videos.ts`, `src/lib/embeds.ts` | Picker page (en/ar), videos-API proxy that drops non-public items, embed URL adapter. |
 | `src/lib/security.ts`, `src/lib/paths.ts` | CSP with per-response nonce, no-store/noindex, CSRF Origin check, blocked bknd routes, upload policy (jpeg/png/webp/avif ≤ 10 MB). |
 | `src/lib/variants/` | Image variants (CMS-10, docs/PUBLIC_API.md "Image variants"): `plan.ts` widths/formats/R2 keys, `jobs.ts` queue consumer + D1 `media_variants` state + cron sweep, `codecs.ts` WASM codecs (fresh instance per call, decode read in place), `resize.ts` streaming area resize, `png.ts`, `probe.ts` header size + EXIF orientation. |

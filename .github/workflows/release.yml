@@ -162,6 +162,13 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env stage --message "release ${RELEASE_SHA}"
 
+      # versions upload/deploy never register queue consumers (only `wrangler deploy` does).
+      - name: Queue consumers (stage)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/release/queue-consumers.ts --env stage
+
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
 
@@ -262,6 +269,13 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node --experimental-strip-types --no-warnings scripts/release/promote.ts --env production --message "release ${RELEASE_SHA}"
+
+      # versions upload/deploy never register queue consumers (only `wrangler deploy` does).
+      - name: Queue consumers (production)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/release/queue-consumers.ts --env production
 
       - name: Summary
         if: always()

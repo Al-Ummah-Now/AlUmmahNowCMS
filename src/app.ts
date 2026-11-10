@@ -11,6 +11,7 @@ import { code } from "bknd/modes";
 import { MEDIA_BINDING, moduleConfig } from "./bknd-config.ts";
 import { contentRulesPlugin } from "./lib/content-rules.ts";
 import { revisionsPlugin } from "./lib/revisions.ts";
+import { feedPlugin } from "./lib/feed/plugin.ts";
 import type { Env, RuntimeConfig } from "./env.ts";
 
 /** 409: an upload would replace an existing media object (bknd serializes an Exception with its code). */
@@ -53,13 +54,13 @@ export function registerR2(bucket: R2Bucket): void {
 
 let cached: { key: string; app: Promise<App> } | undefined;
 
-export function bkndConfig(cfg: RuntimeConfig, db?: D1Database): CloudflareBkndConfig<Env> {
+export function bkndConfig(cfg: RuntimeConfig, db?: D1Database, env?: Env): CloudflareBkndConfig<Env> {
    return code<CloudflareBkndConfig<Env>>({
       isProduction: true,
       syncSchema: false,
       config: moduleConfig({ jwtSecret: cfg.jwtSecret, secureCookie: !cfg.isLocal, publicUrl: cfg.publicUrl }),
       options: {
-         plugins: [contentRulesPlugin(db), revisionsPlugin(db)],
+         plugins: [contentRulesPlugin(db), revisionsPlugin(db), feedPlugin(env)],
          // Run async event listeners inline: a cached app must not hold on to an old request's waitUntil.
          asyncEventsMode: "sync",
       },
@@ -74,7 +75,7 @@ export function bkndConfig(cfg: RuntimeConfig, db?: D1Database): CloudflareBkndC
 export function getBkndApp(env: Env, ctx: ExecutionContext, request: Request, cfg: RuntimeConfig): Promise<App> {
    const key = `${cfg.jwtSecret.length}:${cfg.publicUrl}`;
    if (!cached || cached.key !== key) {
-      const app = createApp<Env>(bkndConfig(cfg, env.DB), { env, ctx, request });
+      const app = createApp<Env>(bkndConfig(cfg, env.DB, env), { env, ctx, request });
       cached = { key, app };
       app.catch(() => {
          if (cached?.app === app) cached = undefined;

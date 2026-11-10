@@ -9,6 +9,7 @@ import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "../ui/icons.tsx";
 import { Empty, isAdmin, withParam, type View } from "../ui/layout.tsx";
 import { deadSnapshots, type DeadSnapshot } from "../../lib/video-snapshots.ts";
+import { feedStatus, type FeedStatus } from "../../lib/feed/jobs.ts";
 
 interface Tile {
    entity: "pages" | "posts" | "curated_videos" | "nav_items";
@@ -47,9 +48,39 @@ function VideoFlag(props: { v: View; dead: { items: DeadSnapshot[]; total: numbe
 }
 const P0 = "{0}" as unknown as number;
 
+/** The home timeline's KV build ended in the DLQ: the reason and a Retry (src/lib/feed/jobs.ts). */
+function FeedFlag(props: { v: View; s: FeedStatus | null }) {
+   const { t } = props.v;
+   if (!props.s?.deadAt) return null;
+   return (
+      <section class="notice bad" role="alert" aria-labelledby="fflag-h" style="margin-block-end:20px;display:grid;gap:10px" data-feed-flag>
+         <div style="display:flex;gap:10px;align-items:flex-start">
+            <Icon name="alert" />
+            <div>
+               <h2 id="fflag-h" style="margin:0;font-size:16px">
+                  {t.overview.feedFlag}
+               </h2>
+               <p style="margin:4px 0 0">
+                  {t.overview.feedFlagBody} <span dir="auto">{props.s.lastError ?? "—"}</span>
+               </p>
+            </div>
+         </div>
+         <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn sm" data-feed-retry data-done={t.overview.feedRetried} data-failed={t.common.failed}>
+               <Icon name="refresh" size={16} /> {t.overview.feedRetry}
+            </button>
+            <a class="btn ghost sm" href="/timeline">
+               {t.timeline.title}
+            </a>
+         </div>
+      </section>
+   );
+}
+
 export async function overviewScreen(v: View, data: Data, db?: D1Database) {
    const { t } = v;
    const dead = db ? await deadSnapshots(db).catch(() => ({ items: [], total: 0 })) : { items: [], total: 0 };
+   const feed = db ? await feedStatus(db).catch(() => null) : null;
    const tiles: Tile[] = [
       { entity: "pages", href: "/pages", icon: "file", label: t.nav.pages },
       { entity: "posts", href: "/posts", icon: "pen", label: t.nav.posts },
@@ -96,6 +127,7 @@ export async function overviewScreen(v: View, data: Data, db?: D1Database) {
 
    return (
       <>
+         <FeedFlag v={v} s={feed} />
          <VideoFlag v={v} dead={dead} />
          <section class="hero" aria-labelledby="ov-h">
             <div class="hero-copy">
