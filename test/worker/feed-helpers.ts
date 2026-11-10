@@ -79,7 +79,8 @@ export async function resetFeed(): Promise<void> {
    await env.DB.batch(
       ["feed_dirty", "feed_items", "feed_weeks", "feed_years", "feed_heads", "feed_garbage", "timeline_entries", "timeline_changes", "posts", "video_snapshots"].map((t) => env.DB.prepare(`DELETE FROM ${t}`)),
    );
-   await env.DB.prepare("UPDATE feed_state SET queued_at = NULL, last_head_write_at = NULL, attempts = 0, last_error = NULL, failed_at = NULL, dead_at = NULL, due_checked_until = NULL, full_total = NULL, full_requested_at = NULL WHERE id = 1").run();
+   await env.DB.prepare("UPDATE feed_state SET queued_at = NULL, last_head_write_at = NULL, attempts = 0, last_error = NULL, failed_at = NULL, dead_at = NULL, due_checked_until = NULL, full_total = NULL, full_requested_at = NULL, format = NULL WHERE id = 1").run();
+   await env.DB.prepare("DELETE FROM system_tokens").run();
    const keys = await (env.FEED as KVNamespace).list();
    for (const k of keys.keys) await (env.FEED as KVNamespace).delete(k.name);
 }

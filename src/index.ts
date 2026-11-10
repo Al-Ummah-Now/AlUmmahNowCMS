@@ -4,6 +4,7 @@
  *   /healthz                 liveness (+ ?deep=1: config and D1)
  *   /api/public/v1/*         public read API (published rows only), CORS for www
  *   /api/preview/v1/*        draft preview for www (one row per signed, expiring token; no CORS)
+ *   /api/release/v1/*        release pipeline only (one-time D1 token; src/routes/release-api.ts)
  *   /preview/:kind/:id       staff: mint a preview token, 303 → www/preview (session required)
  *   /sso/*                   SSO login/callback/logout (PKCE public client)
  *   /admin-assets/*          staff screens' CSS/JS (public, immutable, no data)
@@ -28,6 +29,8 @@ import { slugConflictOf } from "./lib/content-rules.ts";
 import { runSnapshotQueue } from "./lib/video-snapshots.ts";
 import { collectGarbage, consumeFeed, consumeFeedDlq, duePosts, verifyFeed, videoChanged, type FeedMessage } from "./lib/feed/jobs.ts";
 import { isFeedDlq, isFeedQueue } from "./lib/feed/queues.ts";
+import { checkFeedFormat } from "./lib/feed/auto-rebuild.ts";
+import { releaseApi } from "./routes/release-api.ts";
 import { pruneJobs } from "./lib/ai/jobs.ts";
 import { handleAiQueue, isAiQueue } from "./lib/ai/runner.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
@@ -148,6 +151,8 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    app.route("/api/public/v1", publicApi() as unknown as Hono<AppEnv>);
    // Preview API: www server-side with a preview token (src/routes/preview.ts). Never cached.
    app.route("/api/preview/v1", previewApi() as unknown as Hono<AppEnv>);
+   // Release pipeline (feed format rebuild): its own token check, no session (src/routes/release-api.ts).
+   app.route("/api/release/v1", releaseApi() as unknown as Hono<AppEnv>);
 
    // Staff screens' CSS/JS: public, immutable, no data (content-hashed names).
    app.route("/admin-assets", adminAssets() as unknown as Hono<AppEnv>);
@@ -325,6 +330,8 @@ export default {
    scheduled: async (event: ScheduledController, env: Env, ctx: ExecutionContext) => {
       if (event.cron === "* * * * *") {
          ctx.waitUntil(duePosts(env).catch((error) => console.error("feed due check failed", String(error))));
+         // The feed's stored format vs this code's (docs/FEED.md "Format version"): rebuilds on its own.
+         ctx.waitUntil(checkFeedFormat(env, "cron"));
          // Scholar articles ↔ their channel's community posts: due syncs and retries (docs/SCHOLARS.md §4).
          ctx.waitUntil(syncCommunity(env).catch((error) => log.error("community sync failed", { error: errText(error) })));
          return;

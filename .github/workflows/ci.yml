@@ -47,6 +47,10 @@ jobs:
       - name: Migration guard (expand-only, append-only)
         run: node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base origin/main
 
+      # FEED_FORMAT_HISTORY is append-only, so a feed shape change needs a FEED_FORMAT bump (docs/FEED.md).
+      - name: Feed format guard (append-only history)
+        run: npm run check:feed-format
+
       - name: wrangler.jsonc check
         run: npm run check:config
 

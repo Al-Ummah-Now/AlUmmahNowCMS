@@ -169,6 +169,15 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node --experimental-strip-types --no-warnings scripts/release/queue-consumers.ts --env stage
 
+      # The home timeline in KV must be in this code's feed format (docs/FEED.md "Format version"):
+      # rebuilds it when not (same code path as the Timeline screen's button, logged as
+      # "system/release") and waits until every head carries the new format. Idempotent.
+      - name: Home timeline format (stage)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/release/feed-format.ts --env stage
+
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
 
@@ -276,6 +285,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node --experimental-strip-types --no-warnings scripts/release/queue-consumers.ts --env production
+
+      # The home timeline in KV must be in this code's feed format (docs/FEED.md "Format version"):
+      # rebuilds it when not (same code path as the Timeline screen's button, logged as
+      # "system/release") and waits until every head carries the new format. Idempotent.
+      - name: Home timeline format (production)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/release/feed-format.ts --env production
 
       - name: Summary
         if: always()

@@ -9,13 +9,14 @@
  *   PUT    /admin/api/timeline/pins                  { locale, keys }  the pinned order
  *   GET    /admin/api/timeline/status                the KV build's state
  *   POST   /admin/api/timeline/retry                 requeue a build that failed (DLQ flag)
- *   POST   /admin/api/timeline/rebuild               admin: rebuild every bucket (disaster recovery)
+ *   POST   /admin/api/timeline/rebuild               admin: rebuild every bucket (manual repair; a format change
+ *                                                     rebuilds on its own, src/lib/feed/auto-rebuild.ts)
  *
  * Every write is logged with who and when (timeline_changes) and queues a coalesced KV build.
  */
 import { Hono, type Context } from "hono";
 import { feedStatus, requestFullRebuild, retryFeed } from "../lib/feed/jobs.ts";
-import { addVideo, offTimeline, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor } from "../lib/feed/admin.ts";
+import { addVideo, logRebuild, offTimeline, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor } from "../lib/feed/admin.ts";
 import { withActor } from "../lib/revisions.ts";
 import { TrashError } from "../lib/trash.ts";
 import { putSnapshot } from "../lib/video-snapshots.ts";
@@ -138,7 +139,8 @@ export function timelineApi(deps: Deps): Hono<AppEnv> {
 
    r.post("/rebuild", async (c) => {
       if (c.get("user")?.role !== "admin") return c.json({ error: "forbidden" }, 403);
-      await requestFullRebuild(c.env);
+      await requestFullRebuild(c.env, "full rebuild (Timeline screen)");
+      await logRebuild(c.env, actorOf(c), { reason: "manual" });
       return c.json({ data: await feedStatus(c.env.DB) }, 202);
    });
 

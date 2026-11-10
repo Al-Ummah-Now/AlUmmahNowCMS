@@ -29,7 +29,7 @@ and rebuilt on its own, and each binding has its own config check. Keys exist pe
 
 | Key | Holds | Written |
 |---|---|---|
-| `feed:{l}:head` | pinned items; the newest 40 unpinned items; for each of their weeks the current build, oldest item and next older week; the year index keys; the total | in place, **last** in every build, at most once per build and ≥ 1.1 s apart |
+| `feed:{l}:head` | the feed `format` (below); pinned items; the newest 40 unpinned items; for each of their weeks the current build, oldest item and next older week; the year index keys; the total | in place, **last** in every build, at most once per build and ≥ 1.1 s apart |
 | `feed:{l}:w:{isoWeek}:{build}` | every unpinned item of one ISO week (UTC), newest first, plus `older` (the next older non-empty week and its build) | a new version when the week changes; the old version becomes a tombstone |
 | `feed:{l}:y:{isoYear}:{build}` | that year's weeks (key, count, newest and oldest cursor), newest first. This is the fallback index. | a new version when one of its weeks changes |
 
@@ -56,6 +56,8 @@ and rebuilt on its own, and each binding has its own config check. Keys exist pe
   exists. A week key changes once, into its tombstone. Readers use `cacheTtl` 30 s for the head
   and 60 s for week and year keys. Eventual consistency is about 60 s, the same as the HTML edge
   cache.
+
+One more key, `feed:format-lock`, is the format rebuild's lock (below); www never reads it.
 
 `src/lib/feed/model.ts` is the layout and the reader. www's `src/lib/feed.ts` is a copy and must
 stay in step with it.
@@ -91,9 +93,58 @@ A rebuild is queued, coalesced, idempotent, and costs O(changed weeks).
 5. **Safety net.** Every 30 minutes `verifyFeed` compares each week's light signature (item keys
    and update times from D1) with what was published, and marks only the drifted weeks dirty.
    When the head is missing (for example after the namespace was emptied) it runs a full rebuild.
-6. **Full rebuild** (admins, Timeline screen) is for disaster recovery only. It marks every week
-   dirty and builds them in runs of 40 weeks, showing progress on the screen.
+6. **Full rebuild.** It marks every week dirty and builds them in runs of 40 weeks, showing
+   progress on the Timeline screen. It starts on its own when the feed's format changes (below).
+   Admins can also start it with **Rebuild the whole timeline** on the Timeline screen, to repair
+   the feed by hand. Every full rebuild is listed under "Recent changes" with who asked: the admin,
+   or `system/release`.
 
 Queues: `al-ummah-now-cms-feed[-stage|-qa]` (batch 100, max concurrency 1, 6 retries) and
 `al-ummah-now-cms-feed-dlq[-stage|-qa]`. `scripts/release/queue-consumers.ts` registers both
 after each stage or production promote, because `versions upload` never does.
+
+## Format version
+
+What a stored item holds can change in a release. For example, CMS #58 added `slides` to card-post
+summaries. The feed is then rebuilt automatically in every env, with no human step.
+
+- **The version.** `FEED_FORMAT` in `src/lib/feed/format.ts`. It is not the layout version `v`, which
+  www's reader checks and which changes only when the key layout changes.
+- **The stamp.** Every head carries `format`. D1 `feed_state.format` holds the format of the last
+  **finished** full rebuild. Only a full rebuild changes the stamp, and only in the run that writes
+  its last week, so an edit half-way never marks old weeks as current. A full rebuild carries a
+  `full:<format>` marker from run to run. When a deploy or rollback happens half-way, it finishes as
+  format 0, and the next check rebuilds again. A head written before formats existed counts as 0.
+- **When the stamp is not `FEED_FORMAT`** (`src/lib/feed/auto-rebuild.ts`):
+  1. **Release pipeline.** Right after the stage and production promotes (`release.yml`) and after
+     the QA deploy (`deploy-qa.yml`), `scripts/release/feed-format.ts` calls
+     `POST /api/release/v1/feed-format`. It then polls `GET` until both heads and D1 carry the
+     code's format; the step fails after 15 minutes. The call is authenticated server-side, and no
+     new secret is needed. The script writes the SHA-256 of a random token to the env's D1
+     (`system_tokens`, 30 min) with the pipeline's Cloudflare credentials, and deletes it at the end.
+  2. **Safety net, lazily.** The every-minute cron and every public `/api/public/v1/timeline` read
+     check the stamp in the background (`waitUntil`). The check reads the KV heads, then D1.
+     Readers keep the old feed until the new one is published. An isolate that saw the feed current
+     stops checking; otherwise it checks at most once a minute.
+- **One rebuild.** A KV lock (`feed:format-lock`, 10 min) keeps the lazy callers from trying twice.
+  The authority is the D1 claim: one `INSERT 'all' … WHERE NOT EXISTS` that succeeds only when the
+  stamp is old and no full rebuild for this format is queued or running. The release pipeline skips
+  the lock and goes straight to the claim.
+- **Same code path as the button.** `feed_dirty` gets `all`, then the queue, then `runBuild`. So the
+  rebuild is idempotent and logged: the Worker log has `feed format rebuild started`, and
+  `timeline_changes` has action `rebuild` by `system/release`.
+
+**The bump rule.** Bump `FEED_FORMAT` whenever a stored item's shape changes (feed item,
+PostSummary, video snapshot, head/week/year docs). Bump it too when what fills the items changes,
+such as how slides or covers are chosen. Then append the new fingerprint to `FEED_FORMAT_HISTORY`.
+Two checks enforce it:
+
+- `test/node/feed-format.test.ts` fingerprints the TypeScript types in `FeedShapeRoots`
+  (`scripts/lib/feed-shape.ts`, `npm run feed:shape`). It fails when the fingerprint is not
+  `FEED_FORMAT_HISTORY[FEED_FORMAT]`, and its message gives the new entry.
+- CI's `npm run check:feed-format` (`scripts/check-feed-format.ts`, against `origin/main`) fails when
+  a past entry is edited or removed, or when `FEED_FORMAT` goes down. So the only way to make the test
+  pass after a shape change is a bump.
+
+Changes to rendering inputs that the types don't show, such as fields inside the untyped video
+snapshot, still need a bump by hand.

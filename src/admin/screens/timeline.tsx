@@ -173,7 +173,7 @@ function Changes(props: { v: View; items: Change[] }) {
                      <span class="tl-who" dir="ltr">
                         {c.actor_email ?? "—"}
                      </span>{" "}
-                     {t.actions[c.action] ?? c.action} {c.action !== "reorder" ? c.title ? <bdi dir="auto">{c.title}</bdi> : <span class="muted">{t.gone}</span> : null} · <LocalTime iso={c.created_at} lang={v.prefs.lang} />
+                     {t.actions[c.action] ?? c.action} {c.action !== "reorder" && c.action !== "rebuild" ? c.title ? <bdi dir="auto">{c.title}</bdi> : <span class="muted">{t.gone}</span> : null} · <LocalTime iso={c.created_at} lang={v.prefs.lang} />
                   </li>
                ))}
             </ol>

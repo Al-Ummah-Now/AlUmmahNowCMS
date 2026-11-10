@@ -25,6 +25,7 @@ import { trimSlash, type Env } from "../../env.ts";
 import { lookupItem } from "../videos.ts";
 import { putSnapshot } from "../video-snapshots.ts";
 import { bodyVideoIds, feedItems, liteItems, liteSig } from "./source.ts";
+import { FEED_FORMAT } from "./format.ts";
 import {
    checksum,
    cursorOf,
@@ -69,7 +70,8 @@ type Dirty = { id: number; item: string };
 
 /**
  * Records what changed and wakes the builder. Items: "p<postId>", "v<entryId>", "w:<l>:<week>",
- * "head:<l>", "all". Safe to call from anywhere (bknd plugin, routes, cron); never throws.
+ * "head:<l>", "all" (a full rebuild), "full:<format>" (a full rebuild carried over to the next run;
+ * runBuild writes it, see FULL_MARKER). Safe to call from anywhere (bknd plugin, routes, cron); never throws.
  */
 export async function markDirty(env: Env, items: string[], reason: string): Promise<void> {
    if (!items.length) return;
@@ -101,12 +103,26 @@ export async function wake(env: Env, reason: string, force = false): Promise<boo
 
 /* Building */
 
+/**
+ * A full rebuild runs in several runs (MAX_WEEKS_PER_RUN weeks each). The run that claims "all"
+ * carries the rest of the weeks AND this marker, naming the FEED_FORMAT the rebuild started with; the
+ * run that finishes the last week stamps that format (feed_state.format and every head). A marker
+ * from different code (a deploy or rollback happened half-way) finishes as format 0, so the next
+ * check rebuilds again: a stamp never claims a format some weeks were not built with.
+ */
+const FULL_MARKER = /^full:(\d{1,6})$/;
+export const fullMarker = (format: number) => `full:${format}`;
+
 export interface BuildResult {
    claimed: number;
    weeks: number;
    writes: string[];
    deferred: number;
    heads: FeedLocale[];
+   /** The format stamped on the heads this run wrote. */
+   format?: number;
+   /** This run finished a full rebuild (and stamped its format). */
+   completedFull?: boolean;
 }
 
 const newBuildId = () => `${Date.now().toString(36)}${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
@@ -140,8 +156,12 @@ export async function runBuild(env: Env, opts: { now?: () => Date; sleep?: (ms: 
    const posts = new Set<number>();
    const entries = new Set<number>();
    let all = false;
+   /** The format of a full rebuild this run is part of (null: none). */
+   let full: number | null = null;
    for (const { item } of dirty) {
+      const fm = FULL_MARKER.exec(item);
       if (item === "all") all = true;
+      else if (fm) full = full === null || full === Number(fm[1]) ? Number(fm[1]) : 0;
       else if (/^p\d+$/.test(item)) posts.add(Number(item.slice(1)));
       else if (/^v\d+$/.test(item)) entries.add(Number(item.slice(1)));
       else {
@@ -189,6 +209,18 @@ export async function runBuild(env: Env, opts: { now?: () => Date; sleep?: (ms: 
       budget -= take.length;
    }
    result.deferred = carry.length;
+
+   // Format stamp (src/lib/feed/format.ts): only a finished full rebuild changes it.
+   if (all) full = FEED_FORMAT;
+   else if (full !== null && full !== FEED_FORMAT) full = 0;
+   const state = await env.DB.prepare("SELECT format FROM feed_state WHERE id = 1").first<{ format: number | null }>();
+   const completing = full !== null && !carry.length;
+   const format = completing ? full! : Number(state?.format ?? 0);
+   if (full !== null && carry.length) carry.push(fullMarker(full));
+   // Every head carries the stamp, so the run that finishes rewrites both.
+   if (completing) for (const l of FEED_LOCALES) heads.add(l);
+   result.format = format;
+   result.completedFull = completing;
 
    const build = newBuildId();
    const written: string[] = [];
@@ -326,7 +358,7 @@ export async function runBuild(env: Env, opts: { now?: () => Date; sleep?: (ms: 
             weeks: hw.map((w) => ({ week: w.week, build: w.build, oldest: w.oldest, older: ptrOf(w.older) })),
             years: years.map((y) => ({ year: y.year, key: y.key, count: y.count, oldest: y.oldest ?? "" })),
          };
-         const sig = checksum(JSON.stringify(body));
+         const sig = checksum(JSON.stringify({ ...body, format }));
          const headLite = checksum(liteSig([...(await liteItems(env, l, { pinned: true })), ...(await liteItems(env, l, { pinned: false, limit: HEAD_SIZE + 1 }))]));
          const prevHead = await env.DB.prepare("SELECT sig, build, built_at FROM feed_heads WHERE locale = ?1").bind(l).first<{ sig: string; build: string; built_at: string }>();
          const pinStmts = [
@@ -338,7 +370,7 @@ export async function runBuild(env: Env, opts: { now?: () => Date; sleep?: (ms: 
             continue;
          }
          const builtAt = clock().toISOString();
-         const head: HeadDoc = { v: FEED_VERSION, locale: l, build, built_at: builtAt, page_size: PAGE_SIZE, ...body };
+         const head: HeadDoc = { v: FEED_VERSION, format, locale: l, build, built_at: builtAt, page_size: PAGE_SIZE, ...body };
          // KV allows one write per second per key: never rewrite this head sooner than that.
          const gap = prevHead?.built_at ? HEAD_WRITE_GAP_MS - (clock().getTime() - Date.parse(prevHead.built_at)) : 0;
          if (gap > 0) await sleep(gap);
@@ -375,8 +407,8 @@ export async function runBuild(env: Env, opts: { now?: () => Date; sleep?: (ms: 
       env.DB.prepare("DELETE FROM feed_dirty WHERE id <= ?1").bind(maxId),
       ...carry.map((item) => env.DB.prepare("INSERT INTO feed_dirty (item, created_at) VALUES (?1, ?2)").bind(item, at)),
       env.DB.prepare(
-         "UPDATE feed_state SET last_build = ?1, last_build_at = ?2, attempts = 0, last_error = NULL, failed_at = NULL, dead_at = NULL, full_total = CASE WHEN ?3 THEN full_total ELSE NULL END, full_requested_at = CASE WHEN ?3 THEN full_requested_at ELSE NULL END, updated_at = ?2 WHERE id = 1",
-      ).bind(build, at, carry.length ? 1 : 0),
+         "UPDATE feed_state SET last_build = ?1, last_build_at = ?2, attempts = 0, last_error = NULL, failed_at = NULL, dead_at = NULL, full_total = CASE WHEN ?3 THEN full_total ELSE NULL END, full_requested_at = CASE WHEN ?3 THEN full_requested_at ELSE NULL END, format = CASE WHEN ?4 THEN ?5 ELSE format END, updated_at = ?2 WHERE id = 1",
+      ).bind(build, at, carry.length ? 1 : 0, completing ? 1 : 0, format),
    ]);
    return result;
 }
@@ -428,7 +460,7 @@ export async function consumeFeed(batch: MessageBatch<FeedMessage>, env: Env): P
    await env.DB.prepare("UPDATE feed_state SET queued_at = NULL WHERE id = 1").run();
    try {
       const r = await runBuild(env);
-      console.log(JSON.stringify({ msg: "feed build", claimed: r.claimed, weeks: r.weeks, writes: r.writes.length, deferred: r.deferred }));
+      console.log(JSON.stringify({ msg: "feed build", claimed: r.claimed, weeks: r.weeks, writes: r.writes.length, deferred: r.deferred, format: r.format, completedFull: r.completedFull }));
       batch.ackAll();
       await collectGarbage(env).catch((e) => console.error("feed gc failed", String(e)));
       // More dirty work arrived meanwhile, or this run carried weeks over: go again.
@@ -461,8 +493,8 @@ export async function retryFeed(env: Env): Promise<boolean> {
    return wake(env, "retry", true);
 }
 
-/** Disaster recovery: rebuild every week bucket (in runs of MAX_WEEKS_PER_RUN, with progress). */
-export async function requestFullRebuild(env: Env): Promise<void> {
+/** Weeks a full rebuild rewrites (for the progress shown on the Timeline screen). */
+async function fullTotal(env: Env): Promise<number> {
    let total = 0;
    for (const l of FEED_LOCALES) {
       const weeks = new Set((await liteItems(env, l, { pinned: false })).map((r) => isoWeek(r.date)));
@@ -470,8 +502,46 @@ export async function requestFullRebuild(env: Env): Promise<void> {
       for (const r of results) weeks.add(r.week);
       total += weeks.size;
    }
+   return total;
+}
+
+/**
+ * Rebuild every week bucket (in runs of MAX_WEEKS_PER_RUN, with progress). The Timeline screen's
+ * button and the verifier (missing head). Always queues one; the build is idempotent.
+ */
+export async function requestFullRebuild(env: Env, reason = "full rebuild"): Promise<void> {
+   const total = await fullTotal(env);
    await env.DB.prepare("UPDATE feed_state SET full_requested_at = ?1, full_total = ?2, updated_at = ?1 WHERE id = 1").bind(nowIso(), total).run();
-   await markDirty(env, ["all"], "full rebuild");
+   await markDirty(env, ["all"], reason);
+}
+
+/** A full rebuild for this code's FEED_FORMAT is queued or running (an "all" or its marker is dirty). */
+export async function fullRebuildPending(env: Env): Promise<boolean> {
+   const row = await env.DB.prepare("SELECT 1 AS x FROM feed_dirty WHERE item = 'all' OR item = ?1 LIMIT 1").bind(fullMarker(FEED_FORMAT)).first();
+   return !!row;
+}
+
+/**
+ * The format rebuild (src/lib/feed/auto-rebuild.ts): queues a full rebuild only when the stamped
+ * format (feed_state.format) is not this code's FEED_FORMAT and none is queued or running. One
+ * statement, so concurrent callers (release pipeline, cron, readers) start at most one. Returns
+ * whether this call started it.
+ */
+export async function claimFormatRebuild(env: Env, reason: string): Promise<boolean> {
+   const at = nowIso();
+   const row = await env.DB.prepare(
+      `INSERT INTO feed_dirty (item, created_at) SELECT 'all', ?1
+       WHERE NOT EXISTS (SELECT 1 FROM feed_dirty WHERE item = 'all' OR item = ?2)
+         AND coalesce((SELECT format FROM feed_state WHERE id = 1), 0) != ?3
+       RETURNING id`,
+   )
+      .bind(at, fullMarker(FEED_FORMAT), FEED_FORMAT)
+      .first();
+   if (!row) return false;
+   const total = await fullTotal(env).catch(() => 0);
+   await env.DB.prepare("UPDATE feed_state SET full_requested_at = ?1, full_total = ?2, updated_at = ?1 WHERE id = 1").bind(at, total).run();
+   await wake(env, reason);
+   return true;
 }
 
 export interface FeedStatus {
