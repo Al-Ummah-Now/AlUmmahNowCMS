@@ -15,3 +15,6 @@ release-result.json
 coverage/
 *.log
 .DS_Store
+.e2e-local/
+test-results-local/
+playwright-report-local/

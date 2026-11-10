@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 /** Overview: counts, recent edits, quick actions, the active theme. */
+import { AiFailuresCard } from "../ui/ai.tsx";
 import { raw } from "hono/html";
 import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
@@ -77,7 +78,7 @@ function FeedFlag(props: { v: View; s: FeedStatus | null }) {
    );
 }
 
-export async function overviewScreen(v: View, data: Data, db?: D1Database) {
+export async function overviewScreen(v: View, data: Data, db?: D1Database, aiFailures: Parameters<typeof AiFailuresCard>[0]["failures"] = null) {
    const { t } = v;
    const dead = db ? await deadSnapshots(db).catch(() => ({ items: [], total: 0 })) : { items: [], total: 0 };
    const feed = db ? await feedStatus(db).catch(() => null) : null;
@@ -190,6 +191,7 @@ export async function overviewScreen(v: View, data: Data, db?: D1Database) {
             ))}
          </div>
 
+         <AiFailuresCard v={v} failures={aiFailures} />
          <div class="grid2" style="margin-top:32px">
             <section class="card" aria-labelledby="recent-h">
                <h2 id="recent-h">{t.overview.recent}</h2>

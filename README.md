@@ -37,6 +37,7 @@ npm run check:schema                            # migrations == src/schema.ts
 npm run check:migrations                        # expand-only, append-only vs origin/main
 npm run check:config                            # wrangler.jsonc matches the env table
 CMS_URL=http://localhost:8585 npm run e2e       # Playwright (signed-in tests need QA_SEED_PASSWORD)
+npx playwright test -c playwright.local.config.ts  # AI assist flows: wrangler dev + mock auth + mock Claude API
 ```
 
 ## Changing the content model
@@ -71,6 +72,12 @@ their DLQs `al-ummah-now-cms-variants-dlq[-stage|-qa]` (image variant jobs; `wra
 KV namespaces `al-ummah-now-www-feed[-stage|-qa]` (binding `FEED`): the home timeline, written only
 by this Worker and read by www (docs/FEED.md). Stage and production promotes register queue consumers
 with `scripts/release/queue-consumers.ts` (`versions upload` doesn't).
+
+| Worker (each env), optional | `ANTHROPIC_API_KEY` | AI writing assist (docs/AI_ASSIST_SPEC.md §2). Preferred: Secrets Store secret `anthropic-api-key` + a `secrets_store_secrets` binding named `ANTHROPIC_API_KEY` in that env (add the binding only after the store secret exists). Or `wrangler secret put ANTHROPIC_API_KEY --env qa`. Without it, admins see "AI assist isn't set up" and editors see nothing. |
 | GitHub | `QA_SEED_PASSWORD`, `STAGE_SEED_PASSWORD` | E2E test accounts (`qa-admin`, `qa-moderator`, `qa-viewer`) |
+
+Queues (created once per account, not by deploys): `al-ummah-now-cms-variants[-stage|-qa]` and
+their DLQs `al-ummah-now-cms-variants-dlq[-stage|-qa]` (image variant jobs), `al-ummah-now-cms-ai[-stage|-qa]`
+and `al-ummah-now-cms-ai-dlq[-stage|-qa]` (AI assist jobs); `wrangler queues create`.
 
 Names live in `scripts/secrets-manifest.ts`; `scripts/check-secrets.ts` checks the deployed Workers.

@@ -52,3 +52,35 @@ jobs:
 
       - name: Bundle every env (wrangler deploy --dry-run)
         run: npm run build:dry
+
+  # AI writing assist editor flows (docs/AI_ASSIST_SPEC.md §9): wrangler dev (local D1, R2, queues) with a
+  # mock auth issuer and a mock Claude API. No Cloudflare credentials, no API key, no real accounts.
+  e2e-local:
+    name: E2E (local, mocked Claude API)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E (desktop + phone, en/ar, light/dark, axe)
+        run: npx playwright test -c playwright.local.config.ts
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-local
+          path: |
+            e2e-artifacts/
+            playwright-report-local/
+          if-no-files-found: ignore
+          retention-days: 14

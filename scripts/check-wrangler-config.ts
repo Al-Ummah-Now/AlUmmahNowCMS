@@ -59,7 +59,21 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
       for (const k of ["VIDEOS_API_URL", "VIDEOS_WEB_URL", "WWW_URL", "WWW_ORIGINS", "ADMIN_API_URL", "ADMIN_WEB_URL"]) {
          if (!v[k]?.startsWith("https://")) errors.push(`${where}: ${k} must be an https URL`);
       }
-      if ("BKND_JWT_SECRET" in v || "CMS_CLIENT_SECRET" in v) errors.push(`${where}: secrets must not be vars`);
+      if ("BKND_JWT_SECRET" in v || "CMS_CLIENT_SECRET" in v || "ANTHROPIC_API_KEY" in v) errors.push(`${where}: secrets must not be vars`);
+      // A mock API URL is for local runs only (src/lib/ai/config.ts ignores it outside ENVIRONMENT=local).
+      if ("ANTHROPIC_BASE_URL" in v) errors.push(`${where}: ANTHROPIC_BASE_URL is local-only (.dev.vars)`);
+      // AI assist jobs (docs/AI_ASSIST_SPEC.md §3): producer AI_JOBS, a consumer with a DLQ, and the DLQ's consumer.
+      const q = c.queues ?? {};
+      const { name: aiQueue, dlq } = want.aiQueue;
+      const prod = q.producers ?? [];
+      if (prod.length !== 1 || prod[0].binding !== "AI_JOBS" || prod[0].queue !== aiQueue) errors.push(`${where}: queues.producers must be [AI_JOBS → ${aiQueue}]`);
+      const cons = q.consumers ?? [];
+      const main = cons.find((x) => x.queue === aiQueue);
+      if (!main || main.dead_letter_queue !== dlq || main.max_batch_size !== 1 || !(main.max_retries && main.max_retries >= 1)) {
+         errors.push(`${where}: queues.consumers needs ${aiQueue} (batch 1, retries ≥ 1, DLQ ${dlq})`);
+      }
+      if (!cons.some((x) => x.queue === dlq)) errors.push(`${where}: queues.consumers needs the DLQ ${dlq}`);
+      if (cons.length !== 2) errors.push(`${where}: queues.consumers must be exactly ${aiQueue} and ${dlq}`);
       const d1 = c.d1_databases ?? [];
       if (d1.length !== 1 || d1[0].binding !== "DB" || d1[0].database_name !== want.d1.name || d1[0].database_id !== want.d1.id) {
          errors.push(`${where}: d1_databases must be [DB → ${want.d1.name} (${want.d1.id})]`);

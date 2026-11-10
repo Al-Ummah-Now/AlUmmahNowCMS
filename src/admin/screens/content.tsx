@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 /** Pages and posts: list (search, filters, sort, paging) and editor (docs/ADMIN_UI_SPEC.md E1–E16, A1–A12). */
+import { AiCard, AiCheckButton, AiDialogs, AiSeoButton, AiSeoPanel, aiClientStrings } from "../ui/ai.tsx";
 import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
 import { publishState, timeOf, type PublishState } from "../../lib/schedule.ts";
@@ -343,6 +344,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       scheduleRequired: t.content.scheduleRequired,
       previewSaveFirst: t.common.previewSaveFirst,
       picker: t.picker,
+      ai: v.ai ? aiClientStrings(v) : undefined,
    };
    return (
       <>
@@ -368,6 +370,8 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
             data-translation-key={s("translation_key")}
             data-state={state}
             data-publish-at={publishAt}
+            data-ai={v.ai ? "1" : undefined}
+            data-ui-lang={v.prefs.lang}
             novalidate
          >
             <div class="stack">
@@ -499,7 +503,12 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                {kind === "posts" ? <SlidesEditor v={v} locale={locale} slides={slides} refs={refs} hidden={postKind !== "cards"} /> : null}
 
                <section class="card stack" aria-labelledby="seo-h">
-                  <h2 id="seo-h">{t.content.seo}</h2>
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+                     <h2 id="seo-h" style="margin:0">
+                        {t.content.seo}
+                     </h2>
+                     <AiSeoButton v={v} />
+                  </div>
                   <div class="field">
                      <span style="display:flex;justify-content:space-between;gap:8px">
                         <label for="f-seo-title">{t.content.seoTitle}</label>
@@ -545,6 +554,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         </p>
                      </div>
                   ) : null}
+                  <AiSeoPanel v={v} locale={locale} />
                   {kind === "pages" ? (
                      <label class="switch">
                         <input type="checkbox" name="show_in_sitemap" checked={row ? row.show_in_sitemap !== false && row.show_in_sitemap !== 0 : true} />
@@ -655,6 +665,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         {t.common.previewHelp}
                      </p>
                   ) : null}
+                  <AiCheckButton v={v} />
                   {row && isAdmin(v) ? (
                      <button class="btn danger sm" type="button" data-delete style="justify-self:start">
                         <Icon name="trash" size={16} /> {t.common.delete}
@@ -732,6 +743,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                   {row ? <p class="help">{t.content.lockedLocale}</p> : null}
                </section>
                {history}
+               <AiCard v={v} locale={locale} other={other} saved={!!row} siblingId={translations.data[0] ? Number(translations.data[0].id) : null} />
             </aside>
             <div class="actbar" role="group" aria-label={t.content.publishing}>
                <button class="btn primary" type="submit" data-action={scheduled ? "schedule" : "published"}>
@@ -745,6 +757,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
          <PickerDialog v={v} kinds={kind === "pages" ? ["video", "playlist", "channel"] : undefined} />
          <MediaDialog v={v} />
          {kind === "pages" ? <PostsDialog v={v} locale={locale} /> : null}
+         <AiDialogs v={v} locale={locale} other={other} kind={kind} />
          <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} />
       </>
    );

@@ -500,5 +500,23 @@ html.seq-dragging,html.seq-dragging *{cursor:grabbing!important;user-select:none
 .bp-hr{border:0;border-block-start:1px solid var(--fanous-c-divider-line);margin:0}
 .bp-space.s{height:16px}.bp-space.m{height:40px}.bp-space.l{height:80px}
 @media(max-width:720px){.blk-2,.bp-cols{grid-template-columns:1fr}.blk-h{flex-wrap:wrap}.blk-warn{order:5;flex-basis:100%;justify-content:flex-start}.sub.row-sm{grid-template-columns:auto minmax(0,1fr) auto}.sub.row-sm .vthumb,.sub.row-sm [data-post-status]{display:none}}
+/* Sticky action bar (and the phone bottom bar) must never hide a focused or scrolled-to control (WCAG 2.4.11). */
+@media(max-width:1100px){html{scroll-padding-block-end:88px}.split>.sticky{position:static}}
+@media(max-width:760px){html{scroll-padding-block-end:160px}}
+/* AI assist (docs/AI_ASSIST_SPEC.md §8) */
+.ai-status:empty{display:none}
+.ai-status{display:flex;align-items:center;gap:8px}
+.ai-status.err{color:var(--fanous-c-form-error);font-weight:600}
+.ai-spin{flex:none;width:14px;height:14px;border-radius:50%;border:2px solid color-mix(in srgb,var(--fanous-color-primary) 30%,transparent);border-block-start-color:var(--fanous-color-primary);animation:ai-spin .8s linear infinite}
+@keyframes ai-spin{to{transform:rotate(360deg)}}
+.ai-sugg-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}
+.ai-sugg-row .btn{min-height:44px}
+.ai-item{display:grid;gap:6px;padding:12px 14px;border-radius:var(--r-lg);background:var(--fanous-c-form-section-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-form-section-border)}
+.ai-item p{margin:0}
+.ai-item-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ai-quote{margin:0;padding-inline-start:12px;border-inline-start:3px solid var(--fanous-color-primary);color:var(--fanous-color-text-secondary);white-space:pre-wrap;overflow-wrap:anywhere}
+.badge.sev-info{background:color-mix(in srgb,var(--fanous-color-primary) 16%,transparent);color:var(--fanous-color-text-primary)}
+.badge.sev-warn{background:transparent;color:var(--fanous-color-text-primary);box-shadow:inset 0 0 0 1px var(--fanous-color-outline)}
+.badge.sev-high{background:var(--fanous-color-error-fill);color:var(--fanous-color-on-error-fill)}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 `;

@@ -5,6 +5,7 @@
  */
 import { $$, api, strings, toast } from "./dom.ts";
 import { initBlocks } from "./blocks.ts";
+import { initAi } from "./ai.ts";
 import { initEditor } from "./editor.ts";
 import { initHistory } from "./history.ts";
 import { initPicker } from "./picker.ts";
@@ -19,6 +20,7 @@ initPicker();
 initBlocks();
 initEditor();
 initHistory();
+initAi();
 initRows();
 initTimeline();
 initFeedFlag();

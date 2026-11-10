@@ -26,6 +26,8 @@ import { slugConflictOf } from "./lib/content-rules.ts";
 import { runSnapshotQueue } from "./lib/video-snapshots.ts";
 import { collectGarbage, consumeFeed, consumeFeedDlq, duePosts, verifyFeed, videoChanged, type FeedMessage } from "./lib/feed/jobs.ts";
 import { isFeedDlq, isFeedQueue } from "./lib/feed/queues.ts";
+import { pruneJobs } from "./lib/ai/jobs.ts";
+import { handleAiQueue, isAiQueue } from "./lib/ai/runner.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
 import { legacyAdminRedirect } from "./admin/legacy.ts";
@@ -285,13 +287,17 @@ export default {
             .then(() => collectGarbage(env))
             .catch((error) => console.error("feed verify failed", String(error))),
       );
+      // AI job rows hold draft text: 30-day retention (docs/AI_ASSIST_SPEC.md §3).
+      ctx.waitUntil(pruneJobs(env.DB, Date.now()).catch((error) => console.error("ai job prune failed", String(error))));
    },
-   // One queue() for every consumer in wrangler.jsonc: home timeline builds and their DLQ, otherwise
-   // image variant jobs (CMS-10).
+   // One queue() for every consumer in wrangler.jsonc: home timeline builds and their DLQ, AI assist
+   // jobs and their DLQ (docs/AI_ASSIST_SPEC.md §3), otherwise image variant jobs (CMS-10).
    queue: (batch: MessageBatch, env: Env) =>
       isFeedQueue(batch.queue)
          ? consumeFeed(batch as MessageBatch<FeedMessage>, env)
          : isFeedDlq(batch.queue)
            ? consumeFeedDlq(batch, env)
-           : consumeVariants(batch as MessageBatch<VariantMessage>, env),
+           : isAiQueue(batch.queue)
+             ? handleAiQueue(batch as MessageBatch<{ jobId: string }>, env)
+             : consumeVariants(batch as MessageBatch<VariantMessage>, env),
 } satisfies ExportedHandler<Env>;

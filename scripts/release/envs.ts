@@ -15,6 +15,8 @@ export interface EnvInfo {
    variantsDlq: string;
    /** www's home timeline (docs/FEED.md): the KV namespace this Worker writes, its build queue and DLQ. */
    feed: { kv: string; kvId: string; queue: string; dlq: string };
+   /** AI assist jobs queue and its dead-letter queue (docs/AI_ASSIST_SPEC.md §3). */
+   aiQueue: { name: string; dlq: string };
 }
 
 export const ENVS: Record<EnvName, EnvInfo> = {
@@ -29,6 +31,7 @@ export const ENVS: Record<EnvName, EnvInfo> = {
       variantsQueue: "al-ummah-now-cms-variants",
       variantsDlq: "al-ummah-now-cms-variants-dlq",
       feed: { kv: "al-ummah-now-www-feed", kvId: "5f27cddf86c84bbdbb59445ad867253c", queue: "al-ummah-now-cms-feed", dlq: "al-ummah-now-cms-feed-dlq" },
+      aiQueue: { name: "al-ummah-now-cms-ai", dlq: "al-ummah-now-cms-ai-dlq" },
    },
    stage: {
       worker: "al-ummah-now-cms-stage",
@@ -41,6 +44,7 @@ export const ENVS: Record<EnvName, EnvInfo> = {
       variantsQueue: "al-ummah-now-cms-variants-stage",
       variantsDlq: "al-ummah-now-cms-variants-dlq-stage",
       feed: { kv: "al-ummah-now-www-feed-stage", kvId: "33ddf8bb7eae439c91fcc4af22797f42", queue: "al-ummah-now-cms-feed-stage", dlq: "al-ummah-now-cms-feed-dlq-stage" },
+      aiQueue: { name: "al-ummah-now-cms-ai-stage", dlq: "al-ummah-now-cms-ai-dlq-stage" },
    },
    qa: {
       worker: "al-ummah-now-cms-qa",
@@ -53,6 +57,7 @@ export const ENVS: Record<EnvName, EnvInfo> = {
       variantsQueue: "al-ummah-now-cms-variants-qa",
       variantsDlq: "al-ummah-now-cms-variants-dlq-qa",
       feed: { kv: "al-ummah-now-www-feed-qa", kvId: "6e459b34fb954cf4a199cfef57036a8c", queue: "al-ummah-now-cms-feed-qa", dlq: "al-ummah-now-cms-feed-dlq-qa" },
+      aiQueue: { name: "al-ummah-now-cms-ai-qa", dlq: "al-ummah-now-cms-ai-dlq-qa" },
    },
 };
 
