@@ -16,7 +16,7 @@ import { Hono } from "hono";
 import { getBkndApp, MediaExistsError } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
 import { ALLOWED_UPLOAD, blockedApiPath, contentCollectionPath, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
-import { ConfigError, runtimeConfig, type Env } from "./env.ts";
+import { ConfigError, runtimeConfig, trimSlash, type Env } from "./env.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
 import { consumeVariants, deleteVariants, sweepVariants, type VariantMessage } from "./lib/variants/jobs.ts";
@@ -257,7 +257,7 @@ export default {
       );
       // Block video snapshots: a retrying queue in D1; dead-lettered rows are flagged on the Overview.
       ctx.waitUntil(
-         runSnapshotQueue(env.DB, env.VIDEOS_API_URL.replace(/\/+$/, "")).then(
+         runSnapshotQueue(env.DB, trimSlash(env.VIDEOS_API_URL)).then(
             (r) => console.log(JSON.stringify({ msg: "block video snapshots", ...r })),
             (error) => console.error("block video snapshot queue failed", String(error)),
          ),

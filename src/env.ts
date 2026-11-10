@@ -39,7 +39,12 @@ const LOCAL_DEV_SECRET = "local-dev-only-not-a-secret-local-dev-only-not-a-secre
 
 export class ConfigError extends Error {}
 
-const trimSlash = (u: string) => u.replace(/\/+$/, "");
+/** `u` without trailing slashes (a linear scan: no backtracking regex on configured URLs). */
+export function trimSlash(u: string): string {
+   let end = u.length;
+   while (end > 0 && u.charCodeAt(end - 1) === 47) end--;
+   return u.slice(0, end);
+}
 
 export function runtimeConfig(env: Env): RuntimeConfig {
    const isLocal = env.ENVIRONMENT === "local";

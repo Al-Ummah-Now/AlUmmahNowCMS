@@ -3,7 +3,7 @@
  * body images, block images and card-post slides, so every image carries the same fields, including
  * the resized variants (CMS-10).
  */
-import type { Env } from "../env.ts";
+import { trimSlash, type Env } from "../env.ts";
 import { fallbackFormat, widthsFor } from "./variants/plan.ts";
 
 export interface MediaRef {
@@ -25,7 +25,7 @@ export interface MediaVariants {
 }
 
 export function mediaUrl(publicUrl: string, path: string): string {
-   return `${publicUrl.replace(/\/+$/, "")}/api/public/v1/media/${path.split("/").map(encodeURIComponent).join("/")}`;
+   return `${trimSlash(publicUrl)}/api/public/v1/media/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function parseMeta(v: unknown): Record<string, unknown> {
