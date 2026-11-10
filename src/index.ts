@@ -42,6 +42,7 @@ import { pickerRoutes } from "./routes/picker.ts";
 import { previewApi, previewRoutes } from "./routes/preview.ts";
 import { publicApi } from "./routes/public-api.ts";
 import { renderStatus, ssoRoutes } from "./routes/sso.ts";
+import { endedBySignOut } from "./lib/sign-outs.ts";
 import type { AppEnv, AuthUser, Ctx, Deps } from "./types.ts";
 
 async function multipartAllowed(request: Request): Promise<boolean> {
@@ -76,7 +77,10 @@ async function sessionUser(c: Ctx, deps: Deps): Promise<AuthUser | undefined> {
    if (!/(?:^|;\s*)auth=/.test(c.req.header("Cookie") ?? "")) return undefined;
    const app = await deps.getApp(c);
    const user = (await app.module.auth.authenticator.resolveAuthFromRequest(c.req.raw)) as AuthUser | undefined;
-   return user && (user.role === "admin" || user.role === "editor") ? user : undefined;
+   if (!user || (user.role !== "admin" && user.role !== "editor")) return undefined;
+   // Single sign-out: a session issued before the account signed out is over (copied cookies too)
+   if (await endedBySignOut(c.env.DB, user.id, user.iat)) return undefined;
+   return user;
 }
 
 export function createWorker(deps: Deps): Hono<AppEnv> {

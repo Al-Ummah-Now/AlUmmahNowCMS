@@ -167,6 +167,30 @@ describe("callback", () => {
       expect(res.headers.getSetCookie().some((c) => c.startsWith("auth=") && /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c))).toBe(true);
    });
 
+   it("single sign-out ends a copy of the session cookie taken before it", async () => {
+      const { callback, fetchCms } = await signIn(["Admin"], { id: "so-1", email: "so1@example.com" });
+      const copied = cookiesOf(callback);
+      expect((await fetchCms("/posts", { headers: { cookie: copied } })).status).toBe(200);
+      // The front-channel hop arrives with the session cookie (top-level navigation, SameSite=Lax)
+      const next = `${ISSUER}/logout?step=6&return=${encodeURIComponent("https://www.test/")}`;
+      const out = await fetchCms(`/sso/logout?next=${encodeURIComponent(next)}`, { headers: { cookie: copied } });
+      expect(out.status).toBe(302);
+      // The copy is refused: the staff screen asks to sign in, the API answers 401
+      const screen = await fetchCms("/posts", { headers: { cookie: copied } });
+      expect(screen.status).toBe(302);
+      expect(screen.headers.get("location")).toBe("/sso/login?return=%2Fposts");
+      expect((await fetchCms("/picker/api/search?kind=video&q=ab", { headers: { cookie: copied } })).status).toBe(401);
+   });
+
+   it("signing in again after a sign-out gives a working session", async () => {
+      const first = await signIn(["Admin"], { id: "so-2", email: "so2@example.com" });
+      await first.fetchCms("/sso/logout", { headers: { cookie: cookiesOf(first.callback) } });
+      // A later second: the new session's iat is after the sign-out
+      await new Promise((r) => setTimeout(r, 1100));
+      const again = await signIn(["Admin"], { id: "so-2", email: "so2@example.com" });
+      expect((await again.fetchCms("/posts", { headers: { cookie: cookiesOf(again.callback) } })).status).toBe(200);
+   });
+
    it("ignores a next that is not the auth server's /logout (no open redirect)", async () => {
       for (const next of ["https://evil.example/logout", `${ISSUER}/authorize`, "//evil.example/logout", "javascript:alert(1)"]) {
          const res = await makeWorker()(`/sso/logout?next=${encodeURIComponent(next)}`);

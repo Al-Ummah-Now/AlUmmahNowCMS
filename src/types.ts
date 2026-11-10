@@ -7,6 +7,8 @@ export interface AuthUser {
    id: number | string;
    email: string;
    role?: string;
+   /** JWT issued-at (epoch seconds), checked against the account's last sign-out. */
+   iat?: number;
 }
 
 export type AppEnv = {
