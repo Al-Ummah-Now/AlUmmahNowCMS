@@ -182,7 +182,7 @@ export async function videosScreen(v: View, data: Data, placement: "home" | "vid
                   const title = String(r.title_override || snap.title || r.ref_id);
                   const locale = String(r.locale ?? "all");
                   return (
-                     <li class="row vrow card" data-id={String(r.id)} data-sort={String(r.sort ?? 0)} data-kind={String(r.kind)} draggable="true">
+                     <li class="row vrow card" data-id={String(r.id)} data-sort={String(r.sort ?? 0)} data-kind={String(r.kind)} data-ref={String(r.ref_id)} draggable="true">
                         <span class="grip" aria-hidden="true">
                            <Icon name="grip" size={18} />
                         </span>
