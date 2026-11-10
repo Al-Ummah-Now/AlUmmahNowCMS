@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { publishState } from "../../src/lib/schedule.ts";
 import { applyRules, ContentRuleError, nextVersion, validNavUrl, versionCandidates } from "../../src/lib/content-rules.ts";
 
 const now = new Date("2026-11-08T10:00:00Z");
@@ -57,6 +58,63 @@ describe("content rules", () => {
       const d: Record<string, unknown> = { email: "x" };
       applyRules("users", d, "create", null, now);
       expect(d).toEqual({ email: "x" });
+   });
+});
+
+describe("scheduled publishing (publish_at, #7)", () => {
+   const later = "2026-11-09T08:30:00.000Z";
+   it("scheduling a draft: published_at is the go-live time, not the save time", () => {
+      const d: Record<string, unknown> = { status: "published", publish_at: later };
+      applyRules("posts", d, "update", { status: "draft", published_at: null }, now);
+      expect(d.publish_at).toEqual(new Date(later));
+      expect(d.published_at).toEqual(new Date(later));
+      expect(publishState({ status: "published", publish_at: later }, now.getTime())).toBe("scheduled");
+   });
+   it("rescheduling before go-live moves published_at with it", () => {
+      const d: Record<string, unknown> = { status: "published", publish_at: "2026-11-10T00:00:00.000Z" };
+      applyRules("pages", d, "update", { status: "published", publish_at: later, published_at: later }, now);
+      expect(d.published_at).toEqual(new Date("2026-11-10T00:00:00.000Z"));
+   });
+   it("publish now on a scheduled row: published_at becomes now", () => {
+      const d: Record<string, unknown> = { status: "published", publish_at: null };
+      applyRules("posts", d, "update", { status: "published", publish_at: later, published_at: later }, now);
+      expect(d.publish_at).toBeNull();
+      expect(d.published_at).toBe(now);
+   });
+   it("unscheduling clears the schedule and the go-live that never came", () => {
+      const d: Record<string, unknown> = { status: "draft" };
+      applyRules("posts", d, "update", { status: "published", publish_at: later, published_at: later }, now);
+      expect(d.publish_at).toBeNull();
+      expect(d.published_at).toBeNull();
+   });
+   it("once live, published_at never moves, even when scheduled again after an unpublish", () => {
+      const d: Record<string, unknown> = { status: "published", publish_at: later, published_at: later };
+      applyRules("posts", d, "update", { status: "draft", published_at: "2026-01-01T00:00:00.000Z" }, now);
+      expect("published_at" in d).toBe(false);
+      expect(d.publish_at).toEqual(new Date(later));
+   });
+   it("an edit that does not touch status keeps a scheduled row scheduled", () => {
+      const d: Record<string, unknown> = { title: "New title" };
+      applyRules("pages", d, "update", { status: "published", publish_at: later, published_at: later }, now);
+      expect(d.published_at).toEqual(new Date(later));
+      expect("publish_at" in d).toBe(false);
+   });
+   it("a draft never carries a schedule; a bad date is refused", () => {
+      const d: Record<string, unknown> = { slug: "a", status: "draft", publish_at: later };
+      applyRules("posts", d, "create", null, now);
+      expect(d.publish_at).toBeNull();
+      expect(() => applyRules("posts", { status: "published", publish_at: "next tuesday" }, "create", null, now)).toThrow(/publish_at/);
+      const empty: Record<string, unknown> = { status: "published", publish_at: "" };
+      applyRules("posts", empty, "create", null, now);
+      expect(empty.publish_at).toBeNull();
+      expect(empty.published_at).toBe(now);
+   });
+   it("publishState: draft, scheduled, published (an elapsed schedule is published)", () => {
+      const t = now.getTime();
+      expect(publishState({ status: "draft", publish_at: later }, t)).toBe("draft");
+      expect(publishState({ status: "published", publish_at: null }, t)).toBe("published");
+      expect(publishState({ status: "published", publish_at: "2026-11-08T09:59:59.000Z" }, t)).toBe("published");
+      expect(publishState(null, t)).toBe("draft");
    });
 });
 

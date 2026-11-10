@@ -248,6 +248,8 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                      saved: t.common.saved,
                      deleted: t.content.deleted,
                      reordered: t.common.reordered,
+                     scheduled: t.content.scheduled,
+                     unscheduled: t.content.unscheduled,
                   }).replace(/</g, "\\u003c"),
                )}
             </script>

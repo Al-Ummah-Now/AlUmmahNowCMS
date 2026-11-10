@@ -2,7 +2,9 @@
 
 Served by the CMS Worker (`al-ummah-now-cms[-qa|-stage]`). Consumed by www server-side through the
 service binding `CMS` (`env.CMS.fetch("https://cms.internal/api/public/v1/...")`; the host is ignored
-on a binding) or over HTTPS at `CMS_PUBLIC_URL`. Published rows only. JSON, UTF-8.
+on a binding) or over HTTPS at `CMS_PUBLIC_URL`. Published rows only; a scheduled page or post (`publish_at`
+still ahead) is not published yet and is absent everywhere (404, lists, alternates, sitemap) until its time,
+then appears with `published_at` = the scheduled time. No field was added. JSON, UTF-8.
 Headers: `Cache-Control: public, s-maxage=60, stale-while-revalidate=600`, plus `ETag`.
 Errors: `{ "error": "not_found" | "bad_request", "message"?: string }` with 404 or 400.
 `locale` is required where listed: `en` | `ar`; anything else → 400.

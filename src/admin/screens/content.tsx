@@ -1,11 +1,12 @@
 /** @jsxImportSource hono/jsx */
 /** Pages and posts: list (search, filters, sort, paging) and editor (docs/ADMIN_UI_SPEC.md E1–E16, A1–A12). */
 import type { Data, Row } from "../data.ts";
-import { absolute, relative } from "../format.ts";
+import { relative } from "../format.ts";
+import { publishState, timeOf, type PublishState } from "../../lib/schedule.ts";
 import { Icon } from "../ui/icons.tsx";
 import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { PickerDialog } from "../ui/picker.tsx";
-import { ConfirmDialog, I18nScript } from "../ui/parts.tsx";
+import { ConfirmDialog, I18nScript, LocalTime, StateBadge } from "../ui/parts.tsx";
 
 export type ContentKind = "pages" | "posts";
 const PAGE_SIZE = 20;
@@ -14,7 +15,7 @@ type SortKey = keyof typeof SORTS;
 
 export interface ListParams {
    q: string;
-   status: "" | "draft" | "published";
+   status: "" | PublishState;
    locale: "" | "en" | "ar";
    sort: SortKey;
    page: number;
@@ -28,37 +29,55 @@ export function parseListParams(url: URL): ListParams {
    const page = Number.parseInt(g("page"), 10);
    return {
       q: g("q").trim().slice(0, 100),
-      status: status === "draft" || status === "published" ? status : "",
+      status: status === "draft" || status === "scheduled" || status === "published" ? status : "",
       locale: locale === "en" || locale === "ar" ? locale : "",
       sort: sort in SORTS ? (sort as SortKey) : "updated",
       page: Number.isFinite(page) && page > 0 ? Math.min(page, 10_000) : 1,
    };
 }
 
+export interface ListBranch {
+   where: Record<string, unknown>;
+   /** Kept rows (time checks bknd can't do, see below); absent = every row the where returns. */
+   keep?: PublishState;
+}
+
 /**
  * bknd 0.21 joins `$or` to its sibling conditions with OR (`status = 'draft' OR title LIKE …`), so
- * a search is two AND-only queries (title, then address) merged here (docs/ADMIN_UI_SPEC.md §0).
+ * every "either" is separate AND-only queries merged here (docs/ADMIN_UI_SPEC.md §0): a search
+ * (title, address). Its guard also accepts only numbers for `$gt`/`$lte`, so the schedule filters
+ * (#7) ask bknd for "has a schedule" (`$isnull`) and compare the time in the Worker (`keep`).
  */
-export function listWheres(p: Pick<ListParams, "q" | "status" | "locale">): Record<string, unknown>[] {
+export function listWheres(p: Pick<ListParams, "q" | "status" | "locale">): ListBranch[] {
    const where: Record<string, unknown> = {};
-   if (p.status) where.status = p.status;
    if (p.locale) where.locale = p.locale;
-   if (!p.q) return [where];
+   let byStatus: ListBranch[] = [{ where: {} }];
+   if (p.status === "draft") byStatus = [{ where: { status: "draft" } }];
+   else if (p.status === "scheduled") byStatus = [{ where: { status: "published", publish_at: { $isnull: false } }, keep: "scheduled" }];
+   else if (p.status === "published") {
+      byStatus = [{ where: { status: "published", publish_at: { $isnull: true } } }, { where: { status: "published", publish_at: { $isnull: false } }, keep: "published" }];
+   }
    const like = `*${p.q.replace(/\*/g, "")}*`;
-   return [
-      { ...where, title: { $like: like } },
-      { ...where, slug: { $like: like } },
-   ];
+   const byText: Record<string, unknown>[] = p.q ? [{ title: { $like: like } }, { slug: { $like: like } }] : [{}];
+   return byStatus.flatMap((st) => byText.map((tx) => ({ where: { ...where, ...st.where, ...tx }, keep: st.keep })));
 }
 
 const SEARCH_CAP = 500;
 
 async function searchList(data: Data, kind: ContentKind, p: ListParams, select: string[]): Promise<{ data: Row[]; total: number }> {
-   const wheres = listWheres(p);
-   if (wheres.length === 1) return data.list(kind, { limit: PAGE_SIZE, offset: (p.page - 1) * PAGE_SIZE, sort: SORTS[p.sort], where: wheres[0], select });
-   const parts = await Promise.all(wheres.map((where) => data.list(kind, { limit: SEARCH_CAP, sort: SORTS[p.sort], where, select })));
+   const branches = listWheres(p);
+   if (branches.length === 1 && !branches[0].keep) {
+      return data.list(kind, { limit: PAGE_SIZE, offset: (p.page - 1) * PAGE_SIZE, sort: SORTS[p.sort], where: branches[0].where, select });
+   }
+   const now = Date.now();
+   const parts = await Promise.all(
+      branches.map(async (b) => {
+         const res = await data.list(kind, { limit: SEARCH_CAP, sort: SORTS[p.sort], where: b.where, select });
+         return b.keep ? res.data.filter((r) => publishState(r, now) === b.keep) : res.data;
+      }),
+   );
    const seen = new Map<string, Row>();
-   for (const r of parts.flatMap((x) => x.data)) seen.set(String(r.id), r);
+   for (const r of parts.flat()) seen.set(String(r.id), r);
    const key = SORTS[p.sort].replace(/^-/, "");
    const desc = SORTS[p.sort].startsWith("-");
    const all = [...seen.values()].sort((a, b) => {
@@ -82,7 +101,7 @@ const qs = (p: ListParams, over: Partial<ListParams>) => {
 
 export async function contentList(v: View, data: Data, kind: ContentKind, p: ListParams) {
    const { t } = v;
-   const select = ["id", "title", "slug", "locale", "status", "updated_at", "published_at", ...(kind === "posts" ? ["author_name"] : [])];
+   const select = ["id", "title", "slug", "locale", "status", "updated_at", "published_at", "publish_at", ...(kind === "posts" ? ["author_name"] : [])];
    const res = await searchList(data, kind, p, select);
    const pages = Math.max(1, Math.ceil(res.total / PAGE_SIZE));
    const base = `/${kind}`;
@@ -116,7 +135,7 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
                   <Icon name="search" />
                </button>
             </div>
-            {seg("status", ["", "draft", "published"], (x) => (x ? t.status[x] : t.common.all))}
+            {seg("status", ["", "draft", "scheduled", "published"], (x) => (x ? t.status[x] : t.common.all))}
             {seg("locale", ["", "en", "ar"], (x) => (x ? t.locales[x] : t.common.all))}
             <label class="vh" for="list-sort">
                {t.common.sort}
@@ -149,12 +168,18 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
                            <span class="badge loc">{String(r.locale).toUpperCase()}</span>
                            <span dir="ltr">/{kind === "posts" ? "posts/" : ""}{String(r.slug)}</span>
                            {r.author_name ? <span>{String(r.author_name)}</span> : null}
-                           <span>
-                              {t.common.updated} {relative(r.updated_at, v.prefs.lang)}
-                           </span>
+                           {publishState(r) === "scheduled" ? (
+                              <span class="when">
+                                 <Icon name="clock" size={14} /> {t.content.goesLive} <LocalTime iso={r.publish_at} lang={v.prefs.lang} />
+                              </span>
+                           ) : (
+                              <span>
+                                 {t.common.updated} {relative(r.updated_at, v.prefs.lang)}
+                              </span>
+                           )}
                         </div>
                      </div>
-                     <span class={`badge ${r.status === "published" ? "published" : "draft"}`}>{t.status[r.status === "published" ? "published" : "draft"]}</span>
+                     <StateBadge v={v} state={publishState(r)} />
                   </li>
                ))}
             </ul>
@@ -227,12 +252,17 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    const [covers, translations] = await Promise.all([
       id ? data.list<MediaRow>("media", { limit: 1, sort: "id", where: { reference: `${kind}.cover`, entity_id: String(id) } }) : Promise.resolve({ data: [] as MediaRow[], total: 0 }),
       row?.translation_key
-         ? data.list(kind, { limit: 5, where: { translation_key: String(row.translation_key), locale: other }, select: ["id", "title", "slug", "locale", "status"] })
+         ? data.list(kind, { limit: 5, where: { translation_key: String(row.translation_key), locale: other }, select: ["id", "title", "slug", "locale", "status", "publish_at"] })
          : Promise.resolve({ data: [] as Row[], total: 0 }),
    ]);
    const cover = covers.data[0];
    const s = (k: string) => (row && row[k] != null ? String(row[k]) : "");
-   const published = row?.status === "published";
+   const state = publishState(row);
+   const published = state === "published";
+   const scheduled = state === "scheduled";
+   const firstPublished = timeOf(row?.published_at);
+   const wentLive = firstPublished !== null && firstPublished <= Date.now();
+   const publishAt = scheduled ? new Date(timeOf(row?.publish_at)!).toISOString() : "";
    const base = `/${kind}`;
    const sitePath = `${v.wwwUrl}/${locale}/${kind === "posts" ? "posts/" : ""}${s("slug")}`;
    const title = row ? s("title") : kind === "pages" ? t.content.newPage : t.content.newPost;
@@ -257,6 +287,8 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       coverTooBig: t.content.coverTooBig,
       coverBadType: t.content.coverBadType,
       coverUploading: t.content.coverUploading,
+      schedulePast: t.content.schedulePast,
+      scheduleRequired: t.content.scheduleRequired,
       picker: t.picker,
    };
    return (
@@ -276,6 +308,8 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
             data-updated={s("updated_at")}
             data-locale={locale}
             data-translation-key={s("translation_key")}
+            data-state={state}
+            data-publish-at={publishAt}
             novalidate
          >
             <div class="stack">
@@ -430,10 +464,18 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                      <h2 id="pub-h" style="margin:0">
                         {t.content.publishing}
                      </h2>
-                     <span class={`badge ${published ? "published" : "draft"}`} data-status-badge>
-                        {t.status[published ? "published" : "draft"]}
-                     </span>
+                     <StateBadge v={v} state={state} attrs={{ "data-status-badge": "" }} />
                   </div>
+                  {scheduled ? (
+                     <div class="sched" data-schedule-callout>
+                        <span class="sched-ic" aria-hidden="true">
+                           <Icon name="clock" size={22} />
+                        </span>
+                        <span class="sched-l">{t.content.scheduledFor}</span>
+                        <LocalTime class="sched-t" iso={publishAt} lang={v.prefs.lang} />
+                        <p class="sched-note">{t.content.scheduledNote}</p>
+                     </div>
+                  ) : null}
                   {row ? null : (
                      <div class="field">
                         <span class="label">{t.content.newIn}</span>
@@ -452,7 +494,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                      <dt>{t.common.updated}</dt>
                      <dd>{row ? relative(row.updated_at, v.prefs.lang) : "—"}</dd>
                      <dt>{t.common.firstPublished}</dt>
-                     <dd>{row?.published_at ? absolute(row.published_at, v.prefs.lang) : t.common.never}</dd>
+                     <dd>{wentLive ? <LocalTime iso={row?.published_at} lang={v.prefs.lang} /> : t.common.never}</dd>
                   </dl>
                   <div class="pub-actions">
                      {published ? (
@@ -462,6 +504,18 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                            </button>
                            <button class="btn" type="submit" data-action="draft">
                               <Icon name="eyeOff" size={18} /> {t.common.unpublish}
+                           </button>
+                        </>
+                     ) : scheduled ? (
+                        <>
+                           <button class="btn primary" type="submit" data-action="schedule">
+                              <Icon name="check" size={18} /> {t.common.save}
+                           </button>
+                           <button class="btn" type="submit" data-action="published">
+                              <Icon name="globe" size={18} /> {t.content.publishNow}
+                           </button>
+                           <button class="btn ghost" type="submit" data-action="draft">
+                              <Icon name="x" size={18} /> {t.content.unschedule}
                            </button>
                         </>
                      ) : (
@@ -475,6 +529,28 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         </>
                      )}
                   </div>
+                  {published ? null : (
+                     <details class="later" data-later>
+                        <summary>
+                           <Icon name="calendar" size={18} /> {scheduled ? t.content.changeTime : t.content.later}
+                        </summary>
+                        <div class="later-b">
+                           <div class="field">
+                              <label for="f-publish-at">{t.content.goLiveAt}</label>
+                              <input id="f-publish-at" class="input" type="datetime-local" name="publish_at" data-iso={publishAt} aria-describedby="f-publish-at-help f-publish-at-err" />
+                              <p class="help" id="f-publish-at-help">
+                                 {t.content.timeZone} <span data-tz>UTC</span>
+                              </p>
+                              <p class="err" id="f-publish-at-err" hidden />
+                           </div>
+                           {scheduled ? null : (
+                              <button class="btn" type="submit" data-action="schedule">
+                                 <Icon name="clock" size={18} /> {t.content.scheduleButton}
+                              </button>
+                           )}
+                        </div>
+                     </details>
+                  )}
                   <p class="help" data-dirty hidden role="status">
                      {t.common.unsaved}
                   </p>
@@ -541,7 +617,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                                     <span class="badge loc">{String(r.locale).toUpperCase()}</span>
                                  </div>
                               </div>
-                              <span class={`badge ${r.status === "published" ? "published" : "draft"}`}>{t.status[r.status === "published" ? "published" : "draft"]}</span>
+                              <StateBadge v={v} state={publishState(r)} />
                            </li>
                         ))}
                      </ul>
@@ -556,11 +632,11 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                </section>
             </aside>
             <div class="actbar" role="group" aria-label={t.content.publishing}>
-               <button class="btn primary" type="submit" data-action="published">
-                  {published ? t.common.save : t.common.publish}
+               <button class="btn primary" type="submit" data-action={scheduled ? "schedule" : "published"}>
+                  {published || scheduled ? t.common.save : t.common.publish}
                </button>
                <button class="btn" type="submit" data-action="draft">
-                  {published ? t.common.unpublish : t.common.saveDraft}
+                  {published ? t.common.unpublish : scheduled ? t.content.unschedule : t.common.saveDraft}
                </button>
             </div>
          </form>

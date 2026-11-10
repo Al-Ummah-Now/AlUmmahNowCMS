@@ -1,7 +1,10 @@
 /**
  * bknd plugin: content rules that must hold however a row is written (admin UI, data API, picker).
  * - created_at / updated_at on every content entity (CONTENT_ENTITIES).
- * - `published_at` is set on first publish and never cleared (pages, posts).
+ * - `published_at` is set on first publish and never cleared once it has passed (pages, posts).
+ *   A scheduled row (status published, `publish_at` ahead) gets `published_at = publish_at`, moved
+ *   with the schedule and cleared on unschedule until it goes live (src/lib/schedule.ts).
+ * - `publish_at` is a valid date or NULL, and a draft never carries one.
  * - nav_items.url is a www-relative path ("/…", not "//") or an absolute https URL.
  * - the page slug "home" is reserved (www's home page is not a CMS page).
  * - posts.tags is an array of strings.
@@ -18,13 +21,18 @@
  */
 import { DatabaseEvents, Exception, type AppPlugin } from "bknd";
 import { CONTENT_ENTITIES } from "../schema.ts";
+import { timeOf } from "./schedule.ts";
 
 const CONTENT = new Set<string>(CONTENT_ENTITIES);
 const PUBLISHABLE = new Set(["pages", "posts"]);
 const WITH_STATUS = new Set(["pages", "posts", "nav_items", "curated_videos"]);
 
-export class ContentRuleError extends Error {
-   readonly status = 400;
+/** 400: a content rule refused the write (bknd serializes an Exception with its code, not as a 500). */
+export class ContentRuleError extends Exception {
+   constructor(message: string) {
+      super(message, 400);
+      this.name = "ContentRuleError";
+   }
 }
 
 /** 409: the row changed since the editor loaded it (bknd serializes an Exception with its code). */
@@ -131,11 +139,31 @@ export function applyRules(entity: string, data: Row, mode: "create" | "update",
       }
    }
    if (PUBLISHABLE.has(entity)) {
+      if ("publish_at" in data) {
+         if (data.publish_at === null || data.publish_at === "") data.publish_at = null;
+         else {
+            const at = timeOf(data.publish_at);
+            if (at === null) throw new ContentRuleError("publish_at must be a date and time");
+            data.publish_at = new Date(at);
+         }
+      }
       const status = data.status ?? current?.status ?? (mode === "create" ? "draft" : undefined);
-      const alreadyPublished = current?.published_at != null && current.published_at !== "";
-      if (status === "published" && !alreadyPublished && !data.published_at) data.published_at = now;
-      // Never clear or move published_at once set (it is the public "first published" date).
-      if (alreadyPublished && "published_at" in data) delete data.published_at;
+      const firstPublished = timeOf(current?.published_at);
+      // Went live = has a first-publish date that has passed. A scheduled row's date is still ahead.
+      const wentLive = firstPublished !== null && firstPublished <= now.getTime();
+      if (status === "published") {
+         // The first-publish date is the go-live time: now, or the schedule (moved with it until then).
+         if (!wentLive && !data.published_at) {
+            const at = timeOf("publish_at" in data ? data.publish_at : current?.publish_at);
+            data.published_at = at !== null ? new Date(at) : now;
+         }
+      } else if (status === "draft" && "status" in data) {
+         // Unpublish / unschedule: no schedule on a draft, and a go-live that never came is forgotten.
+         data.publish_at = null;
+         if (firstPublished !== null && !wentLive) data.published_at = null;
+      }
+      // Never clear or move published_at once it has passed (it is the public "first published" date).
+      if (wentLive && "published_at" in data) delete data.published_at;
    }
    if (CONTENT.has(entity)) {
       if (mode === "create") data.created_at = now;

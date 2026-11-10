@@ -1,10 +1,12 @@
 /**
  * Public read API v1 (docs/PUBLIC_API.md, SPEC §6). The only unauthenticated surface besides
  * /healthz. Reads D1 directly (no bknd boot) and EVERY content query filters
- * `status = 'published'`: drafts are never serialized.
+ * `status = 'published'`: drafts are never serialized. Pages and posts must also be live
+ * (`LIVE_SQL`: no `publish_at`, or one that has passed), so scheduled rows stay hidden (#7).
  */
 import { Hono, type Context } from "hono";
 import type { Env } from "../env.ts";
+import { LIVE_SQL } from "../lib/schedule.ts";
 
 type Locale = "en" | "ar";
 type Row = Record<string, unknown>;
@@ -230,7 +232,7 @@ function postSummaryOf(r: Row, cover: MediaRef | null) {
 async function alternates(env: Env, table: "pages" | "posts", key: unknown, l: Locale) {
    if (typeof key !== "string" || key === "") return [];
    const { results } = await env.DB.prepare(
-      `SELECT locale, slug FROM ${table} WHERE translation_key = ?1 AND status = 'published' AND locale <> ?2 ORDER BY locale`,
+      `SELECT locale, slug FROM ${table} WHERE translation_key = ?1 AND ${LIVE_SQL} AND locale <> ?2 ORDER BY locale`,
    )
       .bind(key, l)
       .all<{ locale: Locale; slug: string }>();
@@ -297,7 +299,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          getSettings(c.env, l),
          curated(c.env, l, "home"),
          c.env.DB.prepare(
-            `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND status = 'published' ORDER BY published_at DESC, id DESC LIMIT 3`,
+            `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} ORDER BY published_at DESC, id DESC LIMIT 3`,
          )
             .bind(l)
             .all<Row>(),
@@ -307,7 +309,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
 
    api.get("/pages/:slug", async (c) => {
       const l = locale(c);
-      const row = await c.env.DB.prepare("SELECT * FROM pages WHERE slug = ?1 AND locale = ?2 AND status = 'published' LIMIT 1")
+      const row = await c.env.DB.prepare(`SELECT * FROM pages WHERE slug = ?1 AND locale = ?2 AND ${LIVE_SQL} LIMIT 1`)
          .bind(c.req.param("slug"), l)
          .first<Row>();
       if (!row) throw new HttpError(404);
@@ -333,9 +335,9 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       const page = intParam(c.req.query("page"), 1, 1, 100_000, "page");
       const limit = intParam(c.req.query("limit"), 10, 1, 20, "limit");
       const [count, rows] = await Promise.all([
-         c.env.DB.prepare("SELECT COUNT(*) AS n FROM posts WHERE locale = ?1 AND status = 'published'").bind(l).first<{ n: number }>(),
+         c.env.DB.prepare(`SELECT COUNT(*) AS n FROM posts WHERE locale = ?1 AND ${LIVE_SQL}`).bind(l).first<{ n: number }>(),
          c.env.DB.prepare(
-            `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND status = 'published' ORDER BY published_at DESC, id DESC LIMIT ?2 OFFSET ?3`,
+            `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} ORDER BY published_at DESC, id DESC LIMIT ?2 OFFSET ?3`,
          )
             .bind(l, limit, (page - 1) * limit)
             .all<Row>(),
@@ -345,7 +347,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
 
    api.get("/posts/:slug", async (c) => {
       const l = locale(c);
-      const row = await c.env.DB.prepare("SELECT * FROM posts WHERE slug = ?1 AND locale = ?2 AND status = 'published' LIMIT 1")
+      const row = await c.env.DB.prepare(`SELECT * FROM posts WHERE slug = ?1 AND locale = ?2 AND ${LIVE_SQL} LIMIT 1`)
          .bind(c.req.param("slug"), l)
          .first<Row>();
       if (!row) throw new HttpError(404);
@@ -369,10 +371,10 @@ export function publicApi(): Hono<{ Bindings: Env }> {
    api.get("/sitemap", async (c) => {
       const [pages, posts] = await Promise.all([
          c.env.DB.prepare(
-            "SELECT slug, locale, show_in_sitemap, updated_at, published_at, created_at FROM pages WHERE status = 'published' ORDER BY locale, slug",
+            `SELECT slug, locale, show_in_sitemap, updated_at, published_at, created_at FROM pages WHERE ${LIVE_SQL} ORDER BY locale, slug`,
          ).all<Row>(),
          c.env.DB.prepare(
-            "SELECT slug, locale, updated_at, published_at, created_at FROM posts WHERE status = 'published' ORDER BY locale, published_at DESC",
+            `SELECT slug, locale, updated_at, published_at, created_at FROM posts WHERE ${LIVE_SQL} ORDER BY locale, published_at DESC`,
          ).all<Row>(),
       ]);
       const updated = (r: Row) => toIso(r.updated_at) ?? toIso(r.published_at) ?? toIso(r.created_at) ?? new Date(0).toISOString();

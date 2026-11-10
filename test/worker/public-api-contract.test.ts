@@ -60,6 +60,10 @@ describe("public API contract (www)", () => {
       await send("POST", "/api/data/entity/posts", { slug: "first", locale: "en", title: "First", excerpt: "One", body: "Body", author_name: "Editorial", tags: ["news"], status: "published" });
       await send("POST", "/api/data/entity/posts", { slug: "second", locale: "en", title: "Second", body: "Body 2", tags: [], status: "published" });
       await send("POST", "/api/data/entity/posts", { slug: "hidden", locale: "en", title: "Hidden", body: "x", status: "draft" });
+      // Scheduled (#7): published with a publish_at ahead must not show anywhere yet.
+      const tomorrow = new Date(Date.now() + 24 * 3600_000).toISOString();
+      await send("POST", "/api/data/entity/posts", { slug: "scheduled", locale: "en", title: "Scheduled", body: "x", tags: [], status: "published", publish_at: tomorrow });
+      await send("POST", "/api/data/entity/pages", { slug: "launch", locale: "en", title: "Launch", body: "x", status: "published", publish_at: tomorrow, show_in_sitemap: true });
 
       // Navigation, settings, curated videos (the picker endpoint), as the screens do.
       await send("POST", "/api/data/entity/nav_items", { menu: "header", locale: "en", label: "Videos", url: "/videos", sort: 10, status: "published" });
@@ -82,6 +86,8 @@ describe("public API contract (www)", () => {
          "/api/public/v1/posts?locale=en&page=2&limit=1",
          "/api/public/v1/posts/first?locale=en",
          "/api/public/v1/posts/hidden?locale=en",
+         "/api/public/v1/posts/scheduled?locale=en",
+         "/api/public/v1/pages/launch?locale=en",
          "/api/public/v1/videos?locale=en&placement=videos",
          "/api/public/v1/videos?locale=ar&placement=home",
          "/api/public/v1/sitemap",

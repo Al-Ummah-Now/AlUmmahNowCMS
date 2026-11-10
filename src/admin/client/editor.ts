@@ -2,6 +2,7 @@
 import { $, $$, api, ApiError, toast, strings } from "./dom.ts";
 import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
+import { toLocalInput } from "./time.ts";
 
 interface S {
    slugBad: string;
@@ -18,6 +19,8 @@ interface S {
    coverTooBig: string;
    coverBadType: string;
    coverUploading: string;
+   schedulePast: string;
+   scheduleRequired: string;
 }
 
 export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -55,6 +58,17 @@ export function initEditor(): void {
    const title = $<HTMLInputElement>("#f-title", form)!;
    const slug = $<HTMLInputElement>("#f-slug", form)!;
    const body = $<HTMLTextAreaElement>("#f-body", form)!;
+   const state = form.dataset.state as "draft" | "scheduled" | "published";
+   // Scheduling: the input shows the schedule (or the next full hour + 1) in the editor's own time zone.
+   const publishAt = $<HTMLInputElement>("#f-publish-at", form);
+   const later = $<HTMLDetailsElement>("[data-later]", form);
+   if (publishAt) {
+      const current = form.dataset.publishAt ? new Date(form.dataset.publishAt) : null;
+      const soon = new Date(Date.now() + 3600_000);
+      soon.setMinutes(0, 0, 0);
+      publishAt.value = toLocalInput(current && !Number.isNaN(current.getTime()) ? current : soon);
+      publishAt.min = toLocalInput(new Date());
+   }
    let dirty = false;
    let slugTouched = !slug.dataset.autoSlug;
    const dirtyNote = $("[data-dirty]", form);
@@ -238,7 +252,8 @@ export function initEditor(): void {
    form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       if (submitting) return;
-      const action = ((ev as SubmitEvent).submitter as HTMLElement | null)?.dataset.action === "published" ? "published" : "draft";
+      const pressed = ((ev as SubmitEvent).submitter as HTMLElement | null)?.dataset.action;
+      const action = pressed === "published" || pressed === "schedule" ? pressed : "draft";
       fieldError(title, "f-title-err", title.value.trim() ? null : T.required);
       const s = slug.value.trim();
       let slugErr: string | null = !s ? T.required : !SLUG.test(s) ? T.slugBad : kind === "pages" && s === "home" ? T.slugHome : null;
@@ -246,6 +261,19 @@ export function initEditor(): void {
       if (!title.value.trim() || slugErr) {
          (title.value.trim() ? slug : title).focus();
          return;
+      }
+      // A schedule is a local date and time in the future; it is sent as an absolute ISO time.
+      let goLive: string | null = null;
+      if (action === "schedule" && publishAt) {
+         const at = publishAt.value ? new Date(publishAt.value) : null;
+         const err = !at || Number.isNaN(at.getTime()) ? T.scheduleRequired : at.getTime() <= Date.now() + 30_000 ? T.schedulePast : null;
+         fieldError(publishAt, "f-publish-at-err", err);
+         if (err) {
+            if (later) later.open = true;
+            publishAt.focus();
+            return;
+         }
+         goLive = at!.toISOString();
       }
       submitting = true;
       const buttons = $$<HTMLButtonElement>("button[type=submit]", form);
@@ -272,7 +300,9 @@ export function initEditor(): void {
             body: body.value,
             seo_title: val("seo_title"),
             seo_description: val("seo_description"),
-            status: action,
+            status: action === "draft" ? "draft" : "published",
+            // Publish = live now; Schedule = live at goLive; a draft carries no schedule.
+            publish_at: goLive,
          };
          if (kind === "pages") {
             data.summary = val("summary");
@@ -283,7 +313,6 @@ export function initEditor(): void {
             if (tagInput?.value.trim()) addTag(tagInput.value);
             data.tags = tags();
          }
-         const wasPublished = $("[data-status-badge]")?.classList.contains("published");
          let rowId = id;
          // updated_at makes the save a compare-and-set on the server (409 if someone saved first).
          if (id) await api("PATCH", `/api/data/entity/${kind}/${id}`, form.dataset.updated ? { ...data, updated_at: form.dataset.updated } : data);
@@ -293,7 +322,8 @@ export function initEditor(): void {
             rowId = String(created.data.id);
          }
          dirty = false;
-         const done = !id ? "created" : action === "published" ? "published" : wasPublished ? "unpublished" : "draft";
+         const done =
+            action === "schedule" ? "scheduled" : !id ? "created" : action === "published" ? "published" : state === "published" ? "unpublished" : state === "scheduled" ? "unscheduled" : "draft";
          location.assign(`/${kind}/${rowId}?done=${done}`);
       } catch (e) {
          if (e instanceof ApiError && e.status === 409) toast(T.conflict, "bad");

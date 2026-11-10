@@ -263,6 +263,22 @@
       "error": "not_found"
     }
   },
+  "/api/public/v1/posts/scheduled?locale=en": {
+    "status": 404,
+    "cache": "public, s-maxage=30",
+    "etag": false,
+    "body": {
+      "error": "not_found"
+    }
+  },
+  "/api/public/v1/pages/launch?locale=en": {
+    "status": 404,
+    "cache": "public, s-maxage=30",
+    "etag": false,
+    "body": {
+      "error": "not_found"
+    }
+  },
   "/api/public/v1/videos?locale=en&placement=videos": {
     "status": 200,
     "cache": "public, s-maxage=60, stale-while-revalidate=600",

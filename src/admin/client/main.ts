@@ -8,8 +8,10 @@ import { initEditor } from "./editor.ts";
 import { initPicker } from "./picker.ts";
 import { initRows } from "./rows.ts";
 import { initShell } from "./shell.ts";
+import { initTimes } from "./time.ts";
 
 initShell();
+initTimes();
 initPicker();
 initEditor();
 initRows();
