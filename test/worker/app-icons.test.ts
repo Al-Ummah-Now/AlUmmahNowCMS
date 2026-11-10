@@ -10,7 +10,7 @@ describe("tab and app icons", () => {
          ["/favicon.svg", "image/svg+xml"],
          ["/favicon-qa.svg", "image/svg+xml"],
          ["/apple-touch-icon.png", "image/png"],
-         ["/icon-maskable-512.png", "image/png"],
+         ["/icon-512.png", "image/png"],
          ["/site.webmanifest", "application/manifest+json"],
       ]) {
          const res = await f(path);
@@ -20,7 +20,9 @@ describe("tab and app icons", () => {
          expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(100);
       }
       const svg = await (await f("/favicon.svg")).text();
-      expect(svg).toContain("prefers-color-scheme:dark");
+      // the owner's art as is: a PNG in SVG, no overlay on production
+      expect(svg).toContain("data:image/png;base64,");
+      expect(svg).not.toContain("<circle");
       const manifest = await (await f("/site.webmanifest")).json<{ name: string }>();
       expect(manifest.name).toBe("Al Ummah Now CMS");
    });
