@@ -9,6 +9,10 @@ export interface AuthUser {
    role?: string;
    /** JWT issued-at (epoch seconds), checked against the account's last sign-out. */
    iat?: number;
+   /** JWT expiry (epoch seconds). */
+   exp?: number;
+   /** This session's id (minted at sign-in), revoked by its single sign-out. */
+   sid?: string;
 }
 
 export type AppEnv = {

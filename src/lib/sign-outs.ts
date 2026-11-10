@@ -1,10 +1,40 @@
 /**
- * Single sign-out for CMS sessions (migration 0012).
+ * Single sign-out for CMS sessions (migrations 0012, 0015).
  *
  * A CMS session is a signed bknd JWT: clearing the cookie on sign-out does not make a copy of it
- * invalid. /sso/logout (also the front-channel hop of auth's single sign-out) records the time the
- * account signed out, and the session gate refuses any session issued before it.
+ * invalid. Each session carries a random `sid` (minted at /sso/callback). /sso/logout (also the
+ * front-channel hop of auth's single sign-out) revokes THAT sid, so a copy of this browser's cookie
+ * is refused while the account's other browsers and devices stay signed in. Nothing is bound to the
+ * User-Agent or the device, so browser updates and view switches never sign anyone out.
+ *
+ * Sessions issued before sids existed fall back to the account-wide sign-out time (0012); they
+ * expire within SESSION_TTL_SECONDS of the deploy.
  */
+
+/** A new session id for the CMS JWT. */
+export function newSessionId(): string {
+   const bytes = crypto.getRandomValues(new Uint8Array(16));
+   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Revokes one session (its sid) until `expiresAt` (epoch seconds), and sweeps expired rows. */
+export async function revokeSession(db: D1Database, sid: string, expiresAt: number, nowSec = Math.floor(Date.now() / 1000)): Promise<void> {
+   await db.batch([
+      db.prepare("DELETE FROM sso_session_revocations WHERE expires_at < ?1").bind(nowSec),
+      db
+         .prepare("INSERT INTO sso_session_revocations (sid, expires_at) VALUES (?1, ?2) ON CONFLICT(sid) DO NOTHING")
+         .bind(sid, Math.max(expiresAt, nowSec)),
+   ]);
+}
+
+/** Whether this session was ended by a sign-out: its sid is revoked, or (no sid) the account signed out after it was issued. */
+export async function sessionEnded(db: D1Database, session: { id: number | string; iat?: number; sid?: unknown }): Promise<boolean> {
+   if (typeof session.sid === "string" && session.sid) {
+      const row = await db.prepare("SELECT 1 AS x FROM sso_session_revocations WHERE sid = ?1").bind(session.sid).first();
+      return row !== null;
+   }
+   return endedBySignOut(db, session.id, session.iat);
+}
 
 /** Records that `userId` signed out at `nowSec` (epoch seconds). */
 export async function recordSignOut(db: D1Database, userId: number | string, nowSec = Math.floor(Date.now() / 1000)): Promise<void> {

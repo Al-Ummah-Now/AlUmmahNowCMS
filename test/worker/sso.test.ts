@@ -191,6 +191,26 @@ describe("callback", () => {
       expect((await fetchCms("/picker/api/search?kind=video&q=ab", { headers: { cookie: copied } })).status).toBe(401);
    });
 
+   it("a sign-out ends only that browser's session: the account's other browsers stay signed in", async () => {
+      const laptop = await signIn(["Admin"], { id: "so-3", email: "so3@example.com" });
+      const phone = await signIn(["Admin"], { id: "so-3", email: "so3@example.com" });
+      const laptopCookie = cookiesOf(laptop.callback);
+      const phoneCookie = cookiesOf(phone.callback);
+      await phone.fetchCms("/sso/logout", { headers: { cookie: phoneCookie } });
+      // The phone's session (and any copy of it) is over ...
+      expect((await phone.fetchCms("/posts", { headers: { cookie: phoneCookie } })).status).toBe(302);
+      // ... the laptop's is not, even though it is the same account and was issued earlier
+      expect((await laptop.fetchCms("/posts", { headers: { cookie: laptopCookie } })).status).toBe(200);
+   });
+
+   it("nothing is bound to the browser: the same session works from another User-Agent", async () => {
+      const { callback, fetchCms } = await signIn(["Admin"], { id: "so-4", email: "so4@example.com" });
+      const cookie = cookiesOf(callback);
+      for (const ua of ["Mozilla/5.0 (Macintosh) Chrome/150.0", "Mozilla/5.0 (iPhone) Mobile Safari/19.0", ""]) {
+         expect((await fetchCms("/posts", { headers: { cookie, "user-agent": ua } })).status, ua).toBe(200);
+      }
+   });
+
    it("signing in again after a sign-out gives a working session", async () => {
       const first = await signIn(["Admin"], { id: "so-2", email: "so2@example.com" });
       await first.fetchCms("/sso/logout", { headers: { cookie: cookiesOf(first.callback) } });
