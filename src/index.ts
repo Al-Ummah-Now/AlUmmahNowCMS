@@ -17,6 +17,8 @@ import { ALLOWED_UPLOAD, blockedApiPath, isRetiredBkndAdminPath, uploadAllowed, 
 import { ConfigError, runtimeConfig, type Env } from "./env.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
+import { consumeVariants, deleteVariants, sweepVariants, type VariantMessage } from "./lib/variants/jobs.ts";
+import { VARIANT_ROOT } from "./lib/variants/plan.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
 import { legacyAdminRedirect } from "./admin/legacy.ts";
@@ -175,6 +177,9 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          }
       }
       const named = c.req.method === "POST" ? uploadName(p) : null;
+      if (named?.startsWith(VARIANT_ROOT)) {
+         return c.json({ error: "bad_request", message: `Names starting with "${VARIANT_ROOT}" are reserved` }, 400);
+      }
       if (named && (await mediaExists(c.env, named))) {
          // Fast path before the body is read; the create-only R2 put (src/app.ts) is the atomic guarantee.
          return c.json({ error: "conflict", message: new MediaExistsError(named).message }, 409);
@@ -182,7 +187,21 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       const bknd = await deps.getApp(c);
       const res = await bknd.fetch(c.req.raw, c.env, c.executionCtx);
       const target = c.req.method === "POST" && res.ok ? entityUploadTarget(p) : null;
-      if (target) await keepNewestMedia(bknd, c.env.MEDIA, target);
+      if (target) await keepNewestMedia(bknd, c.env.MEDIA, target, (path) => deleteVariants(c.env, path));
+      if (res.ok && c.req.method === "POST" && (p.startsWith("/api/media/upload") || target)) {
+         // Image variants for the new original (CMS-10): queue it now instead of waiting for the cron.
+         c.executionCtx.waitUntil(sweepVariants(c.env, 5).catch((e) => console.error("variant enqueue failed", String(e))));
+      }
+      const deleted = c.req.method === "DELETE" && res.ok ? /^\/api\/media\/file\/(.+)$/.exec(p) : null;
+      if (deleted) {
+         let path: string | null = null;
+         try {
+            path = decodeURIComponent(deleted[1]);
+         } catch {
+            /* not a name bknd accepted either */
+         }
+         if (path) c.executionCtx.waitUntil(deleteVariants(c.env, path).catch((e) => console.error("variant cleanup failed", String(e))));
+      }
       return res;
    });
 
@@ -215,5 +234,14 @@ export default {
             (error) => console.error("curated snapshot refresh failed", String(error)),
          ),
       );
+      // Image variants: backfill originals without variants, resend lost jobs, drop orphans (CMS-10).
+      ctx.waitUntil(
+         sweepVariants(env).then(
+            (r) => console.log(JSON.stringify({ msg: "image variants swept", ...r })),
+            (error) => console.error("image variant sweep failed", String(error)),
+         ),
+      );
    },
+   // Image variant jobs (wrangler.jsonc queues.consumers).
+   queue: (batch: MessageBatch, env: Env) => consumeVariants(batch as MessageBatch<VariantMessage>, env),
 } satisfies ExportedHandler<Env>;

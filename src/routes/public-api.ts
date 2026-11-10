@@ -7,6 +7,9 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../env.ts";
 import { LIVE_SQL } from "../lib/schedule.ts";
+import { bodyImagePaths } from "../lib/variants/body-images.ts";
+import { enqueueVariants } from "../lib/variants/jobs.ts";
+import { fallbackFormat, parseVariantQuery, VARIANT_TYPES, variantKey, widthsFor } from "../lib/variants/plan.ts";
 
 type Locale = "en" | "ar";
 type Row = Record<string, unknown>;
@@ -16,10 +19,23 @@ export interface MediaRef {
    alt: string | null;
    width: number | null;
    height: number | null;
+   /** Resized copies in modern formats (CMS-10); null when the original's width is unknown. Additive. */
+   variants: MediaVariants | null;
+}
+
+/** srcset strings ("<url>?w=320&f=avif 320w, …") per format, for `<picture>` sources. */
+export interface MediaVariants {
+   widths: number[];
+   fallback_type: "image/jpeg" | "image/png";
+   avif: string;
+   webp: string;
+   fallback: string;
 }
 
 const CACHE = "public, s-maxage=60, stale-while-revalidate=600";
 const MEDIA_CACHE = "public, max-age=31536000, immutable";
+/** The original answering for a variant that isn't made yet: short, so the variant takes over soon. */
+const PENDING_CACHE = "public, max-age=60, s-maxage=60";
 const LOCAL_WWW = "http://localhost:4321";
 const MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
 
@@ -82,27 +98,60 @@ export function mediaUrl(publicUrl: string, path: string): string {
    return `${publicUrl.replace(/\/+$/, "")}/api/public/v1/media/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
+export function mediaVariants(url: string, width: number | null, mimeType: string | null): MediaVariants | null {
+   const widths = widthsFor(width);
+   if (!widths) return null;
+   const fallback = fallbackFormat(mimeType);
+   const srcset = (f: string) => widths.map((w) => `${url}?w=${w}&f=${f} ${w}w`).join(", ");
+   return { widths, fallback_type: fallback === "png" ? "image/png" : "image/jpeg", avif: srcset("avif"), webp: srcset("webp"), fallback: srcset(fallback) };
+}
+
+interface MediaRow {
+   path: string;
+   metadata: unknown;
+   mime_type: string | null;
+   /** Displayed size read by the variant job (EXIF orientation applied); preferred over bknd's. */
+   v_width: number | null;
+   v_height: number | null;
+}
+const MEDIA_COLS = "m.path, m.metadata, m.mime_type, v.width AS v_width, v.height AS v_height";
+
+function mediaRefOf(env: Env, m: MediaRow): MediaRef {
+   const meta = parseJson<Row>(m.metadata, {});
+   const num = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v > 0 ? v : null);
+   const width = num(m.v_width) ?? num(meta.width);
+   const height = num(m.v_width) ? num(m.v_height) : num(meta.height);
+   const url = mediaUrl(env.PUBLIC_URL, m.path);
+   return { url, alt: strOrNull(meta.alt), width, height, variants: mediaVariants(url, width, m.mime_type) };
+}
+
 async function covers(env: Env, entity: "pages" | "posts", ids: unknown[]): Promise<Map<string, MediaRef>> {
    const out = new Map<string, MediaRef>();
    if (ids.length === 0) return out;
    const keys = ids.map(String);
    const { results } = await env.DB.prepare(
-      `SELECT entity_id, path, metadata FROM media WHERE reference = ?1 AND entity_id IN (${keys.map((_, i) => `?${i + 2}`).join(",")}) ORDER BY id`,
+      `SELECT m.entity_id, ${MEDIA_COLS} FROM media m LEFT JOIN media_variants v ON v.path = m.path
+       WHERE m.reference = ?1 AND m.entity_id IN (${keys.map((_, i) => `?${i + 2}`).join(",")}) ORDER BY m.id`,
    )
       .bind(`${entity}.cover`, ...keys)
-      .all<{ entity_id: string; path: string; metadata: unknown }>();
+      .all<MediaRow & { entity_id: string }>();
    for (const m of results) {
       if (out.has(m.entity_id) || !m.path) continue;
-      const meta = parseJson<Row>(m.metadata, {});
-      const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-      out.set(m.entity_id, {
-         url: mediaUrl(env.PUBLIC_URL, m.path),
-         alt: strOrNull(meta.alt),
-         width: num(meta.width),
-         height: num(meta.height),
-      });
+      out.set(m.entity_id, mediaRefOf(env, m));
    }
    return out;
+}
+
+async function bodyImages(env: Env, body: string): Promise<MediaRef[]> {
+   const paths = bodyImagePaths(env.PUBLIC_URL, body);
+   if (!paths.length) return [];
+   const { results } = await env.DB.prepare(
+      `SELECT ${MEDIA_COLS} FROM media m LEFT JOIN media_variants v ON v.path = m.path WHERE m.path IN (${paths.map((_, i) => `?${i + 1}`).join(",")})`,
+   )
+      .bind(...paths)
+      .all<MediaRow>();
+   const byPath = new Map(results.map((r) => [r.path, r]));
+   return paths.flatMap((p) => (byPath.has(p) ? [mediaRefOf(env, byPath.get(p)!)] : []));
 }
 
 function settingsOf(row: Row | null) {
@@ -313,20 +362,22 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          .bind(c.req.param("slug"), l)
          .first<Row>();
       if (!row) throw new HttpError(404);
-      const [cov, alts] = await Promise.all([covers(c.env, "pages", [row.id]), alternates(c.env, "pages", row.translation_key, l)]);
+      const body = typeof row.body === "string" ? row.body : "";
+      const [cov, alts, images] = await Promise.all([covers(c.env, "pages", [row.id]), alternates(c.env, "pages", row.translation_key, l), bodyImages(c.env, body)]);
       const published = toIso(row.published_at) ?? toIso(row.created_at) ?? new Date(0).toISOString();
       return json(c, {
          slug: String(row.slug),
          locale: row.locale,
          title: String(row.title ?? ""),
          summary: strOrNull(row.summary),
-         body: typeof row.body === "string" ? row.body : "",
+         body,
          seo_title: strOrNull(row.seo_title),
          seo_description: strOrNull(row.seo_description),
          cover: cov.get(String(row.id)) ?? null,
          published_at: published,
          updated_at: toIso(row.updated_at) ?? published,
          alternates: alts,
+         images,
       });
    });
 
@@ -351,13 +402,15 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          .bind(c.req.param("slug"), l)
          .first<Row>();
       if (!row) throw new HttpError(404);
-      const [cov, alts] = await Promise.all([covers(c.env, "posts", [row.id]), alternates(c.env, "posts", row.translation_key, l)]);
+      const body = typeof row.body === "string" ? row.body : "";
+      const [cov, alts, images] = await Promise.all([covers(c.env, "posts", [row.id]), alternates(c.env, "posts", row.translation_key, l), bodyImages(c.env, body)]);
       return json(c, {
          ...postSummaryOf(row, cov.get(String(row.id)) ?? null),
-         body: typeof row.body === "string" ? row.body : "",
+         body,
          seo_title: strOrNull(row.seo_title),
          seo_description: strOrNull(row.seo_description),
          alternates: alts,
+         images,
       });
    });
 
@@ -398,17 +451,37 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          throw new HttpError(400, "bad path");
       }
       if (!path || path.includes("..") || path.startsWith("/") || path.length > 512) throw new HttpError(404);
+      const variant = parseVariantQuery(new URL(c.req.url).searchParams);
+      if (variant === "bad") throw new HttpError(400, "w must be 1–1600 and f one of avif, webp, jpeg, png");
       // Only files bknd's media module knows about (not arbitrary bucket keys).
       const known = await c.env.DB.prepare("SELECT mime_type FROM media WHERE path = ?1 LIMIT 1")
          .bind(path)
          .first<{ mime_type: string | null }>();
       if (!known) throw new HttpError(404);
+      if (variant) {
+         // A made variant is immutable like the original. One that isn't made yet: the original
+         // answers with a short cache, and the job is queued (an insert + send; never made here).
+         const made = await c.env.MEDIA.get(variantKey(path, variant.width, variant.format));
+         if (made) {
+            const headers = new Headers(corsHeaders(c.env, c.req.header("Origin")));
+            headers.set("ETag", made.httpEtag);
+            headers.set("Cache-Control", MEDIA_CACHE);
+            headers.set("Content-Type", VARIANT_TYPES[variant.format]);
+            headers.set("X-Content-Type-Options", "nosniff");
+            headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
+            headers.set("X-Variant", "hit");
+            if (c.req.header("If-None-Match") === made.httpEtag) return new Response(null, { status: 304, headers });
+            return new Response(c.req.method === "HEAD" ? null : made.body, { headers });
+         }
+         c.executionCtx.waitUntil(enqueueVariants(c.env, path).catch((e) => console.error("variant enqueue failed", String(e))));
+      }
       const obj = await c.env.MEDIA.get(path);
       if (!obj) throw new HttpError(404);
       const headers = new Headers(corsHeaders(c.env, c.req.header("Origin")));
       obj.writeHttpMetadata(headers);
       headers.set("ETag", obj.httpEtag);
-      headers.set("Cache-Control", MEDIA_CACHE);
+      headers.set("Cache-Control", variant ? PENDING_CACHE : MEDIA_CACHE);
+      if (variant) headers.set("X-Variant", "pending");
       headers.set("X-Content-Type-Options", "nosniff");
       headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
       // bknd's R2 adapter stores no httpMetadata; serve the type bknd recorded, images only.

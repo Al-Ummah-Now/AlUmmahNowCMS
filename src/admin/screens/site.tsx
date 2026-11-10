@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx */
 /** Navigation, Videos, Site settings and Library (docs/ADMIN_UI_SPEC.md E17–E36, A8, A11–A13, X1). */
 import type { Data, Row } from "../data.ts";
+import { variantStatuses, type VariantRow } from "../../lib/variants/jobs.ts";
 import { bytes, relative } from "../format.ts";
 import { Icon, type IconName } from "../ui/icons.tsx";
 import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
@@ -369,9 +370,11 @@ export async function siteScreen(v: View, data: Data, locale: "en" | "ar") {
 export async function libraryScreen(v: View, data: Data) {
    const { t } = v;
    const res = await data.list<Row>("media", { limit: 200, sort: "-id" });
+   // Image variants (CMS-10): each card says whether its sizes exist; failures are flagged with a Retry.
+   const variants = await variantStatuses(data.env, res.data.map((m: Row) => String(m.path))).catch(() => new Map<string, VariantRow>());
    return (
       <>
-         <I18nScript nonce={v.nonce} strings={{ ...rowStrings(v), deleteUsed: t.library.deleteUsed, coverTooBig: t.content.coverTooBig, coverBadType: t.content.coverBadType, uploading: t.content.coverUploading }} />
+         <I18nScript nonce={v.nonce} strings={{ ...rowStrings(v), deleteUsed: t.library.deleteUsed, coverTooBig: t.content.coverTooBig, coverBadType: t.content.coverBadType, uploading: t.content.coverUploading, retried: t.library.variantsRetried }} />
          <PageHead title={t.library.title} intro={t.library.intro}>
             <label class="btn primary" style="position:relative">
                <Icon name="upload" size={18} /> {t.library.upload}
@@ -386,8 +389,9 @@ export async function libraryScreen(v: View, data: Data) {
                   const ref = String(m.reference ?? "");
                   const [entity] = ref.split(".");
                   const path = String(m.path);
+                  const vr = variants.get(path);
                   return (
-                     <li class="card media-card" data-media={String(m.id)} data-path={path} data-used={ref ? "1" : ""}>
+                     <li class="card media-card" data-media={String(m.id)} data-path={path} data-used={ref ? "1" : ""} data-variants={vr?.status ?? "queued"}>
                         <img src={`/api/public/v1/media/${path.split("/").map(encodeURIComponent).join("/")}`} alt={typeof meta.alt === "string" ? meta.alt : ""} loading="lazy" />
                         <div class="stack" style="gap:8px">
                            <div class="li-meta" style="margin:0">
@@ -401,6 +405,19 @@ export async function libraryScreen(v: View, data: Data) {
                                  <span>{t.library.unused}</span>
                               )}
                            </div>
+                           {vr?.status === "failed" ? (
+                              <div class="notice bad" role="status" style="margin:0;display:grid;gap:6px" data-variants-failed>
+                                 <strong>{t.library.variantsFailed}</strong>
+                                 <span class="muted" dir="auto" style="font-size:13px">{vr.error ?? ""}</span>
+                                 <button type="button" class="btn sm" data-variants-retry style="justify-self:start" aria-label={`${t.library.variantsRetry}: ${path}`}>
+                                    <Icon name="refresh" size={16} /> {t.library.variantsRetry}
+                                 </button>
+                              </div>
+                           ) : (
+                              <span class="muted" style="font-size:13px" data-variants-status>
+                                 {vr?.status === "done" ? t.library.variantsReady : t.library.variantsMaking}
+                              </span>
+                           )}
                            <div class="field">
                               <label for={`ma-${m.id}`}>{t.content.alt}</label>
                               <div style="display:flex;gap:8px">

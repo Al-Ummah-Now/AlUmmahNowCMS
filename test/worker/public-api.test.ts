@@ -130,6 +130,7 @@ describe("public API: shapes (docs/PUBLIC_API.md)", () => {
          published_at: "2026-11-08T10:00:00.000Z",
          updated_at: "2026-11-08T10:00:00.000Z",
          alternates: [{ locale: "ar", slug: "hawl" }],
+         images: [],
       });
    });
    it("/posts paginates newest first", async () => {

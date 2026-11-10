@@ -22,6 +22,7 @@ interface S {
    coverTooBig: string;
    coverBadType: string;
    uploading: string;
+   retried: string;
 }
 
 export function validNavUrl(url: string): boolean {
@@ -346,7 +347,19 @@ function initLibrary(T: S): void {
       const t = e.target as HTMLElement;
       const card = t.closest<HTMLElement>("[data-media]");
       if (!card) return;
-      if (t.closest("[data-media-alt-save]")) {
+      if (t.closest("[data-variants-retry]")) {
+         const btn = t.closest<HTMLButtonElement>("[data-variants-retry]")!;
+         btn.disabled = true;
+         try {
+            await api("POST", "/admin/api/media/variants/retry", { path: card.dataset.path });
+            btn.closest("[data-variants-failed]")?.remove();
+            card.dataset.variants = "queued";
+            toast(T.retried);
+         } catch (err2) {
+            btn.disabled = false;
+            fail(T, err2);
+         }
+      } else if (t.closest("[data-media-alt-save]")) {
          try {
             await api("PATCH", `/admin/api/media/${card.dataset.media}/alt`, { alt: $<HTMLInputElement>("[data-media-alt]", card)!.value });
             toast(T.saved);

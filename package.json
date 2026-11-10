@@ -31,6 +31,9 @@
     "check:fanous": "node --experimental-strip-types --no-warnings scripts/sync-fanous.ts --check"
   },
   "dependencies": {
+    "@jsquash/avif": "2.1.1",
+    "@jsquash/jpeg": "1.6.0",
+    "@jsquash/webp": "1.5.0",
     "bknd": "0.21.0",
     "hono": "4.10.4",
     "jose": "^6.2.15",

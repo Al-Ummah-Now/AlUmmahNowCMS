@@ -1,8 +1,10 @@
 /**
  * Worker endpoints the staff screens need beyond bknd's API (docs/ADMIN_UI_SPEC.md §0).
  *   PATCH /admin/api/media/:id/alt  { alt }  → media.metadata.alt only (editors may not update media)
+ *   POST  /admin/api/media/variants/retry  { path }  → queue an original's image variants again (CMS-10)
  */
 import { Hono } from "hono";
+import { retryVariants } from "../lib/variants/jobs.ts";
 import type { AppEnv, Deps } from "../types.ts";
 
 export const ALT_MAX = 300;
@@ -45,6 +47,15 @@ export function mediaAltRoute(deps: Deps): Hono<AppEnv> {
          m.__unstable_toggleSystemEntityCreation?.(true);
       }
       return c.json({ data: { id, alt: alt || null } });
+   });
+   r.post("/media/variants/retry", async (c) => {
+      const role = c.get("user")?.role;
+      if (role !== "admin" && role !== "editor") return c.json({ error: "forbidden" }, 403);
+      const body = (await c.req.json().catch(() => null)) as { path?: unknown } | null;
+      if (!body || typeof body.path !== "string" || !body.path || body.path.length > 512) return c.json({ error: "bad_request", message: "path required" }, 400);
+      if (!c.env.VARIANTS) return c.json({ error: "unavailable", message: "image processing is not configured" }, 503);
+      if (!(await retryVariants(c.env, body.path))) return c.json({ error: "not_found" }, 404);
+      return c.json({ data: { path: body.path, status: "queued" } });
    });
    return r;
 }

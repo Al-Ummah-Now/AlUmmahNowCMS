@@ -12,8 +12,20 @@ Errors: `{ "error": "not_found" | "bad_request", "message"?: string }` with 404 
 ```ts
 type Locale = 'en' | 'ar';
 
-interface MediaRef { url: string; alt: string | null; width: number | null; height: number | null }
+interface MediaRef {
+  url: string; alt: string | null;
+  width: number | null; height: number | null;   // as displayed (EXIF orientation applied) once the variant job has read the file
+  variants: MediaVariants | null;                 // added in CMS-10 (additive); null until the original's width is known
+}
 // url is absolute: `${CMS_PUBLIC_URL}/api/public/v1/media/<path>`
+
+// Resized copies (see "Image variants" below). Each string is a ready `srcset`:
+// "<url>?w=320&f=avif 320w, <url>?w=640&f=avif 640w, …".
+interface MediaVariants {
+  widths: number[];                         // ascending: 320, 640, 960, 1280, 1600 below the original's width, plus its own width (≤ 1600)
+  fallback_type: 'image/jpeg' | 'image/png'; // PNG originals fall back to PNG (transparency); all others to JPEG
+  avif: string; webp: string; fallback: string;
+}
 
 interface NavItem { label: string; url: string }   // url: relative "/..." (www-relative, no locale prefix) or absolute https
 
@@ -29,6 +41,7 @@ interface Alternate { locale: Locale; slug: string }
 interface Page {
   slug: string; locale: Locale; title: string; summary: string | null;
   body: string;                 // markdown, HTML must be ignored by the renderer; may contain ::video[ID] lines
+  images: MediaRef[];           // CMS-10 (additive): CMS media used as `![alt](url)` in body, once each, in order; match by URL path
   seo_title: string | null; seo_description: string | null;
   cover: MediaRef | null;
   published_at: string;         // ISO 8601
@@ -43,6 +56,7 @@ interface PostSummary {
 }
 interface Post extends PostSummary {
   body: string; seo_title: string | null; seo_description: string | null; alternates: Alternate[];
+  images: MediaRef[];           // as Page.images (CMS-10, additive)
 }
 
 interface CuratedVideo {
@@ -78,6 +92,32 @@ interface CuratedSnapshot {
 | `/videos` | `locale`, `placement` (`home` \| `videos`, default `videos`) | `{ items: CuratedVideo[] }` (by sort, at most 48) |
 | `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string }[] }` (pages with show_in_sitemap only) |
 | `/media/*` | — | the R2 object, `Cache-Control: public, max-age=31536000, immutable` |
+| `/media/*` | `w` (1–1600), `f` (`avif` \| `webp` \| `jpeg` \| `png`) | the variant: `Content-Type` of `f`, immutable cache, `X-Variant: hit`. Not made yet: the **original**, `Cache-Control: public, max-age=60, s-maxage=60`, `X-Variant: pending`, and the job is queued. Malformed `w`/`f` → 400 |
 
 The page slug `home` is reserved (not used as a page route on www). An empty CMS returns empty
 arrays and `settings: null`, never an error.
+
+## Image variants (CMS-10)
+
+Originals are stored and served exactly as uploaded (never overwritten, CMS-1). Resized copies are
+derived from them by a **queued job** and kept in R2 under `_variants/v1/<path>/<width>.<ext>`:
+AVIF, WebP and a fallback (JPEG, or PNG for PNG originals) at each of `MediaVariants.widths`. No
+image is ever resized inside a request.
+
+- **Where it runs:** the CMS Worker's own queue consumer (`al-ummah-now-cms-variants[-stage|-qa]`,
+  DLQ `al-ummah-now-cms-variants-dlq[-stage|-qa]`), with Squoosh's codecs compiled to WASM
+  (mozjpeg, libwebp, libavif via `@jsquash/*`) and PNG/resizing in JS. Cloudflare Image
+  Transformations (`/cdn-cgi/image/`, `cf.image`) are **not enabled** on the zone (Free plan)
+  and Cloudflare Images is a separate paid product, so neither is used.
+- **When:** right after an upload; on the first request for a variant that does not exist; and by
+  the 30-minute cron, which also backfills older media, resends lost jobs and removes the
+  variants of deleted originals. Deleting an original deletes its variants at once.
+- **Retries / failures:** a failing job is retried with exponential backoff (30 s → 30 min, 5
+  attempts); then, or at once for a permanent reason (too large: over 16 MP, 8 MP for AVIF;
+  undecodable), the original is flagged to staff: the Library card says "Sizes not made" with
+  the reason and a Retry, and the Overview shows how many failed. Such originals keep being
+  served as uploaded.
+- **For www:** use `variants` in a `<picture>`: `<source type="image/avif" srcset=avif>`,
+  `<source type="image/webp" srcset=webp>`, `<img srcset=fallback src=url width height>`, with a
+  `sizes` that matches the layout. Until a variant is made its URL returns the original (correct,
+  just larger) with a 60-second cache, so pages never break while jobs run.

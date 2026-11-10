@@ -2,6 +2,8 @@
 export interface Env {
    DB: D1Database;
    MEDIA: R2Bucket;
+   /** Image variant jobs (src/lib/variants/jobs.ts). Optional so a missing binding degrades to originals. */
+   VARIANTS?: Queue<import("./lib/variants/jobs.ts").VariantMessage>;
    ENVIRONMENT: "production" | "stage" | "qa" | "local";
    PUBLIC_URL: string;
    AUTH_ISSUER: string;

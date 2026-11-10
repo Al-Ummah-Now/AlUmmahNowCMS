@@ -18,6 +18,10 @@ interface EnvConfig {
    d1_databases?: { binding: string; database_name: string; database_id: string; migrations_dir?: string }[];
    r2_buckets?: { binding: string; bucket_name: string }[];
    triggers?: { crons?: string[] };
+   queues?: {
+      producers?: { binding: string; queue: string }[];
+      consumers?: { queue: string; max_retries?: number; dead_letter_queue?: string; max_batch_size?: number }[];
+   };
 }
 interface WranglerConfig extends EnvConfig {
    env?: Record<string, EnvConfig>;
@@ -63,6 +67,19 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
       if (r2.length !== 1 || r2[0].binding !== "MEDIA" || r2[0].bucket_name !== want.r2) {
          errors.push(`${where}: r2_buckets must be [MEDIA → ${want.r2}]`);
       }
+      // Image variant jobs (src/lib/variants/jobs.ts): this env's own queue, consumed by this Worker, with a DLQ.
+      // Other queues may sit next to it; only the VARIANTS ones are checked.
+      const producers = (c.queues?.producers ?? []).filter((p) => p.binding === "VARIANTS");
+      if (producers.length !== 1 || producers[0].queue !== want.variantsQueue) errors.push(`${where}: queues.producers must bind VARIANTS → ${want.variantsQueue}`);
+      const consumers = (c.queues?.consumers ?? []).filter((x) => x.queue === want.variantsQueue);
+      const consumer = consumers[0];
+      if (consumers.length !== 1) errors.push(`${where}: queues.consumers must consume ${want.variantsQueue} once`);
+      else {
+         if (consumer.dead_letter_queue !== want.variantsDlq) errors.push(`${where}: the variants consumer needs dead_letter_queue ${want.variantsDlq}`);
+         if (consumer.max_batch_size !== 1) errors.push(`${where}: the variants consumer must take one message at a time (max_batch_size 1; memory)`);
+         if (!consumer.max_retries || consumer.max_retries <= 5) errors.push(`${where}: the variants consumer's max_retries must exceed the job's own MAX_ATTEMPTS (5)`);
+      }
+      if ((c.queues?.producers ?? []).some((p) => p.binding !== "VARIANTS" && p.queue === want.variantsQueue)) errors.push(`${where}: ${want.variantsQueue} is for VARIANTS only`);
    }
    return errors;
 }

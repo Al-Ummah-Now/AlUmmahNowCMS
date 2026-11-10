@@ -54,6 +54,11 @@ export async function overviewScreen(v: View, data: Data) {
    ]
       .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))
       .slice(0, 6);
+   // Image variants that failed (CMS-10): flagged here until fixed from the Library.
+   const failedImages = await data.env.DB.prepare("SELECT COUNT(*) AS n FROM media_variants WHERE status = 'failed'")
+      .first<{ n: number }>()
+      .then((r) => Number(r?.n ?? 0))
+      .catch(() => 0);
    const theme = THEMES[v.prefs.theme];
    const name = v.user.email.split("@")[0];
 
@@ -80,6 +85,16 @@ export async function overviewScreen(v: View, data: Data) {
                {raw(theme.graphic)}
             </div>
          </section>
+
+         {failedImages ? (
+            <div class="notice bad" role="status" style="margin-top:24px;align-items:center" data-variants-alert>
+               <Icon name="alert" size={20} />
+               <span style="flex:1">{t.library.variantsBanner(failedImages)}</span>
+               <a class="btn sm" href="/library">
+                  {t.library.variantsOpen}
+               </a>
+            </div>
+         ) : null}
 
          <div class="sec-h">
             <h2>{t.cms}</h2>

@@ -42,6 +42,10 @@ export class Data {
       private readonly deps: Deps,
    ) {}
 
+   get env() {
+      return this.c.env;
+   }
+
    async get<T = unknown>(path: string): Promise<T> {
       const app = await this.deps.getApp(this.c);
       const url = new URL(path, this.c.get("cfg").publicUrl);
