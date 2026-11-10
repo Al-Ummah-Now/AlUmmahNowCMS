@@ -118,3 +118,12 @@ export function announcement(state: State, T: { searching: string; failed: strin
    if (n === 0) return T.none;
    return T.count.split("{0}").join(String(n));
 }
+
+/** `const isCurrent = begin();` … after the await: `if (!isCurrent()) return;` — only the last begun call is current. */
+export function latestOnly(): () => () => boolean {
+   let seq = 0;
+   return () => {
+      const mine = ++seq;
+      return () => mine === seq;
+   };
+}

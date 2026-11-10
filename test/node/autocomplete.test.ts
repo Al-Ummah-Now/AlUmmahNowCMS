@@ -57,3 +57,21 @@ describe("search suggestions: model (same behaviour as the videos admin)", () =>
       expect(ADMIN_STRINGS.ar.autocomplete.searchAll).toMatch(/[؀-ۿ]/);
    });
 });
+
+describe("dialog live search: overlapping searches", () => {
+   it("only the last search begun may render; an older answer arriving late is dropped", async () => {
+      const { latestOnly } = await import("../../src/admin/client/autocomplete-model.ts");
+      const begin = latestOnly();
+      const rendered: string[] = [];
+      // The debounced search and Enter both start a search for the same query; answers come back out of order
+      const search = async (q: string, delay: number) => {
+         const isCurrent = begin();
+         await new Promise((r) => setTimeout(r, delay));
+         if (isCurrent()) rendered.push(q);
+      };
+      await Promise.all([search("ramadan", 30), search("ramadan", 5)]);
+      expect(rendered).toEqual(["ramadan"]);
+      await Promise.all([search("old", 20), search("new", 1)]);
+      expect(rendered).toEqual(["ramadan", "new"]);
+   });
+});
