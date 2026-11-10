@@ -5,7 +5,7 @@
  * (`LIVE_SQL`: no `publish_at`, or one that has passed), so scheduled rows stay hidden (#7).
  */
 import { Hono, type Context } from "hono";
-import type { Env } from "../env.ts";
+import { trimSlash, type Env } from "../env.ts";
 import { LIVE_SQL } from "../lib/schedule.ts";
 import { bodyImagePaths } from "../lib/variants/body-images.ts";
 import { enqueueVariants } from "../lib/variants/jobs.ts";
@@ -13,12 +13,18 @@ import { parseVariantQuery, VARIANT_TYPES, variantKey } from "../lib/variants/pl
 import { MEDIA_COLS, mediaRefOf, mediaUrl, mediaVariants, type MediaRef, type MediaRow, type MediaVariants } from "../lib/media-ref.ts";
 import { feedItems } from "../lib/feed/source.ts";
 import { cursorOf, parseCursor } from "../lib/feed/model.ts";
+import { parseQuery, rank } from "../lib/search/rank.ts";
+import { searchDocs, type PostDoc } from "../lib/search/source.ts";
 import { mediaByIds, publicBlocks, publicSlides, rowSlides, slideMediaIds, type BlockDeps, type PublicSlide } from "../lib/blocks-public.ts";
 
 type Locale = "en" | "ar";
 type Row = Record<string, unknown>;
 
 const CACHE = "public, s-maxage=60, stale-while-revalidate=600";
+/** Search answers: browsers and the edge keep them a minute (www asks the CMS straight from the page). */
+const SEARCH_CACHE = "public, max-age=60, s-maxage=60";
+/** Longest query read; longer input is cut here. */
+export const SEARCH_Q_MAX = 100;
 const MEDIA_CACHE = "public, max-age=31536000, immutable";
 /** The original answering for a variant that isn't made yet: short, so the variant takes over soon. */
 const PENDING_CACHE = "public, max-age=60, s-maxage=60";
@@ -353,19 +359,91 @@ function corsHeaders(env: Env, origin: string | undefined): Record<string, strin
    return h;
 }
 
-async function json(c: Context<{ Bindings: Env }>, data: unknown): Promise<Response> {
+async function json(c: Context<{ Bindings: Env }>, data: unknown, cache = CACHE): Promise<Response> {
    const body = JSON.stringify(data);
    const etag = await etagOf(body);
    const headers: Record<string, string> = {
       ...corsHeaders(c.env, c.req.header("Origin")),
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": CACHE,
+      "Cache-Control": cache,
       ETag: etag,
       "X-Content-Type-Options": "nosniff",
    };
    const inm = c.req.header("If-None-Match");
    if (inm && inm.split(",").some((t) => t.trim() === etag)) return new Response(null, { status: 304, headers });
    return new Response(c.req.method === "HEAD" ? null : body, { status: 200, headers });
+}
+
+/** One search answer (docs/PUBLIC_API.md "Search"). */
+export interface SearchHit {
+   id: number;
+   type: "article" | "cards";
+   title: string;
+   slug: string;
+   locale: Locale;
+   /** www path of the item. */
+   href: string;
+   thumbnailUrl: string | null;
+   excerpt: string | null;
+   publishedAt: string;
+}
+
+async function hitsOf(env: Env, docs: PostDoc[]): Promise<SearchHit[]> {
+   const summaries = await postSummaries(env, docs.map((d) => d.row));
+   return summaries.map((s, i) => {
+      const image = s.cover ?? s.first_slide?.image ?? null;
+      return {
+         id: docs[i].id,
+         type: s.kind,
+         title: s.title,
+         slug: s.slug,
+         locale: s.locale,
+         href: `/${s.locale}/articles/${encodeURIComponent(s.slug)}/`,
+         thumbnailUrl: image ? `${image.url}?w=320&f=webp` : null,
+         excerpt: s.excerpt,
+         publishedAt: s.published_at,
+      };
+   });
+}
+
+/** `locale` (or `lang`, the same thing) for search: en or ar. */
+function searchLocale(c: Context): Locale {
+   const l = c.req.query("locale") ?? c.req.query("lang");
+   if (l === "en" || l === "ar") return l;
+   throw new HttpError(400, "locale must be en or ar");
+}
+
+/**
+ * Per-IP limit on search (the SEARCH_LIMITER rate-limit binding). The visitor's IP is
+ * CF-Connecting-IP, which Cloudflare always sets on public requests; a request without it came over
+ * a service binding (www's search page), which passes the visitor's IP as X-Client-IP. Null = go on.
+ */
+async function searchLimited(c: Context<{ Bindings: Env }>): Promise<Response | null> {
+   const limiter = c.env.SEARCH_LIMITER;
+   const ip = c.req.header("CF-Connecting-IP") ?? c.req.header("X-Client-IP");
+   if (!limiter || !ip) return null;
+   const { success } = await limiter.limit({ key: ip });
+   if (success) return null;
+   return c.json({ error: "rate_limited" }, 429, { "Retry-After": "60", "Cache-Control": "no-store", ...corsHeaders(c.env, c.req.header("Origin")) });
+}
+
+/**
+ * Search answers go through the edge cache (Cache API), keyed by the normalised query, so the same
+ * words typed by many readers cost one ranking a minute. Only a miss counts against the IP's limit.
+ */
+async function cachedSearch(c: Context<{ Bindings: Env }>, key: string, make: () => Promise<unknown>): Promise<Response> {
+   const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;
+   const keyReq = new Request(`${trimSlash(c.env.PUBLIC_URL)}/__search-cache/${key}`);
+   const hit = cache ? await cache.match(keyReq).catch(() => undefined) : undefined;
+   if (hit) return json(c, await hit.json(), SEARCH_CACHE);
+   const limited = await searchLimited(c);
+   if (limited) return limited;
+   const data = await make();
+   if (cache) {
+      const put = cache.put(keyReq, new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=60" } }));
+      c.executionCtx.waitUntil(put.catch((e) => console.error("search cache put failed", String(e))));
+   }
+   return json(c, data, SEARCH_CACHE);
 }
 
 export function publicApi(): Hono<{ Bindings: Env }> {
@@ -470,6 +548,30 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       const items = rows.slice(0, limit);
       const next = rows.length > limit ? cursorOf(items[items.length - 1]) : null;
       return json(c, { pinned, items, next });
+   });
+
+   // Search suggestions (docs/PUBLIC_API.md "Search"): the best few live posts for what was typed.
+   api.get("/search/suggest", async (c) => {
+      const l = searchLocale(c);
+      const limit = intParam(c.req.query("limit"), 6, 1, 10, "limit");
+      const q = parseQuery((c.req.query("q") ?? "").slice(0, SEARCH_Q_MAX));
+      if (!q) return json(c, [], SEARCH_CACHE);
+      return cachedSearch(c, `suggest/${l}/${limit}/${encodeURIComponent(q.norm)}`, async () =>
+         hitsOf(c.env, rank(q, await searchDocs(c.env, l)).slice(0, limit)),
+      );
+   });
+
+   // The full search (www's search page): every live post that matches, best first, by page.
+   api.get("/search", async (c) => {
+      const l = searchLocale(c);
+      const page = intParam(c.req.query("page"), 1, 1, 1000, "page");
+      const limit = intParam(c.req.query("limit"), 10, 1, 20, "limit");
+      const q = parseQuery((c.req.query("q") ?? "").slice(0, SEARCH_Q_MAX));
+      if (!q) return json(c, { items: [], page, limit, total: 0 }, SEARCH_CACHE);
+      return cachedSearch(c, `full/${l}/${page}/${limit}/${encodeURIComponent(q.norm)}`, async () => {
+         const ranked = rank(q, await searchDocs(c.env, l));
+         return { items: await hitsOf(c.env, ranked.slice((page - 1) * limit, page * limit)), page, limit, total: ranked.length };
+      });
    });
 
    api.get("/videos", async (c) => {

@@ -21,6 +21,7 @@ interface EnvConfig {
    r2_buckets?: { binding: string; bucket_name: string }[];
    kv_namespaces?: { binding: string; id: string }[];
    ai?: { binding?: string };
+   ratelimits?: { name: string; namespace_id: string; simple?: { limit: number; period: number } }[];
    triggers?: { crons?: string[] };
    queues?: {
       producers?: { binding: string; queue: string }[];
@@ -37,6 +38,7 @@ export const FEED_DUE_CRON = "* * * * *";
 
 export function checkWranglerConfig(config: WranglerConfig): string[] {
    const errors: string[] = [];
+   const limiterIds = new Set<string>();
    const envs: [EnvName, EnvConfig][] = [
       ["production", config],
       ["stage", config.env?.stage ?? {}],
@@ -119,6 +121,13 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
          if (!fc[0].max_retries || fc[0].max_retries < 1) errors.push(`${where}: the feed consumer needs max_retries ≥ 1`);
       }
       if ((c.queues?.consumers ?? []).filter((x) => x.queue === f.dlq).length !== 1) errors.push(`${where}: queues.consumers must consume the DLQ ${f.dlq} once (it flags staff)`);
+      // The public search's per-IP limit (src/routes/public-api.ts): each env its own counter.
+      const rl = (c.ratelimits ?? []).filter((r) => r.name === "SEARCH_LIMITER");
+      if (rl.length !== 1 || !rl[0].simple || rl[0].simple.limit < 1 || ![10, 60].includes(rl[0].simple.period)) {
+         errors.push(`${where}: ratelimits must bind SEARCH_LIMITER once with simple { limit ≥ 1, period 10 or 60 }`);
+      } else if (limiterIds.has(rl[0].namespace_id)) {
+         errors.push(`${where}: SEARCH_LIMITER namespace_id ${rl[0].namespace_id} is used by another env`);
+      } else limiterIds.add(rl[0].namespace_id);
    }
    return errors;
 }
