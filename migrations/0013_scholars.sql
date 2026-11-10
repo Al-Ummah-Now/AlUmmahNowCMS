@@ -1,7 +1,7 @@
--- 0012_scholars: scholars write articles that publish to their own page on www and their channel's
+-- 0013_scholars: scholars write articles that publish to their own page on www and their channel's
 -- Community tab; editors feature selected items on the main site (docs/SCHOLARS.md).
 -- Expand-only. Never edit this file after it is merged; add a new migration instead.
--- (0011 is taken by the AI providers work.)
+-- (0011 and 0012 are taken by AI providers and SSO sign-outs.)
 --
 -- 1. posts: who owns a scholar's post, whether editors featured it, and its community post.
 --    author_sub          the scholar's auth user id. NULL = a staff post (on the main site as before).

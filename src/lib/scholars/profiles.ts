@@ -1,5 +1,5 @@
 /**
- * Scholar profiles (docs/SCHOLARS.md §3, migrations/0012 `scholars`). Worker-only: never on bknd's
+ * Scholar profiles (docs/SCHOLARS.md §3, migrations/0013 `scholars`). Worker-only: never on bknd's
  * data API. One profile per auth user (`sso_sub`), created on their first CMS sign-in as a writer,
  * editable by the scholar and by admins and editors. Deleting one is a soft delete (src/lib/trash.ts,
  * kind "scholars"): restorable for 30 days.

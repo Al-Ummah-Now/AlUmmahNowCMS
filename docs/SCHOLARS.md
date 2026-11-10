@@ -53,7 +53,7 @@ language), with `author: { slug, name, avatar }` added. Staff posts keep the fre
 
 ## 3. Profiles
 
-`scholars` (migrations/0012, Worker-only, never on bknd's data API): `sso_sub` (unique), `slug`
+`scholars` (migrations/0013, Worker-only, never on bknd's data API): `sso_sub` (unique), `slug`
 (unique, url), `name_en`/`name_ar`, `bio_en`/`bio_ar`, `avatar_media_id` (a library image),
 `channel_ids` (JSON, ≤ 5).
 

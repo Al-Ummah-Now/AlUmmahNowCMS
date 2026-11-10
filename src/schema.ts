@@ -70,7 +70,7 @@ export const schema = em(
             cover: medium(),
             seo_title: text(),
             seo_description: text(),
-            // Scholar posts (migrations/0012, docs/SCHOLARS.md). Set by the Worker only: content rules
+            // Scholar posts (migrations/0013, docs/SCHOLARS.md). Set by the Worker only: content rules
             // strip them from data API writes (src/lib/scholars/ownership.ts).
             author_sub: text({ hidden: ["create", "update"] }),
             featured_at: datetime({ hidden: ["create", "update"] }),
