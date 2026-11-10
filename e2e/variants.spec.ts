@@ -59,11 +59,12 @@ test("an uploaded photo gets AVIF/WebP/JPEG variants; the original stays byte-fo
       .poll(async () => (await request.get(media(NAME, "?w=640&f=avif"), { headers: { "cache-control": "no-cache" } })).headers()["x-variant"], { timeout: 180_000, intervals: [2_000, 5_000] })
       .toBe("hit");
 
+   // Each width is its own queue message, so they finish at different times: wait for each.
    for (const [f, type] of [["avif", "image/avif"], ["webp", "image/webp"], ["jpeg", "image/jpeg"]] as const) {
       for (const w of [320, 640, 960, 1200]) {
+         await expect.poll(async () => (await request.get(media(NAME, `?w=${w}&f=${f}`))).headers()["x-variant"], { message: `${w}.${f}`, timeout: 180_000, intervals: [2_000, 5_000] }).toBe("hit");
          const res = await request.get(media(NAME, `?w=${w}&f=${f}`));
          expect(res.status(), `${w}.${f}`).toBe(200);
-         expect(res.headers()["x-variant"], `${w}.${f}`).toBe("hit");
          expect(res.headers()["content-type"]).toBe(type);
          expect(res.headers()["cache-control"]).toBe("public, max-age=31536000, immutable");
          const bytes = (await res.body()).byteLength;
