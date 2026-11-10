@@ -1,33 +1,39 @@
 /**
- * Estimated cost per call for the usage log (docs/AI_ASSIST_SPEC.md §5). USD per million tokens,
- * Anthropic first-party list prices (2026-10). Fallback models are listed so a server-side fallback
- * is priced as the model that answered. Unknown models are priced as Opus 5.5 (the most expensive we
- * call) so an estimate never under-reports.
+ * Cost of a call for the usage log (docs/AI_ASSIST_SPEC.md §5). Workers AI bills in Neurons at
+ * $0.011 per 1,000 above the account's free 10,000 Neurons a day (developers.cloudflare.com/workers-ai/platform/pricing,
+ * 2026-11-10). The binding reports the Neurons of each call; when it doesn't, they are estimated from
+ * the token counts with the catalogue rates below. Unknown models are priced at the most expensive
+ * rate we list, so an estimate never under-reports.
  */
-export interface Price {
+export const USD_PER_1000_NEURONS = 0.011;
+
+/** Neurons per million tokens. */
+export interface Rate {
    input: number;
+   cached: number;
    output: number;
-   cacheRead: number;
-   cacheWrite: number;
 }
 
-export const PRICES: Record<string, Price> = {
-   "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
-   "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
-   "claude-opus-5": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
-   "claude-opus-4-8": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
-   "claude-sonnet-5": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+export const RATES: Record<string, Rate> = {
+   "@cf/deepseek-ai/deepseek-v4.1-flash-1017": { input: 27_273, cached: 545, output: 109_091 },
+   "@cf/openai/gpt-oss-120b": { input: 31_818, cached: 31_818, output: 68_182 },
 };
+
+const MAX_RATE: Rate = { input: 31_818, cached: 31_818, output: 109_091 };
 
 export interface TokenCounts {
    input: number;
    output: number;
-   cacheRead?: number;
-   cacheWrite?: number;
+   cached?: number;
 }
 
-export function costUsd(model: string, t: TokenCounts): number {
-   const p = PRICES[model] ?? PRICES["claude-opus-5-5"];
-   const usd = (t.input * p.input + t.output * p.output + (t.cacheRead ?? 0) * p.cacheRead + (t.cacheWrite ?? 0) * p.cacheWrite) / 1_000_000;
-   return Math.round(usd * 1_000_000) / 1_000_000;
+export function estimateNeurons(model: string, t: TokenCounts): number {
+   const r = RATES[model] ?? MAX_RATE;
+   const cached = Math.min(t.cached ?? 0, t.input);
+   const n = ((t.input - cached) * r.input + cached * r.cached + t.output * r.output) / 1_000_000;
+   return Math.round(n * 1000) / 1000;
+}
+
+export function neuronsToUsd(neurons: number): number {
+   return Math.round(((neurons * USD_PER_1000_NEURONS) / 1000) * 1e8) / 1e8;
 }

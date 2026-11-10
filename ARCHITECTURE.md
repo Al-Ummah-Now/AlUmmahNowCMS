@@ -11,12 +11,12 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
                       ├─ /sso/no-access, /sso/accounts account chooser (browser reads auth's accounts API)
                       ├─ /picker, /picker/api/*       video picker → videos.api.alummahnow.net (server-side)
                       ├─ /, /data/*, /media/*, …      bknd admin UI   ┐ session required
-                      ├─ /admin/api/ai/*              AI writing assist (staff only) → queue AI_JOBS → Claude API
+                      ├─ /admin/api/ai/*              AI writing assist (staff only) → queue AI_JOBS → Workers AI (binding AI)
                       └─ /api/*                       bknd API        ┘ guard on, same-origin mutations
                       queue  al-ummah-now-cms-variants[-env]  image variant jobs (src/lib/variants)
                       queue  al-ummah-now-cms-feed[-env]      home timeline builds → KV FEED ──► www (docs/FEED.md)
                       queue  al-ummah-now-cms-ai[-dlq][-env]  AI assist jobs (src/lib/ai)
-                      bindings: DB (D1), MEDIA (R2), FEED (KV), VARIANTS + FEED_JOBS + AI_JOBS (Queues; AI with a DLQ), CF_VERSION_METADATA, ANTHROPIC_API_KEY (optional)
+                      bindings: DB (D1), MEDIA (R2), FEED (KV), VARIANTS + FEED_JOBS + AI_JOBS (Queues; AI with a DLQ), CF_VERSION_METADATA, AI (Workers AI)
 ```
 
 ## Pieces

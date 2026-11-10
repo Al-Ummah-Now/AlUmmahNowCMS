@@ -2,15 +2,15 @@
  * Local E2E stand-ins (docs/AI_ASSIST_SPEC.md §9), one HTTP server:
  *   - an auth issuer: /authorize → straight back to the CMS callback, /token, /.well-known/jwks.json
  *     (who signs in is set by the test with POST /__as {roles}); never a real account;
- *   - the Claude Messages API: POST /v1/messages (test/support/anthropic-mock.ts); a title containing
- *     "E2E-DECLINE" gets a refusal;
+ *   - Workers AI: POST /ai/run/<model> (test/support/workers-ai-mock.ts; the CMS calls it through
+ *     AI_MOCK_URL when ENVIRONMENT=local); a title containing "E2E-DECLINE" gets a refusal;
  *   - the videos admin's /public/site-theme (404 → the CMS default theme).
  *
  *   node --experimental-strip-types e2e/local/mock-server.ts   (port MOCK_PORT, default 8798)
  */
 import { createServer } from "node:http";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { defaultReply, parseMockRequest, replyResponse } from "../../test/support/anthropic-mock.ts";
+import { defaultReply, parseInputs, replyResponse } from "../../test/support/workers-ai-mock.ts";
 
 const PORT = Number(process.env.MOCK_PORT ?? 8798);
 const ISSUER = `http://127.0.0.1:${PORT}`;
@@ -58,9 +58,9 @@ createServer(async (req, res) => {
          return toResponse(res, Response.json({ access_token: token, refresh_token: "r", expires_in: 600 }));
       }
       if (url.pathname === "/.well-known/jwks.json") return toResponse(res, Response.json({ keys: [jwk] }));
-      if (url.pathname === "/v1/messages" && req.method === "POST") {
-         const parsed = parseMockRequest(body, new Headers(req.headers as Record<string, string>));
-         if (parsed.user.includes("E2E-DECLINE")) return toResponse(res, replyResponse({ kind: "json", data: {}, stop: "refusal" }));
+      if (url.pathname.startsWith("/ai/run/") && req.method === "POST") {
+         const parsed = parseInputs(decodeURIComponent(url.pathname.slice("/ai/run/".length)), JSON.parse(body));
+         if (parsed.user.includes("E2E-DECLINE")) return toResponse(res, replyResponse({ kind: "json", data: {}, refusal: "I can't help with that." }));
          return toResponse(res, replyResponse(defaultReply(parsed)));
       }
       if (url.pathname === "/healthz") return toResponse(res, new Response("ok"));
@@ -68,4 +68,4 @@ createServer(async (req, res) => {
    } catch (error) {
       return toResponse(res, Response.json({ error: String(error) }, { status: 500 }));
    }
-}).listen(PORT, "127.0.0.1", () => process.stdout.write(`mock auth + Claude API on ${ISSUER}\n`));
+}).listen(PORT, "127.0.0.1", () => process.stdout.write(`mock auth + Workers AI on ${ISSUER}\n`));

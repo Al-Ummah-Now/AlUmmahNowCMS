@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * Local E2E for AI writing assist (docs/AI_ASSIST_SPEC.md §9): two `wrangler dev` CMS instances
- * (AI configured / not configured) against a mock auth issuer and a mock Claude API. No Cloudflare
+ * (AI configured / not configured) against a mock auth issuer and a mock Workers AI. No Cloudflare
  * account, no real key, no real accounts. Runs in CI on every PR (ci.yml, job "E2E (local)").
  *
  *   npx playwright test -c playwright.local.config.ts

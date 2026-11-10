@@ -72,11 +72,11 @@ export function aiRoutes(): Hono<AppEnv> {
       return next();
    });
 
-   r.get("/status", async (c) => c.json({ configured: await aiConfigured(c.env) }, 200, { "Cache-Control": "no-store" }));
+   r.get("/status", async (c) => c.json({ configured: aiConfigured(c.env) }, 200, { "Cache-Control": "no-store" }));
 
    r.post("/jobs", async (c) => {
       if (!(c.req.header("content-type") ?? "").includes("application/json")) return c.json({ error: "bad_request", message: "JSON body required" }, 415);
-      if (!(await aiConfigured(c.env))) return c.json({ error: "ai_not_configured" }, 503);
+      if (!aiConfigured(c.env)) return c.json({ error: "ai_not_configured" }, 503);
       const parsed = readBody(await c.req.json().catch(() => null));
       if (!parsed.ok) return c.json({ error: parsed.error }, parsed.status);
       const user = c.get("user");

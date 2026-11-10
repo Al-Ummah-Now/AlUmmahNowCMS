@@ -23,10 +23,10 @@ export interface Env {
    WWW_ORIGINS: string;
    /** Worker secret (`openssl rand -hex 32`). Signs bknd sessions and the SSO state cookie. */
    BKND_JWT_SECRET?: string;
-   /** AI assist (docs/AI_ASSIST_SPEC.md §2): a Secrets Store binding or a Worker secret. Optional. */
-   ANTHROPIC_API_KEY?: string | { get(): Promise<string> };
-   /** Local runs only (ENVIRONMENT=local): a mock Messages API for the local E2E. */
-   ANTHROPIC_BASE_URL?: string;
+   /** Workers AI (docs/AI_ASSIST_SPEC.md §2): the AI assist model. Without it the feature is off. */
+   AI?: import("./lib/ai/client.ts").AiBinding;
+   /** Local runs only (ENVIRONMENT=local): a mock of the Workers AI REST shape for the local E2E. */
+   AI_MOCK_URL?: string;
    /** AI jobs queue (al-ummah-now-cms-ai[-env]). */
    AI_JOBS?: Queue<{ jobId: string }>;
 }

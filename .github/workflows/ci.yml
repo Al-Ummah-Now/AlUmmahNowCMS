@@ -54,9 +54,9 @@ jobs:
         run: npm run build:dry
 
   # AI writing assist editor flows (docs/AI_ASSIST_SPEC.md §9): wrangler dev (local D1, R2, queues) with a
-  # mock auth issuer and a mock Claude API. No Cloudflare credentials, no API key, no real accounts.
+  # mock auth issuer and a mock Workers AI. No Cloudflare credentials, no real accounts.
   e2e-local:
-    name: E2E (local, mocked Claude API)
+    name: E2E (local, mocked Workers AI)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

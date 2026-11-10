@@ -1,20 +1,30 @@
 /**
- * Per-feature model, effort, system prompt and output schema (docs/AI_ASSIST_SPEC.md §1, §7), plus
+ * Per-feature model, reasoning level, system prompt and output schema (docs/AI_ASSIST_SPEC.md §1, §7), plus
  * validators for what comes back. Changing any prompt or schema → bump PROMPT_VERSION (it is part of
  * the dedupe key, so cached results from the old prompt aren't reused).
  */
 import { POLICY_CATEGORY_IDS, policyText, type PolicyCategory } from "./policy.ts";
+import type { Reasoning } from "./client.ts";
 
-export const PROMPT_VERSION = "2026-11-10.1";
+export const PROMPT_VERSION = "2026-11-10.2-workers-ai";
 
 export type Feature = "translate" | "seo" | "check";
 export type Locale = "en" | "ar";
 export const FEATURES: Feature[] = ["translate", "seo", "check"];
 
-export const MODELS: Record<Feature, { model: string; effort: "low" | "medium" | "high"; maxTokens: number }> = {
-   translate: { model: "claude-opus-5-5", effort: "high", maxTokens: 64_000 },
-   seo: { model: "claude-sonnet-5-5", effort: "low", maxTokens: 8_000 },
-   check: { model: "claude-sonnet-5-5", effort: "medium", maxTokens: 24_000 },
+/**
+ * Workers AI models (docs/AI_ASSIST_SPEC.md §1, evidence in §1.5). DeepSeek V4.1 Flash: 1M-token
+ * context, JSON-schema output, the best Arabic of the catalogue on our samples. Translation and SEO
+ * run without reasoning (better and ~8× cheaper than with it on the samples); the check reasons a
+ * little, which finds more claims to verify.
+ */
+export const MODEL_ID = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";
+
+export const MODELS: Record<Feature, { model: string; reasoning: Reasoning; maxTokens: number }> = {
+   // A 6,000-character chunk is ~2,200 output tokens; leave room for a wordy target language.
+   translate: { model: MODEL_ID, reasoning: "none", maxTokens: 16_000 },
+   seo: { model: MODEL_ID, reasoning: "none", maxTokens: 2_000 },
+   check: { model: MODEL_ID, reasoning: "low", maxTokens: 16_000 },
 };
 
 const LANG: Record<Locale, string> = { en: "English", ar: "Modern Standard Arabic" };
@@ -77,7 +87,7 @@ export const SCHEMAS = {
    }),
 } as const;
 
-// ---- validators (the schema is enforced by the API; these guard the shape and limits again) ----
+// ---- validators (the schema is requested from the model; these enforce the shape and limits) ----
 
 export class InvalidOutput extends Error {}
 

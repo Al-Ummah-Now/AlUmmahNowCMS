@@ -17,6 +17,9 @@ export default defineConfig(async () => {
                plugins: [
                   cloudflareTest({
                      wrangler: { configPath: "./wrangler.jsonc" },
+                     // No remote proxy for the Workers AI binding (needs Cloudflare credentials): AI tests inject a
+                     // mock binding (test/support/workers-ai-mock.ts), so no test ever calls the real model.
+                     remoteBindings: false,
                      miniflare: {
                         bindings: {
                            ENVIRONMENT: "qa",

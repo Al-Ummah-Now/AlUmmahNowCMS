@@ -31,18 +31,14 @@ export const CMS_SECRETS: RequiredSecret[] = [
    },
 ];
 
-/** AI assist (docs/AI_ASSIST_SPEC.md §2): without it the feature shows "isn't set up" to admins. */
-export const CMS_OPTIONAL_SECRETS: RequiredSecret[] = [
-   {
-      name: "ANTHROPIC_API_KEY",
-      purpose: "Claude API key for AI writing assist; a Secrets Store binding (secret anthropic-api-key) or a Worker secret",
-   },
-];
+/** None today. AI assist uses the Workers AI binding (docs/AI_ASSIST_SPEC.md §2), not a secret. */
+export const CMS_OPTIONAL_SECRETS: RequiredSecret[] = [];
 
 export const SECRETS_MANIFEST: WorkerSecrets[] = (Object.keys(ENVS) as EnvName[]).map((env) => ({
    env,
    worker: ENVS[env].worker,
    required: CMS_SECRETS,
    optional: CMS_OPTIONAL_SECRETS,
-   forbidden: ["CMS_CLIENT_SECRET"],
+   // ANTHROPIC_API_KEY: AI runs on Workers AI only (owner, 2026-11-10); a third-party AI key must not come back.
+   forbidden: ["CMS_CLIENT_SECRET", "ANTHROPIC_API_KEY"],
 }));

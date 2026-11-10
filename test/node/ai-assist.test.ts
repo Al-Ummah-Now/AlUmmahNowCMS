@@ -1,17 +1,16 @@
-/** AI assist pure logic (docs/AI_ASSIST_SPEC.md §9): chunking, invariants, prices, policy, prompts, keys, release helpers. */
+/** AI assist pure logic (docs/AI_ASSIST_SPEC.md §9): chunking, invariants, Neurons, policy, prompts, binding, errors, release helpers. */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { aiErrorText } from "../../src/admin/client/ai-errors.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
-import { apiBaseUrl, resolveApiKey } from "../../src/lib/ai/config.ts";
-import { classify } from "../../src/lib/ai/client.ts";
+import { aiBinding, aiConfigured, mockUrl } from "../../src/lib/ai/config.ts";
+import { classify, createWorkersAi, readOutput } from "../../src/lib/ai/client.ts";
 import { dedupeKey, targetOf } from "../../src/lib/ai/jobs.ts";
 import { chunkMarkdown, invariantWarnings, urls, videoIds } from "../../src/lib/ai/markdown.ts";
 import { BASE_CATEGORIES, EXTENSION_CATEGORIES, POLICY_CATEGORY_IDS } from "../../src/lib/ai/policy.ts";
-import { costUsd } from "../../src/lib/ai/pricing.ts";
-import { MODELS, SCHEMAS, translateSystem, validateCheck, validateSeo } from "../../src/lib/ai/prompts.ts";
+import { estimateNeurons, neuronsToUsd } from "../../src/lib/ai/pricing.ts";
+import { MODEL_ID, MODELS, SCHEMAS, translateSystem, validateCheck, validateSeo } from "../../src/lib/ai/prompts.ts";
 import { backoffSeconds, isAiQueue, isDeadLetterQueue } from "../../src/lib/ai/runner.ts";
-import Anthropic from "@anthropic-ai/sdk";
 import { addArgs, consumerPlan, consumersFor, listedConsumers } from "../../scripts/release/queue-consumers.ts";
 import { checkBindings } from "../../scripts/check-secrets.ts";
 import { SECRETS_MANIFEST } from "../../scripts/secrets-manifest.ts";
@@ -55,10 +54,10 @@ describe("invariants", () => {
 });
 
 describe("models, prompts and output", () => {
-   it("uses Opus 5.5 for translation and Sonnet 5.5 for SEO and checks", () => {
-      expect(MODELS.translate.model).toBe("claude-opus-5-5");
-      expect(MODELS.seo.model).toBe("claude-sonnet-5-5");
-      expect(MODELS.check.model).toBe("claude-sonnet-5-5");
+   it("runs every feature on Workers AI DeepSeek V4.1 Flash; only the check reasons", () => {
+      expect(MODEL_ID).toBe("@cf/deepseek-ai/deepseek-v4.1-flash-1017");
+      expect(Object.values(MODELS).every((m) => m.model.startsWith("@cf/"))).toBe(true);
+      expect([MODELS.translate.reasoning, MODELS.seo.reasoning, MODELS.check.reasoning]).toEqual(["none", "none", "low"]);
    });
 
    it("schemas are strict objects (additionalProperties false, every property required)", () => {
@@ -108,23 +107,55 @@ describe("policy = AI-MODERATION.md §3", () => {
    });
 });
 
-describe("pricing", () => {
-   it("prices per model, fallbacks included, unknown models as Opus 5.5", () => {
-      expect(costUsd("claude-opus-5-5", { input: 1_000_000, output: 1_000_000 })).toBe(24);
-      expect(costUsd("claude-sonnet-5-5", { input: 1000, output: 1000, cacheRead: 1000 })).toBeCloseTo(0.0122, 6);
-      expect(costUsd("claude-opus-4-8", { input: 1_000_000, output: 0 })).toBe(5);
-      expect(costUsd("claude-new", { input: 1_000_000, output: 0 })).toBe(4);
+describe("Neurons and cost", () => {
+   it("estimates Neurons from the catalogue rates and prices them at $0.011 / 1,000", () => {
+      // The real QA-sample translation: 480 in, 360 out → Workers AI billed 52.364 Neurons
+      expect(estimateNeurons(MODEL_ID, { input: 480, output: 360 })).toBeCloseTo(52.364, 2);
+      expect(estimateNeurons(MODEL_ID, { input: 1_000_000, output: 0, cached: 1_000_000 })).toBe(545);
+      // An unknown model is priced at the highest rate we list, never lower
+      expect(estimateNeurons("@cf/new/model", { input: 1_000_000, output: 1_000_000 })).toBe(31_818 + 109_091);
+      expect(neuronsToUsd(1000)).toBe(0.011);
+      expect(neuronsToUsd(52.364)).toBeCloseTo(0.000576, 6);
    });
 });
 
 describe("keys, dedupe, errors", () => {
-   it("resolves a Worker secret or a store binding; empty or failing → not configured; base URL is local-only", async () => {
-      expect(await resolveApiKey({ ENVIRONMENT: "qa" })).toBeNull();
-      expect(await resolveApiKey({ ENVIRONMENT: "qa", ANTHROPIC_API_KEY: " k " })).toBe("k");
-      expect(await resolveApiKey({ ENVIRONMENT: "qa", ANTHROPIC_API_KEY: { get: async () => "s" } })).toBe("s");
-      expect(await resolveApiKey({ ENVIRONMENT: "qa", ANTHROPIC_API_KEY: { get: async () => Promise.reject(new Error("gone")) } })).toBeNull();
-      expect(apiBaseUrl({ ENVIRONMENT: "qa", ANTHROPIC_BASE_URL: "http://127.0.0.1:1" })).toBeUndefined();
-      expect(apiBaseUrl({ ENVIRONMENT: "local", ANTHROPIC_BASE_URL: "http://127.0.0.1:1/" })).toBe("http://127.0.0.1:1");
+   it("is configured by the AI binding plus the jobs queue; the mock URL is local-only", () => {
+      const AI = { run: async () => ({}) };
+      const AI_JOBS = {} as Queue<{ jobId: string }>;
+      expect(aiConfigured({ ENVIRONMENT: "qa" })).toBe(false);
+      expect(aiConfigured({ ENVIRONMENT: "qa", AI })).toBe(false);
+      expect(aiConfigured({ ENVIRONMENT: "qa", AI, AI_JOBS })).toBe(true);
+      expect(aiConfigured({ ENVIRONMENT: "qa", AI: {} as never, AI_JOBS })).toBe(false);
+      expect(aiBinding({ ENVIRONMENT: "qa", AI })).toBe(AI);
+      expect(mockUrl({ ENVIRONMENT: "qa", AI_MOCK_URL: "http://127.0.0.1:1" })).toBeUndefined();
+      expect(mockUrl({ ENVIRONMENT: "local", AI_MOCK_URL: "http://127.0.0.1:1//" })).toBe("http://127.0.0.1:1");
+      expect(aiConfigured({ ENVIRONMENT: "local", AI_MOCK_URL: "http://127.0.0.1:1", AI_JOBS })).toBe(true);
+   });
+
+   it("sends chat + JSON schema + reasoning to the binding and reads both output shapes", async () => {
+      const calls: [string, Record<string, unknown>][] = [];
+      const reply = (r: unknown) => ({ run: async (m: string, i: Record<string, unknown>) => (calls.push([m, i]), r) });
+      const call = { model: MODEL_ID, reasoning: "none" as const, maxTokens: 100, system: "sys", user: "doc", schema: SCHEMAS.seo };
+      const ok = await createWorkersAi(reply({ choices: [{ message: { content: '```json\n{"a":1}\n```' }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, neurons: 0.8, prompt_tokens_details: { cached_tokens: 4 } } })).call(call);
+      expect(ok).toEqual({ ok: true, data: { a: 1 }, usage: { model: MODEL_ID, input: 10, output: 5, cached: 4, neurons: 0.8 } });
+      expect(calls[0][0]).toBe(MODEL_ID);
+      expect(calls[0][1]).toMatchObject({
+         messages: [{ role: "system", content: "sys" }, { role: "user", content: "doc" }],
+         response_format: { type: "json_schema", json_schema: { schema: SCHEMAS.seo, strict: true } },
+         max_tokens: 100,
+         reasoning_effort: "none",
+         chat_template_kwargs: { enable_thinking: false },
+      });
+      expect(readOutput({ response: { b: 2 }, usage: { prompt_tokens: 1 } }).text).toBe('{"b":2}');
+      const length = await createWorkersAi(reply({ choices: [{ message: { content: '{"a"' }, finish_reason: "length" }], usage: {} })).call(call);
+      expect(length).toMatchObject({ ok: false, retryable: false, code: "incomplete", usage: { neurons: null } });
+      const refused = await createWorkersAi(reply({ choices: [{ message: { content: "", refusal: "no" }, finish_reason: "stop" }] })).call(call);
+      expect(refused).toMatchObject({ ok: false, retryable: false, code: "declined" });
+      const garbage = await createWorkersAi(reply({ choices: [{ message: { content: "not json" }, finish_reason: "stop" }] })).call(call);
+      expect(garbage).toMatchObject({ ok: false, retryable: true, code: "invalid_output" });
+      const slow = await createWorkersAi({ run: () => new Promise(() => {}) }, 5).call(call);
+      expect(slow).toEqual({ ok: false, retryable: true, code: "network" });
    });
 
    it("dedupe key depends on the input, feature and user, and on the UI language only for checks", async () => {
@@ -139,13 +170,18 @@ describe("keys, dedupe, errors", () => {
       expect(targetOf("seo", "ar")).toBeNull();
    });
 
-   it("classifies API errors as retryable or permanent", () => {
-      const h = new Headers();
-      expect(classify(Anthropic.APIError.generate(429, {}, "x", h))).toEqual({ retryable: true, code: "rate_limited" });
-      expect(classify(Anthropic.APIError.generate(529, {}, "x", h))).toEqual({ retryable: true, code: "unavailable" });
-      expect(classify(Anthropic.APIError.generate(401, {}, "x", h))).toEqual({ retryable: false, code: "auth" });
-      expect(classify(Anthropic.APIError.generate(400, {}, "x", h))).toEqual({ retryable: false, code: "bad_request" });
-      expect(classify(new Anthropic.APIConnectionError({ message: "down" }))).toEqual({ retryable: true, code: "network" });
+   it("classifies Workers AI errors as retryable or permanent", () => {
+      const e = (m: string) => new Error(m);
+      expect(classify(e("AiError: Capacity temporarily exceeded, please try again. (3040)"))).toEqual({ retryable: true, code: "rate_limited" });
+      expect(classify(e("AiError: AiError: Request timeout (0e1f68bb-4195-4e0b-91e9-c566af87c089) (3046)"))).toEqual({ retryable: true, code: "unavailable" });
+      expect(classify(e("3007: Timeout"))).toEqual({ retryable: true, code: "unavailable" });
+      expect(classify(e("AiError: No such model @cf/x (5007)"))).toEqual({ retryable: false, code: "bad_request" });
+      expect(classify(e("AiError: Model deprecated (5028)"))).toEqual({ retryable: false, code: "bad_request" });
+      expect(classify(e("AiError: Request too large (3006)"))).toEqual({ retryable: false, code: "bad_request" });
+      expect(classify(e("AiError: Account not allowed for private model (5018)"))).toEqual({ retryable: false, code: "auth" });
+      expect(classify(e("InferenceUpstreamError: 502 Bad Gateway"))).toEqual({ retryable: true, code: "unavailable" });
+      expect(classify(new TypeError("fetch failed"))).toEqual({ retryable: true, code: "network" });
+      expect(classify("odd")).toEqual({ retryable: true, code: "unknown" });
       expect(backoffSeconds(1)).toBe(15);
       expect(backoffSeconds(5)).toBe(240);
       expect(backoffSeconds(9)).toBe(300);
@@ -171,7 +207,7 @@ describe("keys, dedupe, errors", () => {
    });
 });
 
-describe("release: queue consumers and the optional secret", () => {
+describe("release: queue consumers, the AI binding and secrets", () => {
    const config = parseJsonc<Record<string, unknown>>(readFileSync("wrangler.jsonc", "utf8"));
 
    it("plans a consumer add only for queues that don't list the Worker yet", () => {
@@ -190,11 +226,18 @@ describe("release: queue consumers and the optional secret", () => {
       expect(consumersFor(config as never, "production").map((c) => c.queue)).toContain("al-ummah-now-cms-ai");
    });
 
-   it("ANTHROPIC_API_KEY is optional: missing is fine, a plain var is not", () => {
-      const entry = SECRETS_MANIFEST.find((e) => e.env === "qa")!;
-      const base = [{ type: "secret_text", name: "BKND_JWT_SECRET" }];
-      expect(checkBindings(entry, base).every((f) => f.ok)).toBe(true);
-      expect(checkBindings(entry, [...base, { type: "secrets_store_secret", name: "ANTHROPIC_API_KEY" }]).every((f) => f.ok)).toBe(true);
-      expect(checkBindings(entry, [...base, { type: "plain_text", name: "ANTHROPIC_API_KEY" }]).some((f) => !f.ok)).toBe(true);
+   it("needs no AI secret; a third-party AI key is forbidden in every env", () => {
+      for (const entry of SECRETS_MANIFEST) {
+         const base = [{ type: "secret_text", name: "BKND_JWT_SECRET" }];
+         expect(checkBindings(entry, base).every((f) => f.ok)).toBe(true);
+         expect(checkBindings(entry, [...base, { type: "secret_text", name: "ANTHROPIC_API_KEY" }]).some((f) => !f.ok)).toBe(true);
+      }
+   });
+
+   it("every env binds Workers AI as AI", () => {
+      const c = config as { ai?: { binding: string }; env: Record<string, { ai?: { binding: string } }> };
+      expect(c.ai).toEqual({ binding: "AI" });
+      expect(c.env.stage.ai).toEqual({ binding: "AI" });
+      expect(c.env.qa.ai).toEqual({ binding: "AI" });
    });
 });

@@ -1,6 +1,6 @@
 # AI writing assist for editors — Spec
 
-**Status:** v1, 2026-11-10
+**Status:** v2, 2026-11-10 (v1 used the Claude API; moved to Workers AI by owner decision the same day)
 **Issue:** AlUmmahNowCMS #17 (salvaged from the superseded Copilot draft #2).
 **Related:** `docs/SPEC.md` (roles, security), `docs/ADMIN_UI_SPEC.md` (staff screens, components, a11y),
 AlUmmahNow `docs/specs/AI-MODERATION.md` (epic 28: policy categories, Islamic-context rules),
@@ -14,16 +14,15 @@ the AI. Publishing stays the editor's Save/Publish button.
 
 | Feature | Where | Output | Model |
 |---|---|---|---|
-| **Translate** en ↔ ar | "AI assist" card in the editor's side panel | title, summary/excerpt and body in the other language, Markdown, links and `::video[ID]` lines kept | `claude-opus-5-5`, effort `high` |
-| **SEO and sharing** | "Search & sharing" card, "Suggest" | SEO title (≤ 60 chars), meta description (≤ 160), social summary (≤ 200) | `claude-sonnet-5-5`, effort `low` |
-| **Pre-publish check** | Publishing card, "Check before publishing" | tone notes, factual claims to verify, community-policy findings | `claude-sonnet-5-5`, effort `medium` |
+| **Translate** en ↔ ar | "AI assist" card in the editor's side panel | title, summary/excerpt and body in the other language, Markdown, links and `::video[ID]` lines kept | `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, reasoning off |
+| **SEO and sharing** | "Search & sharing" card, "Suggest" | SEO title (≤ 60 chars), meta description (≤ 160), social summary (≤ 200) | `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, reasoning off |
+| **Pre-publish check** | Publishing card, "Check before publishing" | tone notes, factual claims to verify, community-policy findings | `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, reasoning `low` |
 
-Model choice: translation is the one output that is published nearly verbatim in a second language,
-in a religious context where a wrong word is costly, so it gets the strongest model. SEO copy and
-checks are short, advisory, and reviewed by a person every time; Sonnet is fast and half the price.
-All three send `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) so a false-positive
-safety decline is retried server-side instead of failing (a religious text that quotes battle verses is
-exactly the case AI-MODERATION §1.3 warns about).
+All three run on **Cloudflare Workers AI** through the Worker's `AI` binding: no third-party AI
+vendor, no API key, the text never leaves Cloudflare (the same rule as AI-MODERATION §1.4). One model
+for all three: the best Arabic on the catalogue in our tests (§1.5), a 1M-token context, JSON-schema
+output, and no deprecation date. Every call asks for a JSON schema (`response_format`), so the
+output is checked against it like before. Model ids live in `src/lib/ai/prompts.ts` (`MODELS`).
 
 ### 1.1 Translate
 
@@ -35,8 +34,9 @@ exactly the case AI-MODERATION §1.3 warns about).
 - The Worker checks the result: same number of `::video[…]` lines with the same IDs in the same order,
   and the same multiset of link URLs. A mismatch is not a failure: the result is shown with a warning
   ("Check the links and videos: they differ from the original").
-- Long bodies are split into chunks of ≤ 12,000 characters at blank lines outside code fences; each
-  chunk is one call; chunk results are stored as they finish, so a retry resumes (§3).
+- Long bodies are split into chunks of ≤ 6,000 characters at blank lines outside code fences; each
+  chunk is one call; chunk results are stored as they finish, so a retry resumes (§3). 6,000, not
+  more: longer chunks drifted on Workers AI (§1.5).
 - Review dialog: editable title, summary/excerpt and body (body with a write/preview toggle).
   - **No version in the other language yet:** "Create Arabic draft" (or English) creates the sibling
     row through bknd (`status: "draft"` always, same `translation_key`, the slug copied, or
@@ -73,14 +73,39 @@ summary has no field in the content model (www doesn't read one, `docs/PUBLIC_AP
 
 The check is advisory and never blocks Publish. "Nothing to flag" is a normal result.
 
-### 1.4 Epic 28 alignment and the vendor question
+### 1.4 Epic 28 alignment
 
-AI-MODERATION.md §1.4 says user content stays inside Cloudflare (Workers AI, "no third-party AI
-vendors"). That rule is about **user-generated content and personal data**. This feature sends only
-**staff-authored drafts that are about to be published** (no user content, no personal data beyond the
-text the editor wrote), and issue #17 (owner) names the Claude API. Recorded here as a deliberate,
-scoped exception; epic 28's user-content pipeline is unchanged. We keep
-the text only in the job row, deleted after 30 days (§3).
+AI in the platform runs on Cloudflare Workers AI, not third-party vendors (owner decision,
+2026-11-10; AI-MODERATION.md §1.4 "no third-party AI vendors"). This feature follows it with no
+exception: drafts go to Workers AI in the same Cloudflare account and nowhere else. We keep the text
+only in the job row, deleted after 30 days (§3).
+
+### 1.5 Model choice: evidence (2026-11-10)
+
+Catalogue checked with `wrangler ai models list` on 2026-11-10. Models with a deprecation date
+of 2026-11-20 (Kimi K2.6, GLM 5.3 Flash, Qwen3 30B, DeepSeek V4 Flash 0731, Llama 3.1 8B, …) were
+left out. Each candidate ran the real prompts of this spec on two real-shaped drafts: an English
+community report (Markdown headings and list, a link, a `::video` line, a Tirmidhi hadith with ﷺ, an
+unsourced medical claim, a takfir-style line) and an Arabic zakat al-fitr guide (Abu Dawud hadith, a
+companion's athar, a fundraising call with a "send to this account" line).
+
+| Model | en → ar | ar → en | JSON | Notes |
+|---|---|---|---|---|
+| **DeepSeek V4.1 Flash** (reasoning off) | best: the canonical hadith wording «من فطّر صائمًا كان له مثل أجره» (الترمذي 807), correct gender agreement, Markdown/links/video kept | good | 6/6 | 3–7 s per call; reasoning on is ~8× the Neurons and no better for translation |
+| gpt-oss-120b | **failed twice**: empty fields, then the English returned unchanged | good | 6/6 | ruled out for translation |
+| Llama 3.3 70B | a Vietnamese token in the title ("cộngوتنا"), "قال عائشة" (wrong gender) | good | 6/6 | 24k context |
+| Mistral Small 3.1 24B | ungrammatical title ("كيف تغذينا مجتمعنا"), "تفتّر" for "break the fast" | good | 6/6 | |
+| Gemma 4 26B | ran out of tokens thinking (en → ar) | good | 4/6 | 55–145 s |
+| GLM 5.3 | ran out of tokens thinking on every call | – | 0/6 | ~3,000 Neurons a call |
+| Qwen 3.8 27B | timed out (408) | – | 0/6 | |
+| **m2m100-1.2b** (translation model) | unusable: replaced the hadith with a different one, broke the Markdown links, "مجلس الوزراء" for "city council" | unusable: "Rhinoplasty" and "Zika Rainbow" for زكاة الفطر, dropped ﷺ | n/a | plain text only; Markdown and `::video` lines would need re-assembly |
+
+The pre-publish check runs with reasoning `low`: on the samples it found the title/body number
+mismatch and the quote's attribution as extra claims, and it flagged `misinfo_health` (high),
+`sectarian_hate` and `charity_scam` correctly, for ~570 Neurons (≈ $0.006). Chunk size: with ~12,000
+characters per call en → ar repeated sections in 2 of 2 runs (the invariant check caught it); with
+~6,000 it was exact in 4 of 4, at ~13 s per call. Sample outputs: the PR that moved the feature
+(AlUmmahNowCMS, "AI assist on Workers AI").
 
 ## 2. Access, configuration and failure modes
 
@@ -88,28 +113,34 @@ the text only in the job row, deleted after 30 days (§3).
   Admin → `admin`, Moderator → `editor`), the existing `sessionUser` gate. All endpoints are under
   `/admin/api/ai/*`, which is behind the session gate and the same-origin `Origin` check. There is no
   public endpoint. A job is readable only by the user who started it, or by an admin.
-- **Key:** `ANTHROPIC_API_KEY`, either a Secrets Store binding (preferred: secret
-  `anthropic-api-key` in the account store, `secrets_store_secrets` binding per env) or a Worker secret
-  (`wrangler secret put ANTHROPIC_API_KEY --env qa`). The code accepts both shapes. Neither exists today
-  (checked by name, 2026-11-10), so the binding is **not** declared in `wrangler.jsonc` yet: a binding to
-  a missing store secret would fail the deploy. Enabling an env = create the store secret and add the
-  binding (one-line config PR), or put the Worker secret. The value is never logged or returned.
-- **Not configured** (no key, or an empty value) in an env:
+- **Model:** the Workers AI binding, `"ai": { "binding": "AI" }`, declared in every env of
+  `wrangler.jsonc` (bindings aren't inherited; `scripts/check-wrangler-config.ts` fails without it).
+  No secret, no key. The feature is on wherever the binding and the `AI_JOBS` queue exist. There is no
+  separate admin setting; turning it off in an env = removing the binding (one-line config PR).
+  `ANTHROPIC_API_KEY` is on the secrets manifest's **forbidden** list: a third-party AI key must not
+  come back.
+- **Local runs:** `wrangler dev` always calls the real Workers AI for the `AI` binding (it needs
+  Cloudflare credentials and is billed). The local E2E drops the binding from its config and sets
+  `AI_MOCK_URL` (honoured only when `ENVIRONMENT=local`) to a mock of the Workers AI REST shape.
+- **Not configured** (no `AI` binding or no queue) in an env:
   - `GET /admin/api/ai/status` → `{ configured: false }`; feature endpoints → `503 { error: "ai_not_configured" }`.
-  - Admins see one muted card in the editor: "AI assist isn't set up for this site" with "An admin adds
-    the Anthropic key to this environment's Secrets Store." No buttons.
+  - Admins see one muted card in the editor: "AI assist isn't set up for this site" with "This
+    environment has no Workers AI binding." No buttons.
   - Editors (Moderator) see nothing: no card, no buttons.
 - **Errors are never raw.** The client maps every failure to a sentence: rate limit ("You've used AI
   assist a lot just now. Try again in N minutes."), too long, the model declined, temporarily
   unavailable, failed after retries. Provider messages and stack traces stay in logs.
-- **Secrets manifest:** `ANTHROPIC_API_KEY` is listed as an **optional** secret (the check reports it,
-  missing is not a failure), and a check fails if it is ever set as a plain var.
+- **Errors** from Workers AI are classified by their code (developers.cloudflare.com/workers-ai/platform/errors):
+  out of capacity (3040), timeouts (3007, 3046), aborted, internal and 5xx → retry with backoff; no
+  such model / deprecated / request too large / invalid input (5007, 5028, 3006, 3003, …) → permanent
+  `bad_request`; account or model not allowed (3023, 3041, 5018, 5035) → permanent `auth`. Each call
+  also has a 5-minute timeout (retryable).
 
 ## 3. Jobs (queue, idempotency, retries)
 
-Every AI request is a job. Translation of a long post can run for minutes (Opus, adaptive thinking,
-up to 64k output tokens per chunk), past what a browser request should wait for; SEO and checks
-usually take 5–30 s but can exceed that on a long body. One path for all three gives one set of
+Every AI request is a job. Translation of a long post can run for minutes (a 6,000-character chunk
+takes ~13 s, and the longest allowed body is ~17 chunks), past what a browser request should wait
+for; SEO takes 2–7 s and checks ~30–45 s (they reason). One path for all three gives one set of
 idempotency, retry, DLQ and usage rules.
 
 ```
@@ -125,8 +156,8 @@ queue al-ummah-now-cms-ai[-env] (batch 1, max_retries 5, DLQ al-ummah-now-cms-ai
             claim: UPDATE … SET status='running', attempts=attempts+1 WHERE id=? AND status IN ('queued','running')
             run the steps; each finished chunk is stored in ai_jobs.partial (a retry skips it)
             success → status 'done', result JSON
-            retryable (429, 5xx, overloaded, network, timeout) → msg.retry({ delaySeconds: min(300, 15·2^attempt) })
-            permanent (400, refusal after fallback, invalid output twice) → status 'failed', ack, flag
+            retryable (out of capacity, 5xx, network, timeout, invalid JSON) → msg.retry({ delaySeconds: min(300, 15·2^attempt) })
+            permanent (bad request, account/model not allowed, refusal or content filter, cut off at max_tokens) → status 'failed', ack, flag
   DLQ consumer: status 'failed' (error 'retries_exhausted'), flag
 ```
 
@@ -145,21 +176,42 @@ and **60 per day**; translations count 3 (they are the expensive ones). Over the
 `429 { error: "rate_limited", retryAfter }` with `Retry-After`. Body size: ≤ 100,000 characters for
 translation and ≤ 60,000 for SEO and checks (`413 { error: "too_long" }`).
 
-## 5. Usage logging (for the cost dashboard, AlUmmahNow #266)
+## 5. Usage and cost (for the cost dashboard, AlUmmahNow #266)
 
-One `ai_usage` row per Messages API call: `at`, `day` (UTC), `env`, `user_id`, `feature`, `model`
-(the model that answered, so a fallback is attributed correctly), `job_id`, `input_tokens`,
-`output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cost_usd` (estimate from a price table in
-`src/lib/ai/pricing.ts`: Opus 5.5 $4/$20, Sonnet 5.5 $2/$10 per MTok, cache reads $0.20), `status`.
+Workers AI bills in **Neurons**: $0.011 per 1,000, after 10,000 free Neurons a day per account (the
+account is shared with other projects, so don't count on the free part). DeepSeek V4.1 Flash costs
+27,273 Neurons per M input tokens (545 cached) and 109,091 per M output tokens ($0.30 / $1.20 per M).
+
+One `ai_usage` row per model call: `at`, `day` (UTC), `env`, `user_id`, `feature`, `model`,
+`job_id`, `input_tokens`, `output_tokens`, `cache_read_tokens` (prompt tokens served from the prefix
+cache), `cache_write_tokens` (always 0 on Workers AI), `neurons` (as Workers AI reports them per call;
+estimated from the tokens with the rates in `src/lib/ai/pricing.ts` when missing), `cost_usd`
+(Neurons × $0.011 / 1,000), `status`. Each call also writes an `ai_usage` JSON line to Workers Logs.
+
+Measured per action (real runs, 2026-11-10):
+
+| Action | Neurons | USD |
+|---|---|---|
+| SEO suggestions | 25–30 | $0.0003 |
+| Translate a short post (~1,000 characters) | ~50 | $0.0006 |
+| Translate, per 6,000-character chunk | ~245 | $0.0027 |
+| Translate the longest allowed body (100,000 characters, ~17 chunks) | ~4,200 | $0.046 |
+| Pre-publish check (reasoning `low`) | 500–620 | $0.006–0.007 |
+
+Per month: **expected** use, 10 editors × 22 working days × (3 translations of ~2 chunks + 5 SEO +
+5 checks) ≈ 960,000 Neurons ≈ **$11/month**. **Ceiling** set by the per-user rate limit (§4: 60 weight
+a day) if every one of 10 editors maxed it every day of the month with 100,000-character
+translations: 20 × 4,200 × 10 × 30 ≈ 25M Neurons ≈ $277/month. The realistic figure is well inside
+the $500/month whole-platform cap, and even the theoretical ceiling stays under it at 10 editors; a
+monthly budget stop (§10) would remove the dependence on editor count.
 
 - `GET /admin/api/ai/usage?from=YYYY-MM-DD&to=YYYY-MM-DD` (**admin only**, as #266 limits cost data to
   Super Admin and Admin) returns daily rows in the cost spec's `vendor_costs_daily` shape
-  (`{ day, vendor: "anthropic", line_item: <model>, env, amount_usd, source: "estimate" }`) plus token
-  totals by feature and by user, ready for the collector.
-- The collector side (vendor `anthropic` in #266's product list, and a server-to-server read of this
-  rollup) is AlUmmahNow work; a `queue` issue is filed there.
+  (`{ day, vendor: "cloudflare-workers-ai", line_item: <model>, env, amount_usd, source: "estimate", neurons }`)
+  plus token and Neuron totals by feature and by user. The account-wide Workers AI bill is also in
+  Cloudflare's own usage data (the collector's GraphQL source); this rollup attributes the CMS share of it.
 
-## 6. Data (expand-only migration `0008_ai_assist.sql`)
+## 6. Data (expand-only migrations `0008_ai_assist.sql`, `0009_ai_usage_neurons.sql`)
 
 Worker-owned tables, outside bknd's schema (so bknd's data API never exposes them):
 
@@ -173,7 +225,8 @@ ai_jobs(id TEXT PK, dedupe_key TEXT NOT NULL, user_id INTEGER NOT NULL, feature 
 ai_usage(id TEXT PK, at INTEGER NOT NULL, day TEXT NOT NULL, env TEXT NOT NULL, user_id INTEGER,
          feature TEXT NOT NULL, model TEXT NOT NULL, job_id TEXT, input_tokens INTEGER NOT NULL,
          output_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-         cache_write_tokens INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL, status TEXT NOT NULL)
+         cache_write_tokens INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL, status TEXT NOT NULL,
+         neurons REAL NOT NULL DEFAULT 0 -- 0009)
   -- index: (day)
 ```
 
@@ -182,10 +235,11 @@ ai_usage(id TEXT PK, at INTEGER NOT NULL, day TEXT NOT NULL, env TEXT NOT NULL, 
 - System prompts are fixed per feature and versioned (`PROMPT_VERSION`, part of the dedupe key).
 - The editor's text is wrapped in `<document>` tags and the system prompt says it is content to work
   on, never instructions (prompt-injection guard).
-- Output uses structured outputs (`output_config.format` JSON schema); the Worker validates the shape
-  and lengths again before storing. `stop_reason: "refusal"` (after fallback) → a permanent failure
-  "The AI declined this text", no retry.
-- No user data beyond the text and the job's own ids goes to the API.
+- Output asks for a JSON schema (`response_format: { type: "json_schema", strict: true }`); the Worker
+  parses it (a ```json fence is tolerated), validates the shape and lengths before storing, and retries
+  invalid JSON. A refusal or `finish_reason: "content_filter"` → a permanent failure "The AI declined
+  this text", no retry; `finish_reason: "length"` → permanent `incomplete`.
+- Nothing leaves Cloudflare: the text and the job's own ids go to Workers AI in the same account.
 
 ## 8. UI
 
@@ -208,7 +262,8 @@ Built with the existing staff components and tokens (`card`, `btn`, `badge`, `di
 
 - **Unit (node):** chunking (fences, blank lines, limits), Markdown invariants check, dedupe key,
   rate-limit windows, price math, policy categories match the epic 28 list, output validators.
-- **Worker (vitest-pool-workers) with a mocked Anthropic client** (the SDK's `fetch` option): role
+- **Worker (vitest-pool-workers) with a mocked Workers AI binding** (`test/support/workers-ai-mock.ts`;
+  the pool runs with `remoteBindings: false`, so tests never reach the real model): role
   matrix (admin, editor 200/202; no session 401; cross-origin 403), not configured (503 + admin notice
   rendered, editor sees nothing), rate limit 429, too long 413, dedupe returns the same job, consumer
   success per feature, chunked translation resumes after a failure without re-calling done chunks,
@@ -216,16 +271,16 @@ Built with the existing staff components and tokens (`card`, `btn`, `badge`, `di
   with the answering model, usage endpoint admin-only and shaped like `vendor_costs_daily`, Overview
   failure card for admins only.
 - **E2E (Playwright):**
-  - *Local, every PR (new CI job):* `wrangler dev` + a local mock auth issuer and a mock Anthropic API
-    (`ANTHROPIC_BASE_URL`, honoured only when `ENVIRONMENT=local`). One test per editor flow
+  - *Local, every PR (CI job):* `wrangler dev` (config without the `AI` binding) + a local mock auth
+    issuer and a mock Workers AI (`AI_MOCK_URL`, honoured only when `ENVIRONMENT=local`). One test per editor flow
     (translate → create draft; translate → fill existing sibling; SEO suggest → use; check → dialog),
     in the English and Arabic UI (RTL), light and dark, with axe and accessible-name assertions, plus
     the not-set-up states (admin notice, editor hidden).
-  - *QA (deployed):* no key on QA today, so it asserts the admin "isn't set up" notice and that a
-    moderator sees no AI controls. When a QA key is added, the same suite gains a smoke run.
+  - *QA (deployed):* QA has the binding, so both roles get the AI controls (an env without the binding
+    shows admins the notice and moderators nothing). Real model calls are checked by hand on QA, not in
+    CI (they cost Neurons and depend on capacity).
 
 ## 10. Out of scope (queue issues)
 
-- Collector support for vendor `anthropic` in the cost monitor (AlUmmahNow).
 - A per-site monthly AI budget with a hard stop (needs #266's budgets).
 - AI assist for navigation labels and site settings.
