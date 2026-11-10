@@ -10,6 +10,9 @@ export interface EnvInfo {
    clientId: string;
    d1: { name: string; id: string };
    r2: string;
+   /** Image variant jobs queue (CMS-10) and its dead-letter queue. */
+   variantsQueue: string;
+   variantsDlq: string;
 }
 
 export const ENVS: Record<EnvName, EnvInfo> = {
@@ -21,6 +24,8 @@ export const ENVS: Record<EnvName, EnvInfo> = {
       clientId: "d06fd65a-5b79-45bc-8bfd-a856b8502330",
       d1: { name: "al-ummah-now-cms", id: "ad825428-5f0d-4d0b-878b-45b94e3c9c63" },
       r2: "al-ummah-now-cms",
+      variantsQueue: "al-ummah-now-cms-variants",
+      variantsDlq: "al-ummah-now-cms-variants-dlq",
    },
    stage: {
       worker: "al-ummah-now-cms-stage",
@@ -30,6 +35,8 @@ export const ENVS: Record<EnvName, EnvInfo> = {
       clientId: "d06fd65a-5b79-45bc-8bfd-a856b8502330",
       d1: { name: "al-ummah-now-cms-stage", id: "1c882ccb-d894-494d-81bf-90ec80e32d73" },
       r2: "al-ummah-now-cms-stage",
+      variantsQueue: "al-ummah-now-cms-variants-stage",
+      variantsDlq: "al-ummah-now-cms-variants-dlq-stage",
    },
    qa: {
       worker: "al-ummah-now-cms-qa",
@@ -39,6 +46,8 @@ export const ENVS: Record<EnvName, EnvInfo> = {
       clientId: "0e613f49-674b-490a-93e5-97a35d586da1",
       d1: { name: "al-ummah-now-cms-qa", id: "29b338a0-db34-4480-a510-16680fe67441" },
       r2: "al-ummah-now-cms-qa",
+      variantsQueue: "al-ummah-now-cms-variants-qa",
+      variantsDlq: "al-ummah-now-cms-variants-dlq-qa",
    },
 };
 

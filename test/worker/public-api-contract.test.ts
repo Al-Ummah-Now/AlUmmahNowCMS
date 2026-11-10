@@ -25,6 +25,8 @@ export function normalize(value: unknown): unknown {
       if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, k)]));
       if (typeof v === "string" && ISO.test(v)) return "<iso-date>";
       if (typeof v === "string" && key === "url" && v.includes("/api/public/v1/media/")) return v.replace(/media\/[^/]+$/, "media/<file>");
+      // Variant srcsets (CMS-10): "<url>?w=320&f=avif 320w, …"
+      if (typeof v === "string" && v.includes("/api/public/v1/media/")) return v.replace(/media\/[^/?\s]+/g, "media/<file>");
       if (typeof v === "number" && key === "id") return "<id>";
       return v;
    };

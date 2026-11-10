@@ -68,7 +68,18 @@ const media = (cmsOrigin: string): Check =>
       alt: nullable(str),
       width: nullable(int),
       height: nullable(int),
+      // Image variants (CMS-10): optional for www (older CMS builds lack it); when present, every
+      // srcset candidate is on the CMS origin (www's CSP) and carries a "<n>w" descriptor.
+      variants: optional(nullable(object({ widths: arrayOf(int), fallback_type: oneOf("image/jpeg", "image/png"), avif: srcset(cmsOrigin), webp: srcset(cmsOrigin), fallback: srcset(cmsOrigin) }))),
    });
+
+const srcset = (cmsOrigin: string): Check => (v, p, o) => {
+   if (typeof v !== "string" || !v) return fail(o, p, "srcset string", v);
+   for (const part of v.split(", ")) {
+      const [url, w, extra] = part.split(" ");
+      if (!url?.startsWith(`${cmsOrigin}/`) || !/^\d+w$/.test(w ?? "") || extra !== undefined) return fail(o, p, `srcset of "<${cmsOrigin} URL> <n>w"`, v);
+   }
+};
 
 const settings = object({
    locale,
@@ -129,9 +140,9 @@ export function wwwSchemas(cms: string) {
    return {
       site: object({ settings: nullable(settings), nav: object({ header: arrayOf(object({ label: nonEmpty, url: navUrl })), footer: arrayOf(object({ label: nonEmpty, url: navUrl })) }) }),
       home: object({ settings: nullable(settings), videos: arrayOf(curated), posts: arrayOf(object(postSummary(cms))) }),
-      page: object({ slug: nonEmpty, locale, title: nonEmpty, summary: nullable(str), body: str, seo_title: nullable(str), seo_description: nullable(str), cover: nullable(media(cms)), published_at: iso, updated_at: iso, alternates }),
+      page: object({ slug: nonEmpty, locale, title: nonEmpty, summary: nullable(str), body: str, seo_title: nullable(str), seo_description: nullable(str), cover: nullable(media(cms)), published_at: iso, updated_at: iso, alternates, images: optional(arrayOf(media(cms))) }),
       posts: object({ items: arrayOf(object(postSummary(cms))), page: int, limit: int, total: int }),
-      post: object({ ...postSummary(cms), body: str, seo_title: nullable(str), seo_description: nullable(str), alternates }),
+      post: object({ ...postSummary(cms), body: str, seo_title: nullable(str), seo_description: nullable(str), alternates, images: optional(arrayOf(media(cms))) }),
       videos: object({ items: arrayOf(curated) }),
       sitemap: object({ items: arrayOf(object({ type: oneOf("page", "post"), locale, slug: nonEmpty, updated_at: iso })) }),
    } satisfies Record<keyof typeof wwwPaths, Check>;

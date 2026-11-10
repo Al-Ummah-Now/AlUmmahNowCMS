@@ -129,7 +129,8 @@
         "url": "https://cms.test/api/public/v1/media/<file>",
         "alt": "A lantern",
         "width": null,
-        "height": null
+        "height": null,
+        "variants": null
       },
       "published_at": "<iso-date>",
       "updated_at": "<iso-date>",
@@ -138,7 +139,8 @@
           "locale": "ar",
           "slug": "about"
         }
-      ]
+      ],
+      "images": []
     }
   },
   "/api/public/v1/pages/about?locale=ar": {
@@ -161,7 +163,8 @@
           "locale": "en",
           "slug": "about"
         }
-      ]
+      ],
+      "images": []
     }
   },
   "/api/public/v1/pages/secret?locale=en": {
@@ -252,7 +255,8 @@
       "body": "Body",
       "seo_title": null,
       "seo_description": null,
-      "alternates": []
+      "alternates": [],
+      "images": []
     }
   },
   "/api/public/v1/posts/hidden?locale=en": {

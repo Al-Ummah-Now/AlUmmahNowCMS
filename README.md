@@ -64,6 +64,9 @@ CMS_URL=http://localhost:8585 npm run e2e       # Playwright (signed-in tests ne
 |---|---|---|
 | Worker (each env) | `BKND_JWT_SECRET` | `openssl rand -hex 32` → `wrangler secret put BKND_JWT_SECRET [--env qa\|stage]`. Required; the Worker serves 503 without it. |
 | GitHub | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Workers, D1 and R2 edit on account `0e4b6e7f…` |
+
+Queues (created once per account, not by deploys): `al-ummah-now-cms-variants[-stage|-qa]` and
+their DLQs `al-ummah-now-cms-variants-dlq[-stage|-qa]` (image variant jobs; `wrangler queues create`).
 | GitHub | `QA_SEED_PASSWORD`, `STAGE_SEED_PASSWORD` | E2E test accounts (`qa-admin`, `qa-moderator`, `qa-viewer`) |
 
 Names live in `scripts/secrets-manifest.ts`; `scripts/check-secrets.ts` checks the deployed Workers.

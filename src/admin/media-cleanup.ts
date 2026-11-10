@@ -13,7 +13,12 @@ export function entityUploadTarget(path: string): { entity: string; id: string; 
    return m ? { entity: m[1], id: decodeURIComponent(m[2]), field: m[3] } : null;
 }
 
-export async function keepNewestMedia(app: App, bucket: R2Bucket, target: { entity: string; id: string; field: string }): Promise<number> {
+export async function keepNewestMedia(
+   app: App,
+   bucket: R2Bucket,
+   target: { entity: string; id: string; field: string },
+   onDeleted?: (path: string) => Promise<void>,
+): Promise<number> {
    const field = app.em.entity(target.entity)?.field(target.field) as { getMaxItems?: () => number | undefined } | undefined;
    const max = field?.getMaxItems?.();
    if (!max) return 0;
@@ -34,6 +39,7 @@ export async function keepNewestMedia(app: App, bucket: R2Bucket, target: { enti
       for (const row of stale) {
          await bucket.delete(row.path);
          await mutator.deleteOne(row.id);
+         await onDeleted?.(row.path);
       }
    } finally {
       mutator.__unstable_toggleSystemEntityCreation?.(true);

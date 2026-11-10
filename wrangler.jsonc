@@ -36,6 +36,13 @@
     }
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms" }],
+  // Image variant jobs (src/lib/variants/jobs.ts). Not inherited by envs: each env repeats them.
+  "queues": {
+    "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants" }],
+    "consumers": [
+      { "queue": "al-ummah-now-cms-variants", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq" }
+    ]
+  },
   "dev": { "ip": "localhost", "port": 8585, "local_protocol": "http" },
   "env": {
     "stage": {
@@ -65,7 +72,13 @@
           "migrations_dir": "migrations"
         }
       ],
-      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-stage" }]
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-stage" }],
+      "queues": {
+        "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-stage" }],
+        "consumers": [
+          { "queue": "al-ummah-now-cms-variants-stage", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq-stage" }
+        ]
+      }
     },
     "qa": {
       "name": "al-ummah-now-cms-qa",
@@ -94,7 +107,13 @@
           "migrations_dir": "migrations"
         }
       ],
-      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-qa" }]
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-qa" }],
+      "queues": {
+        "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-qa" }],
+        "consumers": [
+          { "queue": "al-ummah-now-cms-variants-qa", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq-qa" }
+        ]
+      }
     }
   }
 }

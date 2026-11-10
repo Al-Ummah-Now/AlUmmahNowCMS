@@ -10,7 +10,8 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
                       ├─ /picker, /picker/api/*       video picker → videos.api.alummahnow.net (server-side)
                       ├─ /, /data/*, /media/*, …      bknd admin UI   ┐ session required
                       └─ /api/*                       bknd API        ┘ guard on, same-origin mutations
-                      bindings: DB (D1), MEDIA (R2), CF_VERSION_METADATA
+                      queue  al-ummah-now-cms-variants[-env]  image variant jobs (src/lib/variants)
+                      bindings: DB (D1), MEDIA (R2), VARIANTS (Queue), CF_VERSION_METADATA
 ```
 
 ## Pieces
@@ -26,6 +27,7 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
 | `src/routes/public-api.ts` | `docs/PUBLIC_API.md`. Every query has `status = 'published'`. ETag + `s-maxage=60`. |
 | `src/routes/picker.ts`, `src/lib/videos.ts`, `src/lib/embeds.ts` | Picker page (en/ar), videos-API proxy that drops non-public items, embed URL adapter. |
 | `src/lib/security.ts`, `src/lib/paths.ts` | CSP with per-response nonce, no-store/noindex, CSRF Origin check, blocked bknd routes, upload policy (jpeg/png/webp/avif ≤ 10 MB). |
+| `src/lib/variants/` | Image variants (CMS-10, docs/PUBLIC_API.md "Image variants"): `plan.ts` widths/formats/R2 keys, `jobs.ts` queue consumer + D1 `media_variants` state + cron sweep, `codecs.ts` WASM codecs (fresh instance per call, decode read in place), `resize.ts` streaming area resize, `png.ts`, `probe.ts` header size + EXIF orientation. |
 | `scripts/` | Schema check, migration guard, wrangler config check, secrets manifest/check, release (promote/smoke/rollback). |
 
 ## bknd specifics worth knowing (0.21.0)
