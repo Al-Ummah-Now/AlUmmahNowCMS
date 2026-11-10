@@ -304,8 +304,10 @@ test.describe("videos (E23–E30, X1)", () => {
       await row.getByLabel("Title on the site", { exact: true }).blur();
       await row.getByRole("checkbox").check();
       await expect(row.locator(".vis-label")).toHaveText("Published");
-      const vids = await publicApi("/videos?locale=ar&placement=videos");
-      expect((vids.body.items as { title_override: string }[]).map((x) => x.title_override)).toContain(`T ${STAMP}`);
+      // Each field saves on its own request: wait for both to land.
+      await expect
+         .poll(async () => ((await publicApi("/videos?locale=ar&placement=videos")).body.items as { title_override: string | null }[]).map((x) => x.title_override), { timeout: 20_000 })
+         .toContain(`T ${STAMP}`);
       await shot(page, "admin-videos");
 
       await row.getByRole("button", { name: "Change video" }).click();

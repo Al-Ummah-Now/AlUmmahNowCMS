@@ -52,7 +52,7 @@ jobs:
 
       # Read-only on content (it creates and removes its own sample page and post), so projects run in parallel.
       - name: Screenshot gallery
-        if: ${{ inputs.gallery }}
+        if: ${{ inputs.gallery && !cancelled() }}
         env:
           CMS_URL: https://cms.qa.alummahnow.net
           AUTH_URL: https://auth.qa.alummahnow.net
