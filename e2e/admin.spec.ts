@@ -290,12 +290,13 @@ test.describe("videos (E23–E30, X1)", () => {
       await dialog.getByLabel("Search the videos platform").fill("qa");
       await dialog.getByLabel("Search the videos platform").press("Enter");
       await expect(dialog.locator("[data-picker-status]")).not.toHaveText(/Searching/, { timeout: 20_000 });
-      const choices = dialog.getByRole("button", { name: /^Choose:/ });
-      test.skip((await choices.count()) < 2, "fewer than two public QA videos match the query");
-      const before = await page.locator("li[data-id]").count();
-      await choices.first().click();
-      await expect(page.locator("li[data-id]")).toHaveCount(before + 1, { timeout: 20_000 });
-      const row = page.locator("li[data-id]").last();
+      // Only results not already on this shelf: adding is idempotent per video/placement/locale (CMS-4).
+      const onShelf = new Set(await page.locator("li[data-ref]").evaluateAll((els) => els.map((e) => e.getAttribute("data-ref"))));
+      const fresh = (await dialog.locator("li[data-pick-id]").evaluateAll((els) => els.map((e) => e.getAttribute("data-pick-id")))).filter((id) => id && !onShelf.has(id)) as string[];
+      test.skip(fresh.length < 2, "fewer than two public QA videos that aren't already on the shelf match the query");
+      await dialog.locator(`li[data-pick-id="${fresh[0]}"]`).getByRole("button", { name: /^Choose:/ }).click();
+      const row = page.locator(`li[data-ref="${fresh[0]}"]`);
+      await expect(row).toHaveCount(1, { timeout: 20_000 });
       const rowId = Number(await row.getAttribute("data-id"));
       created.push({ entity: "curated_videos", id: rowId });
       await row.getByLabel("Show for", { exact: true }).selectOption("ar");
@@ -311,10 +312,10 @@ test.describe("videos (E23–E30, X1)", () => {
       await row.getByRole("button", { name: "Change video" }).click();
       await dialog.getByLabel("Search the videos platform").fill("qa");
       await dialog.getByLabel("Search the videos platform").press("Enter");
-      await expect(dialog.getByRole("button", { name: /^Choose:/ }).nth(1)).toBeVisible({ timeout: 20_000 });
-      await dialog.getByRole("button", { name: /^Choose:/ }).nth(1).click();
-      await page.waitForLoadState("load");
-      await expect(page.locator(`li[data-id="${rowId}"]`)).toBeVisible();
+      const other = dialog.locator(`li[data-pick-id="${fresh[1]}"]`);
+      await expect(other).toBeVisible({ timeout: 20_000 });
+      await other.getByRole("button", { name: /^Choose:/ }).click();
+      await expect(page.locator(`li[data-id="${rowId}"]`)).toHaveAttribute("data-ref", fresh[1], { timeout: 20_000 });
 
       await page.locator(`li[data-id="${rowId}"]`).getByRole("button", { name: /^Delete:/ }).click();
       await page.getByRole("dialog", { name: /Delete this permanently/ }).getByRole("button", { name: "Delete" }).click();
