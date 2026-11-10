@@ -57,7 +57,7 @@ for (const lang of ["en", "ar"] as const) {
          const id = await create(page, { slug: `link-${stamp()}-${lang}`, locale: lang, title: `Link ${stamp()}`, body: "read the guide here" });
          await page.goto(`/posts/${id}${q}`);
          const body = page.locator("#f-body");
-         await body.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(9, 14));
+         await body.evaluate((el) => (el as unknown as { setSelectionRange(a: number, b: number): void }).setSelectionRange(9, 14));
          await page.getByRole("button", { name: T.content.link, exact: true }).click();
          const dlg = page.getByRole("dialog", { name: T.common.linkTitle });
          await expect(dlg).toBeVisible();
