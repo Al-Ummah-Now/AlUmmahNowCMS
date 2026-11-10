@@ -19,7 +19,7 @@ and Worker secrets checked by name); the feature ships in its "not set up" state
 
 | # | Task | Files | Tests |
 |---|---|---|---|
-| A1 | Migration `0006_ai_assist.sql` (`ai_jobs`, `ai_usage`, indexes) | `migrations/` | schema check, migration guard |
+| A1 | Migration `0008_ai_assist.sql` (`ai_jobs`, `ai_usage`, indexes) | `migrations/` | schema check, migration guard |
 | A2 | Queue bindings + consumers per env; config check knows them; promote registers consumers for stage/prod (`versions upload` doesn't) | `wrangler.jsonc`, `scripts/check-wrangler-config.ts`, `scripts/release/envs.ts`, `scripts/release/queue-consumers.ts`, `scripts/release/promote.ts` | config check unit, consumer-plan unit |
 | A3 | Optional secret `ANTHROPIC_API_KEY` in the manifest; check-secrets reports optional ones | `scripts/secrets-manifest.ts`, `scripts/check-secrets.ts` | unit |
 | A4 | `src/lib/ai/*`: key resolution, client factory (SDK, injectable `fetch`), prompts + policy (epic 28 copy), chunking, invariants, pricing, validators, rate limit, jobs store, runner | `src/lib/ai/` | node unit |
