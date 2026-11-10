@@ -74,12 +74,15 @@ moderation admin) and from `admin.auth.` (users and roles). Custom domains creat
 ## 4. Content model (bknd code mode, expand-only)
 
 Each localized row has `locale` (`en`|`ar`) and a `translation_key` linking the language versions.
-`status` is `draft` or `published`. `published_at` is set on first publish. Every content entity
+`status` is `draft` or `published`. `published_at` is set on first publish. Pages and posts also have
+`publish_at` (scheduled publishing, #7, `migrations/0003`): a published row with a `publish_at` still ahead
+is **scheduled** and not served; `published_at` is then the scheduled time (it moves with the schedule and is
+cleared on unschedule until the row goes live). A draft never carries a `publish_at`. Every content entity
 also has `created_at`/`updated_at` (maintained by `src/lib/content-rules.ts`).
 
 | Entity | Fields |
 |---|---|
-| `pages` | `slug`*, `locale`*, `translation_key`, `title`*, `summary`, `body` (markdown), `status`, `published_at`, `seo_title`, `seo_description`, `cover` (media), `show_in_sitemap` (bool, default true) — unique (`slug`, `locale`) |
+| `pages` | `slug`*, `locale`*, `translation_key`, `title`*, `summary`, `body` (markdown), `status`, `published_at`, `publish_at`, `seo_title`, `seo_description`, `cover` (media), `show_in_sitemap` (bool, default true) — unique (`slug`, `locale`) |
 | `posts` | `slug`*, `locale`*, `translation_key`, `title`*, `excerpt`, `body` (markdown), `status`, `published_at`, `author_name`, `tags` (json string[]), `cover` (media), `seo_title`, `seo_description` — unique (`slug`, `locale`) |
 | `nav_items` | `menu` (`header`|`footer`)*, `locale`*, `label`*, `url`* (relative `/…` or https), `sort` (int), `status` |
 | `curated_videos` | `kind` (`video`|`playlist`|`channel`)*, `ref_id`*, `placement` (`home`|`videos`)*, `locale` (`en`|`ar`|`all`), `title_override`, `sort`, `status`, `snapshot` (json: title, thumbnail and channel at pick time; display fallback only) |
@@ -107,7 +110,10 @@ via a bknd UI link plus a Home card):
 
 ## 6. Public read API (`/api/public/v1`, the only unauthenticated surface besides `/healthz`)
 
-Published rows only (filter `status = 'published'` in every query; drafts are never serialized).
+Published rows only (filter `status = 'published'` in every query; drafts are never serialized). Pages and
+posts must also be live: `publish_at IS NULL OR publish_at <= now` (`LIVE_SQL`, `src/lib/schedule.ts`). This
+is decided at read time, so going live needs no job or purge: www's 60 s cache and its own 5-minute KV
+snapshot cron pick the row up, and the ETag changes with the body.
 Responses are JSON, `Cache-Control: public, s-maxage=60, stale-while-revalidate=600`, and carry
 an `ETag`. CORS: `GET` from the www origins for the env only (www calls server-side through a
 service binding; CORS is for the client-side language switcher and future islands).

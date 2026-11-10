@@ -193,6 +193,11 @@ html[lang=ar] .field>label,html[lang=ar] .label{font-size:var(--fanous-type-arab
 .badge.draft{background:transparent;color:var(--fanous-color-text-secondary);box-shadow:inset 0 0 0 1px var(--fanous-color-outline)}
 .badge.loc{background:color-mix(in srgb,var(--fanous-color-primary) 16%,transparent);color:var(--fanous-color-text-primary)}
 .badge.loc::before{display:none}
+/* Scheduled: a hollow dot (not yet live) on a lit primary tint, so it reads apart from both. */
+.badge.scheduled{background:color-mix(in srgb,var(--fanous-color-primary) 16%,transparent);color:var(--fanous-color-text-primary);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fanous-color-primary) 60%,transparent)}
+.badge.scheduled::before{background:transparent;box-shadow:inset 0 0 0 2px currentColor}
+.when{display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--fanous-color-text-primary)}
+.h-ic{display:inline-block;vertical-align:-3px;margin-inline-end:4px;color:var(--fanous-color-text-secondary)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 
 /* Lists */
@@ -278,6 +283,33 @@ dialog.dlg::backdrop{background:rgb(4 8 12/.6);-webkit-backdrop-filter:blur(3px)
 .drop:focus-within{outline:2px solid var(--fanous-c-upload-focus);outline-offset:2px}
 .drop[aria-busy=true]{opacity:.7;cursor:progress}
 .cover-img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-lg);box-shadow:var(--m-thumb-edge)}
+
+/* Scheduling (#7): the go-live callout and the "publish later" disclosure in the publish panel. */
+.sched{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:center;padding:14px;border-radius:var(--r-lg);background:linear-gradient(var(--to-end,to right),color-mix(in srgb,var(--fanous-color-primary) 22%,transparent),color-mix(in srgb,var(--fanous-color-primary) 6%,transparent));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fanous-color-primary) 50%,transparent)}
+[dir=rtl] .sched{--to-end:to left}
+.sched-ic{grid-row:span 2;width:44px;height:44px;border-radius:var(--r-md);display:grid;place-items:center;background:var(--m-primary);color:var(--fanous-c-button-primary-text);box-shadow:var(--m-primary-edge)}
+.sched-l{font-size:13px;font-weight:600;color:var(--fanous-color-text-secondary)}
+.sched-t{font-weight:700;font-size:16px;line-height:1.35;font-variant-numeric:tabular-nums}
+.sched-note{grid-column:1/-1;margin:10px 0 0;font-size:13px;color:var(--fanous-color-text-secondary)}
+details.later{border-radius:var(--r-lg);background:var(--fanous-c-form-section-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-form-section-border)}
+details.later>summary{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:var(--r-lg);font-weight:600;cursor:pointer;list-style:none}
+details.later>summary::-webkit-details-marker{display:none}
+details.later>summary::after{content:"";margin-inline-start:auto;width:8px;height:8px;border-inline-end:2px solid currentColor;border-block-end:2px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform var(--fanous-duration-fast) var(--fanous-easing-standard)}
+details.later[open]>summary::after{transform:translateY(2px) rotate(-135deg)}
+details.later>summary:focus-visible{outline:2px solid var(--fanous-color-focus-ring);outline-offset:2px}
+@media(hover:hover){details.later>summary:hover{background:var(--m-hover)}}
+.later-b{display:grid;gap:12px;padding:4px 14px 14px}
+.later-b input[type=datetime-local]{direction:ltr;text-align:start}
+[dir=rtl] .later-b input[type=datetime-local]{text-align:end}
+
+/* Overview: what goes live next, as a vertical timeline (start-side rail and dots). */
+.timeline{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.tl{position:relative;display:grid;gap:2px;padding-block:0 18px;padding-inline-start:26px}
+.tl::before{content:"";position:absolute;inset-block:6px 0;inset-inline-start:6px;width:2px;background:color-mix(in srgb,var(--fanous-color-primary) 35%,transparent)}
+.tl:last-child{padding-block-end:0}.tl:last-child::before{display:none}
+.tl-dot{position:absolute;inset-block-start:4px;inset-inline-start:0;width:14px;height:14px;border-radius:50%;background:var(--fanous-color-surface);box-shadow:inset 0 0 0 3px var(--fanous-color-primary)}
+.tl-when{font-size:13px;font-weight:700;color:var(--fanous-color-text-secondary);font-variant-numeric:tabular-nums}
+.tl .li-title{display:block}
 /* Picker */
 .picker-form{display:grid;gap:12px}
 .picker-results{list-style:none;margin:0;padding:0;display:grid;gap:10px}

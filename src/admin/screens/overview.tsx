@@ -3,6 +3,8 @@
 import { raw } from "hono/html";
 import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
+import { publishState } from "../../lib/schedule.ts";
+import { LocalTime, StateBadge } from "../ui/parts.tsx";
 import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "../ui/icons.tsx";
 import { Empty, isAdmin, withParam, type View } from "../ui/layout.tsx";
@@ -22,17 +24,30 @@ export async function overviewScreen(v: View, data: Data) {
       { entity: "curated_videos", href: "/videos", icon: "play", label: t.nav.videos },
       { entity: "nav_items", href: "/navigation", icon: "list", label: t.nav.navigation },
    ];
-   const counts = await Promise.all(
-      tiles.map(async (x) => ({
-         draft: await data.count(x.entity, { status: "draft" }),
-         published: await data.count(x.entity, { status: "published" }),
-      })),
-   );
-   const select = ["id", "title", "slug", "locale", "status", "updated_at"];
-   const [pages, posts] = await Promise.all([
+   const select = ["id", "title", "slug", "locale", "status", "updated_at", "publish_at"];
+   // Rows with a schedule, latest first; bknd's guard can't compare times (content.tsx listWheres),
+   // so "still ahead" is decided here. Elapsed schedules sort after every future one.
+   const withSchedule = { status: "published", publish_at: { $isnull: false } };
+   const now = Date.now();
+   const [pages, posts, schedPages, schedPosts] = await Promise.all([
       data.list("pages", { limit: 6, sort: "-updated_at", select }),
       data.list("posts", { limit: 6, sort: "-updated_at", select }),
+      data.list("pages", { limit: 500, sort: "-publish_at", where: withSchedule, select }),
+      data.list("posts", { limit: 500, sort: "-publish_at", where: withSchedule, select }),
    ]);
+   const ahead = (rows: Row[], kind: "pages" | "posts") =>
+      rows.filter((r) => publishState(r, now) === "scheduled").map((r): Row & { kind: "pages" | "posts" } => ({ ...r, kind }));
+   const upPages = ahead(schedPages.data, "pages");
+   const upPosts = ahead(schedPosts.data, "posts");
+   const counts = await Promise.all(
+      tiles.map(async (x) => {
+         const scheduled = x.entity === "pages" ? upPages.length : x.entity === "posts" ? upPosts.length : 0;
+         const [draft, published] = await Promise.all([data.count(x.entity, { status: "draft" }), data.count(x.entity, { status: "published" })]);
+         // "Published" = on the site now; scheduled rows are counted on their own.
+         return { draft, published: published - scheduled, scheduled };
+      }),
+   );
+   const upNext = [...upPages, ...upPosts].sort((a, b) => String(a.publish_at ?? "").localeCompare(String(b.publish_at ?? ""))).slice(0, 5);
    const recent = [
       ...pages.data.map((r): Row & { kind: "pages" | "posts" } => ({ ...r, kind: "pages" })),
       ...posts.data.map((r): Row & { kind: "pages" | "posts" } => ({ ...r, kind: "posts" })),
@@ -85,6 +100,11 @@ export async function overviewScreen(v: View, data: Data) {
                      <span>
                         <span class="stat-n">{counts[i].draft}</span> <span class="stat-l">{t.overview.drafts}</span>
                      </span>
+                     {counts[i].scheduled ? (
+                        <span data-stat-scheduled>
+                           <span class="stat-n">{counts[i].scheduled}</span> <span class="stat-l">{t.overview.scheduled}</span>
+                        </span>
+                     ) : null}
                   </span>
                </a>
             ))}
@@ -107,12 +127,37 @@ export async function overviewScreen(v: View, data: Data) {
                                  <span>{relative(r.updated_at, v.prefs.lang)}</span>
                               </div>
                            </div>
-                           <span class={`badge ${r.status === "published" ? "published" : "draft"}`}>{t.status[r.status === "published" ? "published" : "draft"]}</span>
+                           <StateBadge v={v} state={publishState(r)} />
                         </li>
                      ))}
                   </ul>
                ) : (
                   <Empty icon="pen" title={t.common.empty} body={t.overview.recentEmpty} />
+               )}
+            </section>
+
+            <section class="card" aria-labelledby="up-h" data-up-next>
+               <h2 id="up-h">
+                  <Icon name="calendar" size={20} class="h-ic" /> {t.overview.upNext}
+               </h2>
+               {upNext.length ? (
+                  <ol class="timeline">
+                     {upNext.map((r: Row & { kind: "pages" | "posts" }) => (
+                        <li class="tl">
+                           <span class="tl-dot" aria-hidden="true" />
+                           <LocalTime class="tl-when" iso={r.publish_at} lang={v.prefs.lang} />
+                           <a class="li-title" href={`/${r.kind}/${r.id}`} lang={String(r.locale)} dir="auto">
+                              {String(r.title ?? "")}
+                           </a>
+                           <span class="li-meta">
+                              <span>{t.entities[r.kind].one}</span>
+                              <span class="badge loc">{String(r.locale).toUpperCase()}</span>
+                           </span>
+                        </li>
+                     ))}
+                  </ol>
+               ) : (
+                  <p class="muted" style="margin:0">{t.overview.upNextEmpty}</p>
                )}
             </section>
 

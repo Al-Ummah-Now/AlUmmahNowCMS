@@ -163,3 +163,93 @@ describe("editor save is a compare-and-set on updated_at (CMS-3)", () => {
       expect((await patch({ title: "Second", updated_at: updated })).status).toBe(409);
    });
 });
+
+describe("scheduled publishing in the staff screens (#7)", () => {
+   const hour = 3600_000;
+   it("lists filter Draft / Scheduled / Published, and a scheduled row says when it goes live", async () => {
+      const cookie = await session(["Moderator"], "sched-list");
+      const f = makeWorker();
+      const at = new Date(Date.now() + 26 * hour).toISOString();
+      await create(f, cookie, "posts", { slug: "zq-live", locale: "en", title: "Zq live now", status: "published" });
+      await create(f, cookie, "posts", { slug: "zq-soon", locale: "en", title: "Zq later on", status: "published", publish_at: at });
+      const elapsed = await create(f, cookie, "posts", { slug: "zq-was-scheduled", locale: "en", title: "Zq went live", status: "published", publish_at: at });
+      await env.DB.prepare("UPDATE posts SET publish_at = ?1, published_at = ?1 WHERE id = ?2").bind(new Date(Date.now() - hour).toISOString(), elapsed).run();
+      await create(f, cookie, "posts", { slug: "zq-draft", locale: "en", title: "Zq still a draft" });
+      const list = async (q: string) => (await f(`/posts?q=zq${q}`, { headers: { cookie } })).text();
+      const all = await list("");
+      expect(all).toContain("4 results");
+      expect(all).toMatch(/class="badge scheduled">Scheduled</);
+      expect(all).toContain(`datetime="${at}" data-local`);
+      const scheduled = await list("&status=scheduled");
+      expect(scheduled).toContain("1 result");
+      expect(scheduled).toContain("Zq later on");
+      const published = await list("&status=published");
+      expect(published).toContain("2 results");
+      expect(published).toContain("Zq live now");
+      expect(published).toContain("Zq went live");
+      expect(published).not.toContain("Zq later on");
+      expect(await f(`/posts?q=went&status=published`, { headers: { cookie } }).then((r) => r.text())).toContain("1 result");
+      expect(await list("&status=draft")).toContain("1 result");
+   });
+
+   it("the editor shows the go-live callout and Save / Publish now / Unschedule for a scheduled row", async () => {
+      const cookie = await session(["Moderator"], "sched-ed");
+      const f = makeWorker();
+      const at = new Date(Date.now() + 3 * hour).toISOString();
+      const id = await create(f, cookie, "pages", { slug: "launch", locale: "ar", title: "إطلاق", status: "published", publish_at: at });
+      const html = await (await f(`/pages/${id}?lang=ar`, { headers: { cookie } })).text();
+      expect(html).toContain('dir="rtl"');
+      expect(html).toContain('data-state="scheduled"');
+      expect(html).toContain(`data-publish-at="${at}"`);
+      expect(html).toContain("data-schedule-callout");
+      expect(html).toMatch(/class="badge scheduled" data-status-badge="">مجدول</);
+      expect(html).toContain('data-action="schedule"');
+      expect(html).toContain("انشر الآن");
+      expect(html).toContain("إلغاء الجدولة");
+      expect(html).toContain('<label for="f-publish-at">موعد النشر</label>');
+      // No "View on site" before it is live; the first-published date is not shown yet.
+      expect(html).not.toContain("عرض على الموقع");
+      const draft = await create(f, cookie, "pages", { slug: "plain", locale: "en", title: "Plain" });
+      const d = await (await f(`/pages/${draft}?lang=en`, { headers: { cookie } })).text();
+      expect(d).toContain('data-state="draft"');
+      expect(d).toContain("Publish later");
+      expect(d).not.toContain("data-schedule-callout");
+      const live = await create(f, cookie, "pages", { slug: "out", locale: "en", title: "Out", status: "published" });
+      const l = await (await f(`/pages/${live}?lang=en`, { headers: { cookie } })).text();
+      expect(l).not.toContain("data-later");
+   });
+
+   it("the overview counts scheduled rows apart and lists what is coming up, soonest first", async () => {
+      const cookie = await session(["Admin"], "sched-ov");
+      const f = makeWorker();
+      await create(f, cookie, "posts", { slug: "second", locale: "en", title: "Second up", status: "published", publish_at: new Date(Date.now() + 48 * hour).toISOString() });
+      await create(f, cookie, "posts", { slug: "first", locale: "en", title: "First up", status: "published", publish_at: new Date(Date.now() + 2 * hour).toISOString() });
+      await create(f, cookie, "posts", { slug: "now", locale: "en", title: "Out now", status: "published" });
+      const html = await (await f("/?lang=en", { headers: { cookie } })).text();
+      const up = html.slice(html.indexOf("data-up-next"));
+      expect(up.indexOf("First up")).toBeGreaterThan(0);
+      expect(up.indexOf("First up")).toBeLessThan(up.indexOf("Second up"));
+      expect(up).not.toContain("Out now");
+      const tile = html.slice(html.indexOf('data-stat="posts"'), html.indexOf('data-stat="curated_videos"'));
+      const now = new Date().toISOString();
+      const live = await env.DB.prepare("SELECT COUNT(*) AS n FROM posts WHERE status = 'published' AND (publish_at IS NULL OR publish_at <= ?1)").bind(now).first<{ n: number }>();
+      const ahead = await env.DB.prepare("SELECT COUNT(*) AS n FROM posts WHERE status = 'published' AND publish_at > ?1").bind(now).first<{ n: number }>();
+      expect(ahead!.n).toBeGreaterThanOrEqual(2);
+      expect(tile).toContain(`<span class="stat-n">${live!.n}</span> <span class="stat-l">Published`);
+      expect(tile).toContain(`data-stat-scheduled="true"><span class="stat-n">${ahead!.n}</span>`);
+   });
+});
+
+describe("list totals and paging (bknd's list meta has no total)", () => {
+   it("a list longer than one page says so and pages", async () => {
+      const cookie = await session(["Moderator"], "paging-ed");
+      const f = makeWorker();
+      for (let i = 0; i < 23; i++) await create(f, cookie, "pages", { slug: `pg-${i}`, locale: "ar", title: `Paging ${i}`, status: "draft" });
+      const first = await (await f("/pages?locale=ar&status=draft", { headers: { cookie } })).text();
+      const n = (await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE locale = 'ar' AND status = 'draft'").first<{ n: number }>())!.n;
+      expect(n).toBeGreaterThan(20);
+      expect(first).toContain(`${n} results`);
+      expect(first).toContain(`Page 1 of ${Math.ceil(n / 20)}`);
+      expect(first).toContain('rel="next"');
+   });
+});

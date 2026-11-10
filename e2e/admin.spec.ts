@@ -257,6 +257,100 @@ test.describe("pages and posts (E1–E16)", () => {
    });
 });
 
+test.describe("scheduled publishing (#7)", () => {
+   /** A datetime-local value `hours` from now in the browser's own time zone, and its ISO instant. */
+   const localIn = (page: Page, hours: number) =>
+      page.evaluate((h) => {
+         const d = new Date(Date.now() + h * 3600_000);
+         d.setSeconds(0, 0);
+         const p = (n: number) => String(n).padStart(2, "0");
+         return { value: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`, iso: d.toISOString() };
+      }, hours);
+   const savedAs = (page: Page, done: string) => page.waitForURL(new RegExp(`done=${done}`), { timeout: 30_000 });
+
+   test("an editor schedules a post: hidden until then, change the time, unschedule, schedule again, publish now (en/ar, axe)", async ({ context, page }) => {
+      await sessionPage(context, page, ACCOUNTS.moderator, "/posts/new?locale=en");
+      await page.getByLabel("Title", { exact: true }).fill(`Sched ${STAMP}`);
+      await page.locator("#f-body").fill("Coming soon.");
+      await page.getByText("Publish later").click();
+      const when = page.getByLabel("Go live at");
+      await expect(when).toBeVisible();
+      await expect(page.locator("[data-tz]")).not.toHaveText("");
+
+      // A time in the past is refused in the form, nothing is saved.
+      await when.fill((await localIn(page, -2)).value);
+      await page.getByRole("button", { name: "Schedule", exact: true }).click();
+      await expect(page.locator("#f-publish-at-err")).toHaveText("Pick a time in the future.");
+      await expect(page).toHaveURL(/\/posts\/new/);
+
+      const first = await localIn(page, 48);
+      await when.fill(first.value);
+      let saved = savedAs(page, "scheduled");
+      await page.getByRole("button", { name: "Schedule", exact: true }).click();
+      await saved;
+      const id = idFromUrl(page);
+      created.push({ entity: "posts", id });
+      await expect(page.locator("[data-status-badge]")).toHaveText("Scheduled");
+      const callout = page.locator("[data-schedule-callout]");
+      await expect(callout).toContainText("Goes live");
+      await expect(callout.locator("time")).toHaveAttribute("datetime", first.iso);
+      await expect(page.getByRole("link", { name: "View on site" })).toHaveCount(0);
+      expect((await adminApi("GET", `/api/data/entity/posts/${id}`)).json?.data).toMatchObject({ status: "published", publish_at: first.iso });
+      expect((await publicApi(`/posts/sched-${STAMP}?locale=en`)).status).toBe(404);
+      const list = await publicApi("/posts?locale=en&limit=20");
+      expect((list.body.items as { slug: string }[]).map((x) => x.slug)).not.toContain(`sched-${STAMP}`);
+      await expectNoAxeViolations(page);
+      await shot(page, "admin-post-scheduled");
+
+      // Lists and the overview show it as scheduled.
+      await page.goto(`/posts?q=${STAMP}&status=scheduled`);
+      await expect(page.getByRole("link", { name: `Sched ${STAMP}` })).toBeVisible();
+      await page.goto(`/posts?q=${STAMP}&status=published`);
+      await expect(page.getByRole("link", { name: `Sched ${STAMP}` })).toHaveCount(0);
+      await page.goto("/");
+      await expect(page.locator("[data-up-next]").getByRole("link", { name: `Sched ${STAMP}` })).toBeVisible();
+
+      // Arabic UI: RTL, the callout and actions in Arabic.
+      await page.goto(`/posts/${id}?lang=ar`);
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await expect(page.locator("[data-status-badge]")).toHaveText("مجدول");
+      await expect(page.getByRole("button", { name: "إلغاء الجدولة" }).first()).toBeVisible();
+      await expectNoAxeViolations(page);
+      await shot(page, "admin-post-scheduled-ar");
+
+      // Change the time: Save keeps it scheduled at the new time.
+      await page.goto(`/posts/${id}?lang=en`);
+      await page.getByText("Change the time").click();
+      const second = await localIn(page, 72);
+      await page.getByLabel("Go live at").fill(second.value);
+      saved = savedAs(page, "scheduled");
+      await page.getByRole("button", { name: "Save", exact: true }).first().click();
+      await saved;
+      await expect(page.locator("[data-schedule-callout] time")).toHaveAttribute("datetime", second.iso);
+
+      // Unschedule: a draft again, still not public.
+      saved = savedAs(page, "unscheduled");
+      await page.getByRole("button", { name: "Unschedule" }).first().click();
+      await saved;
+      await expect(page.locator("[data-status-badge]")).toHaveText("Draft");
+      expect((await adminApi("GET", `/api/data/entity/posts/${id}`)).json?.data).toMatchObject({ status: "draft", publish_at: null, published_at: null });
+
+      // Schedule again, then publish now: live at once.
+      await page.getByText("Publish later").click();
+      await page.getByLabel("Go live at").fill((await localIn(page, 24)).value);
+      saved = savedAs(page, "scheduled");
+      await page.getByRole("button", { name: "Schedule", exact: true }).click();
+      await saved;
+      saved = savedAs(page, "published");
+      await page.getByRole("button", { name: "Publish now" }).click();
+      await saved;
+      await expect(page.locator("[data-status-badge]")).toHaveText("Published");
+      const live = await publicApi(`/posts/sched-${STAMP}?locale=en`);
+      expect(live.status).toBe(200);
+      expect(Date.parse(String(live.body.published_at))).toBeLessThanOrEqual(Date.now() + 60_000);
+   });
+});
+
 test.describe("navigation (E17–E22, A8)", () => {
    test("add with the URL rule, hide, reorder with the buttons, delete", async ({ context, page }) => {
       await sessionPage(context, page, ACCOUNTS.admin, "/navigation?menu=footer&locale=en");

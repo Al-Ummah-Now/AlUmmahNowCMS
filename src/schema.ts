@@ -35,6 +35,8 @@ export const schema = em(
             body: text({ description: "Markdown. HTML is not rendered." }),
             status: status(),
             published_at: datetime(),
+            // Scheduled publishing (#7): a published row goes live at publish_at (NULL = at once).
+            publish_at: datetime(),
             seo_title: text(),
             seo_description: text(),
             cover: medium(),
@@ -54,6 +56,7 @@ export const schema = em(
             body: text({ description: "Markdown. HTML is not rendered." }),
             status: status(),
             published_at: datetime(),
+            publish_at: datetime(),
             author_name: text(),
             tags: json<string[]>({ default_value: [] }),
             cover: medium(),
