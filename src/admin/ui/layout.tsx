@@ -32,6 +32,7 @@ const CONTENT: NavItem[] = [
    { href: "/", label: "overview", icon: "home" },
    { href: "/pages", label: "pages", icon: "file" },
    { href: "/posts", label: "posts", icon: "pen" },
+   { href: "/timeline", label: "timeline", icon: "timeline" },
    { href: "/videos", label: "videos", icon: "play" },
 ];
 const SITE: NavItem[] = [
@@ -215,7 +216,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                   </main>
                </div>
                <nav class="bar" aria-label={t.nav.label}>
-                  <NavLinks v={v} items={[...CONTENT, SITE[0]]} />
+                  <NavLinks v={v} items={CONTENT} />
                </nav>
             </div>
             <dialog class="drawer" id="drawer" aria-label={t.nav.label}>

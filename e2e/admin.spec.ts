@@ -296,7 +296,7 @@ test.describe("scheduled publishing (#7)", () => {
       const callout = page.locator("[data-schedule-callout]");
       await expect(callout).toContainText("Goes live");
       await expect(callout.locator("time")).toHaveAttribute("datetime", first.iso);
-      await expect(page.getByRole("link", { name: "View on site" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "View on site", exact: true })).toHaveCount(0);
       expect((await adminApi("GET", `/api/data/entity/posts/${id}`)).json?.data).toMatchObject({ status: "published", publish_at: first.iso });
       expect((await publicApi(`/posts/sched-${STAMP}?locale=en`)).status).toBe(404);
       const list = await publicApi("/posts?locale=en&limit=20");
@@ -355,13 +355,14 @@ test.describe("scheduled publishing (#7)", () => {
 
 test.describe("content history (#8)", () => {
    test("an editor sees each version, the diff of what changed, and restores an old one through the lock (en/ar, axe)", async ({ context, page }) => {
-      await sessionPage(context, page, ACCOUNTS.moderator, "/pages/new?locale=en");
+      // A post: new pages are built from blocks, a post article still has the body textarea.
+      await sessionPage(context, page, ACCOUNTS.moderator, "/posts/new?locale=en");
       await page.getByLabel("Title", { exact: true }).fill(`History ${STAMP}`);
       await page.locator("#f-body").fill("First line\nSecond line");
       await page.getByRole("button", { name: "Publish" }).first().click();
-      await expect(page).toHaveURL(/\/pages\/\d+$/);
+      await expect(page).toHaveURL(/\/posts\/\d+$/);
       const id = idFromUrl(page);
-      created.push({ entity: "pages", id });
+      created.push({ entity: "posts", id });
       await page.locator("#f-body").fill("First line\nA changed line");
       await page.getByLabel("Title", { exact: true }).fill(`History ${STAMP} edited`);
       await page.getByRole("button", { name: "Save", exact: true }).first().click();
@@ -392,31 +393,31 @@ test.describe("content history (#8)", () => {
       await page.waitForLoadState("load");
       await expect(page.getByLabel("Title", { exact: true })).toHaveValue(`History ${STAMP}`);
       await expect(page.locator("[data-status-badge]")).toHaveText("Published");
-      const pub = await publicApi(`/pages/history-${STAMP}?locale=en`);
+      const pub = await publicApi(`/posts/history-${STAMP}?locale=en`);
       expect(pub.status).toBe(200);
       expect(pub.body.body).toBe("First line\nSecond line");
 
-      await page.goto(`/pages/${id}/history?lang=ar`);
+      await page.goto(`/posts/${id}/history?lang=ar`);
       await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
       await expect(page.getByRole("heading", { level: 2, name: "النسخة 3" })).toBeVisible();
       await expect(page.getByText("مستعادة من النسخة 1")).toBeVisible();
       await expectNoAxeViolations(page);
       await shot(page, "admin-history-ar");
-      await page.goto(`/pages/${id}/history?lang=en&mode=dark`);
+      await page.goto(`/posts/${id}/history?lang=en&mode=dark`);
       await expect(page.locator("html")).toHaveClass(/dark/);
       await expectNoAxeViolations(page);
       await shot(page, "admin-history-dark");
-      await page.goto(`/pages/${id}/history?mode=system`);
+      await page.goto(`/posts/${id}/history?mode=system`);
 
       // Someone saves meanwhile: restoring from the stale screen is refused with a clear message.
-      await page.goto(`/pages/${id}/history?lang=en`);
+      await page.goto(`/posts/${id}/history?lang=en`);
       await page.locator(".rev").filter({ hasText: "Edited" }).first().click();
-      const row = (await adminApi("GET", `/api/data/entity/pages/${id}`)).json?.data as { updated_at: string };
-      expect((await adminApi("PATCH", `/api/data/entity/pages/${id}`, { summary: "Changed elsewhere", updated_at: row.updated_at })).status).toBe(200);
+      const row = (await adminApi("GET", `/api/data/entity/posts/${id}`)).json?.data as { updated_at: string };
+      expect((await adminApi("PATCH", `/api/data/entity/posts/${id}`, { excerpt: "Changed elsewhere", updated_at: row.updated_at })).status).toBe(200);
       await page.getByRole("button", { name: "Restore this version" }).click();
       await page.getByRole("dialog", { name: "Restore this version?" }).getByRole("button", { name: "Restore this version" }).click();
       await expect(page.locator(".toast.bad")).toContainText("Someone else changed this");
-      expect(((await adminApi("GET", `/api/data/entity/pages/${id}`)).json?.data as { title: string }).title).toBe(`History ${STAMP}`);
+      expect(((await adminApi("GET", `/api/data/entity/posts/${id}`)).json?.data as { title: string }).title).toBe(`History ${STAMP}`);
    });
 });
 

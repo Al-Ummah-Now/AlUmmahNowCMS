@@ -4,6 +4,10 @@ export interface Env {
    MEDIA: R2Bucket;
    /** Image variant jobs (src/lib/variants/jobs.ts). Optional so a missing binding degrades to originals. */
    VARIANTS?: Queue<import("./lib/variants/jobs.ts").VariantMessage>;
+   /** www's home timeline (docs/FEED.md): this Worker is its only writer; www reads it. */
+   FEED?: KVNamespace;
+   /** Feed rebuild wake-ups (src/lib/feed/jobs.ts). Optional: without it changes wait for the cron. */
+   FEED_JOBS?: Queue<import("./lib/feed/jobs.ts").FeedMessage>;
    ENVIRONMENT: "production" | "stage" | "qa" | "local";
    PUBLIC_URL: string;
    AUTH_ISSUER: string;

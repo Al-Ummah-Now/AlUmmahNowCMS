@@ -11,6 +11,8 @@ import { bodyImagePaths } from "../lib/variants/body-images.ts";
 import { enqueueVariants } from "../lib/variants/jobs.ts";
 import { parseVariantQuery, VARIANT_TYPES, variantKey } from "../lib/variants/plan.ts";
 import { MEDIA_COLS, mediaRefOf, mediaUrl, mediaVariants, type MediaRef, type MediaRow, type MediaVariants } from "../lib/media-ref.ts";
+import { feedItems } from "../lib/feed/source.ts";
+import { cursorOf, parseCursor } from "../lib/feed/model.ts";
 import { mediaByIds, publicBlocks, publicSlides, rowSlides, slideMediaIds, type BlockDeps, type PublicSlide } from "../lib/blocks-public.ts";
 
 type Locale = "en" | "ar";
@@ -156,7 +158,7 @@ function localizedOf(v: unknown): Partial<Record<Locale, string>> {
  * The stored snapshot as served. The first three fields are the original contract; the rest are
  * filled by the snapshot refresh (src/lib/snapshots.ts) and are absent on rows not yet refreshed.
  */
-function snapshotOf(snap: Row | null) {
+export function snapshotOf(snap: Row | null) {
    if (!snap || typeof snap.title !== "string") return null;
    const out: Record<string, unknown> = {
       title: snap.title,
@@ -207,9 +209,9 @@ async function curated(env: Env, l: Locale, placement: "home" | "videos") {
    return results.map(curatedOf);
 }
 
-const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, tags, kind, slides, published_at, updated_at, created_at";
+export const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, tags, kind, slides, published_at, updated_at, created_at";
 
-async function postSummaries(env: Env, rows: Row[]) {
+export async function postSummaries(env: Env, rows: Row[]) {
    const firstIds = rows.flatMap((r) => slideMediaIds(rowSlides(r)));
    const [cov, media] = await Promise.all([
       covers(
@@ -438,6 +440,25 @@ export function publicApi(): Hono<{ Bindings: Env }> {
             .all<{ tag: string }>(),
       ]);
       return json(c, { items: await postSummaries(c.env, rows.results), page, limit, total: Number(count?.n ?? 0), tags: tags.results.map((r) => r.tag) });
+   });
+
+   // The home timeline (docs/PUBLIC_API.md "Timeline"): pinned items (first page only), then live
+   // items newest first, by cursor. www reads the same feed from Workers KV (docs/FEED.md); this
+   // endpoint serves other clients and checks.
+   api.get("/timeline", async (c) => {
+      const l = locale(c);
+      const limit = intParam(c.req.query("limit"), 20, 1, 40, "limit");
+      const raw = c.req.query("before");
+      const cursor = raw ? parseCursor(raw) : null;
+      if (raw && !cursor) throw new HttpError(400, "before must be a cursor from a previous page");
+      const before = cursor ? { iso: new Date(cursor.ms).toISOString(), key: cursor.key } : undefined;
+      const [pinned, rows] = await Promise.all([
+         cursor ? Promise.resolve([]) : feedItems(c.env, l, { pinned: true }),
+         feedItems(c.env, l, { pinned: false, before, limit: limit + 1 }),
+      ]);
+      const items = rows.slice(0, limit);
+      const next = rows.length > limit ? cursorOf(items[items.length - 1]) : null;
+      return json(c, { pinned, items, next });
    });
 
    api.get("/videos", async (c) => {

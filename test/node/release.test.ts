@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { checkBindings } from "../../scripts/check-secrets.ts";
 import { checkWranglerConfig } from "../../scripts/check-wrangler-config.ts";
+import { consumerPlan, consumersFor } from "../../scripts/release/queue-consumers.ts";
 import { parseJsonc } from "../../scripts/lib/jsonc.ts";
 import { currentVersion, isNotDeployed, parseVersionId, promote, type PromoteDeps, waitForVersion } from "../../scripts/release/promote.ts";
 import { lastReleasedSha } from "../../scripts/release/last-released.ts";
@@ -176,8 +177,33 @@ describe("wrangler config", () => {
       expect(errs.join("\n")).toMatch(/workers_dev/);
       expect(errs.join("\n")).toMatch(/env.qa: d1_databases/);
    });
+   it("catches a missing feed namespace, a concurrent feed consumer or an unconsumed DLQ", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a deep edit of parsed JSON
+      const bad = structuredClone(config) as Record<string, any>;
+      bad.env.stage.kv_namespaces = [];
+      bad.queues.consumers.find((x: { queue: string }) => x.queue === "al-ummah-now-cms-feed").max_concurrency = 4;
+      bad.env.qa.queues.consumers = bad.env.qa.queues.consumers.filter((x: { queue: string }) => x.queue !== "al-ummah-now-cms-feed-dlq-qa");
+      bad.env.qa.triggers.crons = ["*/30 * * * *"];
+      const errs = checkWranglerConfig(bad as never).join("\n");
+      expect(errs).toMatch(/env.stage: kv_namespaces must bind FEED/);
+      expect(errs).toMatch(/top level: the feed consumer must run one build at a time/);
+      expect(errs).toMatch(/env.qa: queues.consumers must consume the DLQ al-ummah-now-cms-feed-dlq-qa/);
+      expect(errs).toMatch(/env.qa: triggers.crons must include "\* \* \* \* \*"/);
+   });
    it("parseJsonc handles comments, trailing commas and // inside strings", () => {
       expect(parseJsonc('{ // c\n "a": "http://x", /* b */ "b": [1,2,], }')).toEqual({ a: "http://x", b: [1, 2] });
+   });
+});
+
+describe("queue consumers (scripts/release/queue-consumers.ts)", () => {
+   const config = parseJsonc<Record<string, unknown>>(readFileSync(new URL("../../wrangler.jsonc", import.meta.url), "utf8"));
+   it("registers the feed queue and its DLQ on stage when they are missing, and nothing already there", () => {
+      const consumers = consumersFor(config as never, "stage");
+      const plan = consumerPlan("al-ummah-now-cms-stage", consumers, (q) =>
+         q === "al-ummah-now-cms-variants-stage" ? "Consumers: worker:al-ummah-now-cms-stage" : "Consumers: ",
+      );
+      expect(plan.map((a) => a[3])).toEqual(["al-ummah-now-cms-feed-stage", "al-ummah-now-cms-feed-dlq-stage"]);
+      expect(plan[0]).toEqual(expect.arrayContaining(["--dead-letter-queue", "al-ummah-now-cms-feed-dlq-stage", "--max-concurrency", "1"]));
    });
 });
 

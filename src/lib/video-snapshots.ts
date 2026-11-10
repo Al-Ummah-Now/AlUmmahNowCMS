@@ -101,7 +101,7 @@ export async function runSnapshotQueue(
    db: D1Database,
    videosApiUrl: string,
    fetchImpl: typeof fetch = fetch,
-   opts: { now?: Date; limit?: number; concurrency?: number } = {},
+   opts: { now?: Date; limit?: number; concurrency?: number; onChange?: (kind: VideoKind, refId: string) => Promise<void> } = {},
 ): Promise<QueueResult> {
    const now = opts.now ?? new Date();
    const at = now.toISOString();
@@ -109,8 +109,11 @@ export async function runSnapshotQueue(
       .prepare(
          `SELECT vs.kind, vs.ref_id, vs.snapshot, vs.attempts, vs.updated_at FROM video_snapshots vs
           WHERE vs.dead_at IS NULL AND (vs.next_attempt_at IS NULL OR vs.next_attempt_at <= ?1)
-            AND EXISTS (SELECT 1 FROM pages p, json_tree(p.blocks) j
-                        WHERE json_valid(p.blocks) AND j.key = 'ref_id' AND j.value = vs.ref_id)
+            AND (EXISTS (SELECT 1 FROM pages p, json_tree(p.blocks) j
+                         WHERE json_valid(p.blocks) AND j.key = 'ref_id' AND j.value = vs.ref_id)
+                 -- the home timeline: video entries, and ::video lines in posts on it (src/lib/feed)
+                 OR EXISTS (SELECT 1 FROM timeline_entries te WHERE te.kind = 'video' AND te.video_kind = vs.kind AND te.ref_id = vs.ref_id)
+                 OR (vs.kind = 'video' AND EXISTS (SELECT 1 FROM posts po WHERE po.body LIKE '%::video[' || vs.ref_id || ']%')))
           ORDER BY coalesce(vs.next_attempt_at, ''), vs.ref_id
           LIMIT ?2`,
       )
@@ -146,10 +149,24 @@ export async function runSnapshotQueue(
          if (!ok) out.skipped++;
          else if (item) out.refreshed++;
          else out.hidden++;
+         // What www shows changed (title, thumbnail, gone private): tell the home timeline.
+         if (ok && opts.onChange && sameSnapshot(row.snapshot, snap as unknown as Record<string, unknown>) === false) await opts.onChange(row.kind, row.ref_id).catch(() => {});
       }
    };
    await Promise.all(Array.from({ length: Math.min(opts.concurrency ?? CONCURRENCY, results.length) }, worker));
    return out;
+}
+
+/** Whether a stored snapshot (text) and a new one show the same thing (refreshed_at aside). */
+export function sameSnapshot(stored: string | null, next: Record<string, unknown>): boolean {
+   try {
+      const prev = stored ? (JSON.parse(stored) as Record<string, unknown>) : null;
+      if (!prev) return false;
+      const strip = ({ refreshed_at: _r, ...rest }: Record<string, unknown>) => JSON.stringify(rest, Object.keys(rest).sort());
+      return strip(prev) === strip(next);
+   } catch {
+      return false;
+   }
 }
 
 export interface DeadSnapshot {

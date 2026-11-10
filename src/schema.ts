@@ -65,6 +65,8 @@ export const schema = em(
             // "article" (markdown body) or "cards" (ordered slides, src/lib/blocks.ts). NULL reads as article.
             kind: enumm({ enum: ["article", "cards"], default_value: "article" }),
             slides: json<unknown[]>({ description: "Card post slides (src/lib/blocks.ts)." }),
+            // On www's home timeline once live (src/lib/feed). NULL reads as true: every post is on by default.
+            show_on_timeline: boolean({ default_value: true }),
             cover: medium(),
             seo_title: text(),
             seo_description: text(),

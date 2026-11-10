@@ -13,8 +13,9 @@
   "observability": { "enabled": true },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "routes": [{ "pattern": "cms.alummahnow.net", "custom_domain": true }],
-  // Curated snapshot refresh (src/lib/snapshots.ts). Not inherited by envs: each env repeats it.
-  "triggers": { "crons": ["*/30 * * * *"] },
+  // */30: snapshot refreshes, image variant sweep, feed verifier. Every minute: scheduled posts going
+  // live onto the home timeline (src/lib/feed/jobs.ts duePosts). Not inherited by envs: each env repeats them.
+  "triggers": { "crons": ["*/30 * * * *", "* * * * *"] },
   "vars": {
     "ENVIRONMENT": "production",
     "PUBLIC_URL": "https://cms.alummahnow.net",
@@ -36,11 +37,17 @@
     }
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms" }],
-  // Image variant jobs (src/lib/variants/jobs.ts). Not inherited by envs: each env repeats them.
+  // www's home timeline (docs/FEED.md): written only by this Worker, read by www (binding FEED there too).
+  "kv_namespaces": [{ "binding": "FEED", "id": "5f27cddf86c84bbdbb59445ad867253c" }],
+  // Image variant jobs (src/lib/variants/jobs.ts, CMS-10) and home timeline builds (src/lib/feed/jobs.ts:
+  // one consumer at a time so builds never overlap, retries with backoff, then the DLQ, whose consumer
+  // flags the admin). Not inherited by envs: each env repeats them.
   "queues": {
-    "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants" }],
+    "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants" }, { "binding": "FEED_JOBS", "queue": "al-ummah-now-cms-feed" }],
     "consumers": [
-      { "queue": "al-ummah-now-cms-variants", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq" }
+      { "queue": "al-ummah-now-cms-variants", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq" },
+      { "queue": "al-ummah-now-cms-feed", "max_batch_size": 100, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 1, "dead_letter_queue": "al-ummah-now-cms-feed-dlq" },
+      { "queue": "al-ummah-now-cms-feed-dlq", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 }
     ]
   },
   "dev": { "ip": "localhost", "port": 8585, "local_protocol": "http" },
@@ -51,7 +58,7 @@
       "preview_urls": false,
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
       "routes": [{ "pattern": "cms.stage.alummahnow.net", "custom_domain": true }],
-      "triggers": { "crons": ["*/30 * * * *"] },
+      "triggers": { "crons": ["*/30 * * * *", "* * * * *"] },
       "vars": {
         "ENVIRONMENT": "stage",
         "PUBLIC_URL": "https://cms.stage.alummahnow.net",
@@ -73,10 +80,14 @@
         }
       ],
       "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-stage" }],
+      // www's home timeline (docs/FEED.md): written only by this Worker, read by www (binding FEED there too).
+      "kv_namespaces": [{ "binding": "FEED", "id": "33ddf8bb7eae439c91fcc4af22797f42" }],
       "queues": {
-        "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-stage" }],
+        "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-stage" }, { "binding": "FEED_JOBS", "queue": "al-ummah-now-cms-feed-stage" }],
         "consumers": [
-          { "queue": "al-ummah-now-cms-variants-stage", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq-stage" }
+          { "queue": "al-ummah-now-cms-variants-stage", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq-stage" },
+          { "queue": "al-ummah-now-cms-feed-stage", "max_batch_size": 100, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 1, "dead_letter_queue": "al-ummah-now-cms-feed-dlq-stage" },
+          { "queue": "al-ummah-now-cms-feed-dlq-stage", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 }
         ]
       }
     },
@@ -86,7 +97,7 @@
       "preview_urls": false,
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
       "routes": [{ "pattern": "cms.qa.alummahnow.net", "custom_domain": true }],
-      "triggers": { "crons": ["*/30 * * * *"] },
+      "triggers": { "crons": ["*/30 * * * *", "* * * * *"] },
       "vars": {
         "ENVIRONMENT": "qa",
         "PUBLIC_URL": "https://cms.qa.alummahnow.net",
@@ -108,10 +119,14 @@
         }
       ],
       "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-qa" }],
+      // www's home timeline (docs/FEED.md): written only by this Worker, read by www (binding FEED there too).
+      "kv_namespaces": [{ "binding": "FEED", "id": "6e459b34fb954cf4a199cfef57036a8c" }],
       "queues": {
-        "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-qa" }],
+        "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-qa" }, { "binding": "FEED_JOBS", "queue": "al-ummah-now-cms-feed-qa" }],
         "consumers": [
-          { "queue": "al-ummah-now-cms-variants-qa", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq-qa" }
+          { "queue": "al-ummah-now-cms-variants-qa", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 4, "dead_letter_queue": "al-ummah-now-cms-variants-dlq-qa" },
+          { "queue": "al-ummah-now-cms-feed-qa", "max_batch_size": 100, "max_batch_timeout": 5, "max_retries": 6, "max_concurrency": 1, "dead_letter_queue": "al-ummah-now-cms-feed-dlq-qa" },
+          { "queue": "al-ummah-now-cms-feed-dlq-qa", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 }
         ]
       }
     }

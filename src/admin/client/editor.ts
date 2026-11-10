@@ -341,6 +341,8 @@ export function initEditor(): void {
          } else {
             data.excerpt = val("excerpt");
             data.author_name = val("author_name");
+            const onTimeline = form.elements.namedItem("show_on_timeline") as HTMLInputElement | null;
+            if (onTimeline) data.show_on_timeline = onTimeline.checked;
             if (tagInput?.value.trim()) addTag(tagInput.value);
             data.tags = tags();
          }

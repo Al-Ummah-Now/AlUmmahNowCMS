@@ -534,6 +534,17 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         {s("seo_description") || (kind === "pages" ? s("summary") : s("excerpt"))}
                      </span>
                   </div>
+                  {kind === "posts" ? (
+                     <div class="field">
+                        <label class="switch">
+                           <input type="checkbox" name="show_on_timeline" aria-describedby="f-timeline-help" checked={row ? row.show_on_timeline !== false && row.show_on_timeline !== 0 : true} />
+                           {t.content.onTimeline}
+                        </label>
+                        <p class="help" id="f-timeline-help">
+                           {t.content.onTimelineHelp}
+                        </p>
+                     </div>
+                  ) : null}
                   {kind === "pages" ? (
                      <label class="switch">
                         <input type="checkbox" name="show_in_sitemap" checked={row ? row.show_in_sitemap !== false && row.show_in_sitemap !== 0 : true} />

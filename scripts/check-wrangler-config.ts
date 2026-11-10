@@ -17,10 +17,11 @@ interface EnvConfig {
    vars?: Record<string, string>;
    d1_databases?: { binding: string; database_name: string; database_id: string; migrations_dir?: string }[];
    r2_buckets?: { binding: string; bucket_name: string }[];
+   kv_namespaces?: { binding: string; id: string }[];
    triggers?: { crons?: string[] };
    queues?: {
       producers?: { binding: string; queue: string }[];
-      consumers?: { queue: string; max_retries?: number; dead_letter_queue?: string; max_batch_size?: number }[];
+      consumers?: { queue: string; max_retries?: number; dead_letter_queue?: string; max_batch_size?: number; max_concurrency?: number }[];
    };
 }
 interface WranglerConfig extends EnvConfig {
@@ -28,6 +29,8 @@ interface WranglerConfig extends EnvConfig {
 }
 
 export const SNAPSHOT_CRON = "*/30 * * * *";
+/** Scheduled posts going live onto the home timeline (src/lib/feed/jobs.ts duePosts). */
+export const FEED_DUE_CRON = "* * * * *";
 
 export function checkWranglerConfig(config: WranglerConfig): string[] {
    const errors: string[] = [];
@@ -80,6 +83,22 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
          if (!consumer.max_retries || consumer.max_retries <= 5) errors.push(`${where}: the variants consumer's max_retries must exceed the job's own MAX_ATTEMPTS (5)`);
       }
       if ((c.queues?.producers ?? []).some((p) => p.binding !== "VARIANTS" && p.queue === want.variantsQueue)) errors.push(`${where}: ${want.variantsQueue} is for VARIANTS only`);
+      // www's home timeline (docs/FEED.md): this env's FEED namespace (www binds the same one), the
+      // build queue (one consumer at a time, retries, DLQ) and the DLQ's own consumer (flags staff).
+      const f = want.feed;
+      const kv = (c.kv_namespaces ?? []).filter((k) => k.binding === "FEED");
+      if (kv.length !== 1 || kv[0].id !== f.kvId) errors.push(`${where}: kv_namespaces must bind FEED → ${f.kv} (${f.kvId})`);
+      if (!(c.triggers?.crons ?? []).includes(FEED_DUE_CRON)) errors.push(`${where}: triggers.crons must include "${FEED_DUE_CRON}" (scheduled posts onto the timeline)`);
+      const fp = (c.queues?.producers ?? []).filter((p) => p.binding === "FEED_JOBS");
+      if (fp.length !== 1 || fp[0].queue !== f.queue) errors.push(`${where}: queues.producers must bind FEED_JOBS → ${f.queue}`);
+      const fc = (c.queues?.consumers ?? []).filter((x) => x.queue === f.queue);
+      if (fc.length !== 1) errors.push(`${where}: queues.consumers must consume ${f.queue} once`);
+      else {
+         if (fc[0].dead_letter_queue !== f.dlq) errors.push(`${where}: the feed consumer needs dead_letter_queue ${f.dlq}`);
+         if (fc[0].max_concurrency !== 1) errors.push(`${where}: the feed consumer must run one build at a time (max_concurrency 1)`);
+         if (!fc[0].max_retries || fc[0].max_retries < 1) errors.push(`${where}: the feed consumer needs max_retries ≥ 1`);
+      }
+      if ((c.queues?.consumers ?? []).filter((x) => x.queue === f.dlq).length !== 1) errors.push(`${where}: queues.consumers must consume the DLQ ${f.dlq} once (it flags staff)`);
    }
    return errors;
 }

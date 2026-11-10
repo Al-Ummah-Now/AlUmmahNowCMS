@@ -66,7 +66,11 @@ CMS_URL=http://localhost:8585 npm run e2e       # Playwright (signed-in tests ne
 | GitHub | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Workers, D1 and R2 edit on account `0e4b6e7f…` |
 
 Queues (created once per account, not by deploys): `al-ummah-now-cms-variants[-stage|-qa]` and
-their DLQs `al-ummah-now-cms-variants-dlq[-stage|-qa]` (image variant jobs; `wrangler queues create`).
+their DLQs `al-ummah-now-cms-variants-dlq[-stage|-qa]` (image variant jobs; `wrangler queues create`);
+`al-ummah-now-cms-feed[-stage|-qa]` and `al-ummah-now-cms-feed-dlq[-stage|-qa]` (home timeline builds).
+KV namespaces `al-ummah-now-www-feed[-stage|-qa]` (binding `FEED`): the home timeline, written only
+by this Worker and read by www (docs/FEED.md). Stage and production promotes register queue consumers
+with `scripts/release/queue-consumers.ts` (`versions upload` doesn't).
 | GitHub | `QA_SEED_PASSWORD`, `STAGE_SEED_PASSWORD` | E2E test accounts (`qa-admin`, `qa-moderator`, `qa-viewer`) |
 
 Names live in `scripts/secrets-manifest.ts`; `scripts/check-secrets.ts` checks the deployed Workers.

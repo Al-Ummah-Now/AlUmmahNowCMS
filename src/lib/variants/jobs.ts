@@ -20,6 +20,7 @@ import type { Env } from "../../env.ts";
 import { decodeScaled, encode } from "./codecs.ts";
 import { backoffSeconds, formatsFor, PermanentVariantError, heightFor, isSourceType, MAX_SOURCE_PIXELS, VARIANT_TYPES, variantKey, variantPrefix, widthsFor } from "./plan.ts";
 import { probeImage } from "./probe.ts";
+import { mediaReady } from "../feed/jobs.ts";
 
 export type VariantMessage = { kind: "plan"; path: string } | { kind: "width"; path: string; width: number };
 
@@ -179,13 +180,15 @@ async function makeWidth(env: Env, path: string, width: number): Promise<void> {
    )
       .bind(path, width, now())
       .run();
-   await env.DB.prepare(
+   const finished = await env.DB.prepare(
       `UPDATE media_variants SET status = 'done', error = NULL, attempts = 0, updated_at = ?2
-       WHERE path = ?1 AND status != 'failed' AND widths IS NOT NULL
+       WHERE path = ?1 AND status NOT IN ('failed', 'done') AND widths IS NOT NULL
          AND NOT EXISTS (SELECT 1 FROM json_each(widths) w WHERE w.value NOT IN (SELECT value FROM json_each(done_widths)))`,
    )
       .bind(path, now())
       .run();
+   // Every size exists now: posts on the home timeline using this image get their <picture> sources.
+   if (finished.meta.changes > 0) await mediaReady(env, path);
 }
 
 async function handle(env: Env, body: VariantMessage): Promise<void> {
