@@ -1,9 +1,10 @@
 /**
- * Where the model comes from (docs/AI_ASSIST_SPEC.md §2): the Workers AI binding `AI` (wrangler.jsonc
- * `"ai": { "binding": "AI" }` in every env). No secret, no third-party vendor. No binding (or no jobs
- * queue) means "not configured": the feature is hidden from editors and admins see a notice.
+ * Where the model comes from (docs/AI_ASSIST_SPEC.md §2): by default the Workers AI binding `AI`
+ * (wrangler.jsonc `"ai": { "binding": "AI" }` in every env, no key); admins may add generic HTTP
+ * providers (src/lib/ai/settings.ts). No jobs queue, or no provider a feature can run on, means "not
+ * configured": the feature is hidden from editors and admins see a notice.
  */
-import type { AiBinding } from "./client.ts";
+import type { AiBinding } from "./providers/workers-ai.ts";
 
 export interface AiEnv {
    ENVIRONMENT: string;
@@ -49,9 +50,4 @@ export function aiBinding(env: AiEnv): AiBinding | null {
    const mock = mockUrl(env);
    if (mock) return mockBinding(mock);
    return env.AI && typeof env.AI.run === "function" ? env.AI : null;
-}
-
-/** Configured = a model binding and a queue to run jobs on. */
-export function aiConfigured(env: AiEnv): boolean {
-   return !!env.AI_JOBS && aiBinding(env) !== null;
 }

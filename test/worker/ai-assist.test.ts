@@ -191,7 +191,7 @@ describe("queue consumer (mocked Workers AI)", () => {
       const { id, cookie, worker } = await queued("seo", { title: "Zakat guide", summary: "", body: "How zakat works." });
       const mock = mockWorkersAi();
       const { m, batch: b } = batch("al-ummah-now-cms-ai", id);
-      await handleAiQueue(b, aiEnv(), mock.binding);
+      await handleAiQueue(b, aiEnv(), { binding: mock.binding });
       expect(m.acked).toBe(true);
       expect(mock.requests).toHaveLength(1);
       const r = mock.requests[0];
@@ -211,7 +211,7 @@ describe("queue consumer (mocked Workers AI)", () => {
    it("usage without a Neurons figure is estimated from the token counts", async () => {
       const { id } = await queued("seo", { title: "No neurons", summary: "", body: "b" }, ["Moderator"], "ai-est");
       const mock = mockWorkersAi(() => ({ kind: "json", data: { seo_title: "t", seo_description: "d", social_summary: "s" }, input: 1000, output: 100, neurons: null }));
-      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), mock.binding);
+      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), { binding: mock.binding });
       const u = await env.DB.prepare("SELECT neurons FROM ai_usage WHERE job_id = ?1").bind(id).first<{ neurons: number }>();
       expect(u?.neurons).toBeCloseTo(mockNeurons(1000, 100), 2);
    });
@@ -222,7 +222,7 @@ describe("queue consumer (mocked Workers AI)", () => {
       const res = await post(worker, cookie, { ...job("check", { title: "عنوان", summary: "", body: "نص" }), locale: "ar", ui: "ar" });
       const { id } = ((await res.json()) as { job: { id: string } }).job;
       const mock = mockWorkersAi();
-      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), mock.binding);
+      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), { binding: mock.binding });
       expect(mock.requests[0].system).toContain("Write your notes in Modern Standard Arabic");
       expect(mock.requests[0].system).toContain("sectarian_hate");
       expect(mock.requests[0].system).toContain("religious_authenticity");
@@ -236,7 +236,7 @@ describe("queue consumer (mocked Workers AI)", () => {
       const body = "## Intro\n\nSee [the guide](https://example.org/guide).\n\n::video[abc123]\n\nThe end.";
       const { id } = await queued("translate", { title: "Hello", summary: "Short", body }, ["Moderator"], "ai-tr");
       const mock = mockWorkersAi();
-      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), mock.binding);
+      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), { binding: mock.binding });
       expect(mock.requests).toHaveLength(1);
       expect(mock.requests[0].model).toBe(MODEL_ID);
       expect(mock.requests[0].inputs).toMatchObject({ reasoning_effort: "none", max_tokens: 16_000 });
@@ -257,7 +257,7 @@ describe("queue consumer (mocked Workers AI)", () => {
       let overloaded = true;
       const mock = mockWorkersAi((_req, n) => (overloaded && n >= 2 ? { kind: "error", code: 3040, message: "Capacity temporarily exceeded" } : undefined));
       const first = batch("al-ummah-now-cms-ai", id, 1);
-      await handleAiQueue(first.batch, aiEnv(), mock.binding);
+      await handleAiQueue(first.batch, aiEnv(), { binding: mock.binding });
       expect(first.m.retried).toBe(15); // backoff after attempt 1
       expect(first.m.acked).toBe(false);
       const mid = await getJob(env.DB, id);
@@ -267,7 +267,7 @@ describe("queue consumer (mocked Workers AI)", () => {
       expect(callsBefore).toBe(2);
       overloaded = false;
       const second = batch("al-ummah-now-cms-ai", id, 2);
-      await handleAiQueue(second.batch, aiEnv(), mock.binding);
+      await handleAiQueue(second.batch, aiEnv(), { binding: mock.binding });
       expect(second.m.acked).toBe(true);
       const done = await getJob(env.DB, id);
       expect(done?.status).toBe("done");
@@ -280,9 +280,9 @@ describe("queue consumer (mocked Workers AI)", () => {
    it("a duplicate delivery of a done job is a no-op", async () => {
       const { id } = await queued("seo", { title: "Once", summary: "", body: "b" }, ["Moderator"], "ai-dup");
       const mock = mockWorkersAi();
-      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), mock.binding);
+      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), { binding: mock.binding });
       const again = batch("al-ummah-now-cms-ai", id, 2);
-      await handleAiQueue(again.batch, aiEnv(), mock.binding);
+      await handleAiQueue(again.batch, aiEnv(), { binding: mock.binding });
       expect(again.m.acked).toBe(true);
       expect(mock.requests).toHaveLength(1);
    });
@@ -291,7 +291,7 @@ describe("queue consumer (mocked Workers AI)", () => {
       const { id, worker } = await queued("check", { title: "Refused", summary: "", body: "b" }, ["Moderator"], "ai-refuse");
       const mock = mockWorkersAi(() => ({ kind: "json", data: {}, refusal: "I can't help with that." }));
       const { m, batch: b } = batch("al-ummah-now-cms-ai", id);
-      await handleAiQueue(b, aiEnv(), mock.binding);
+      await handleAiQueue(b, aiEnv(), { binding: mock.binding });
       expect(m.acked).toBe(true);
       expect(m.retried).toBeUndefined();
       const j = await getJob(env.DB, id);
@@ -313,17 +313,17 @@ describe("queue consumer (mocked Workers AI)", () => {
 
    it("a model the account can't use is permanent; out of capacity is retried with backoff; a cut-off answer is permanent", async () => {
       const a = await queued("seo", { title: "Auth", summary: "", body: "b" }, ["Moderator"], "ai-auth");
-      await handleAiQueue(batch("al-ummah-now-cms-ai", a.id).batch, aiEnv(), mockWorkersAi(() => ({ kind: "error", code: 5018, message: "Account not allowed for private model" })).binding);
+      await handleAiQueue(batch("al-ummah-now-cms-ai", a.id).batch, aiEnv(), { binding: mockWorkersAi(() => ({ kind: "error", code: 5018, message: "Account not allowed for private model" })).binding });
       expect(await getJob(env.DB, a.id)).toMatchObject({ status: "failed", error: "auth" });
       const g = await queued("seo", { title: "Gone", summary: "", body: "b" }, ["Moderator"], "ai-gone");
-      await handleAiQueue(batch("al-ummah-now-cms-ai", g.id).batch, aiEnv(), mockWorkersAi(() => ({ kind: "error", code: 5028, message: "Model deprecated" })).binding);
+      await handleAiQueue(batch("al-ummah-now-cms-ai", g.id).batch, aiEnv(), { binding: mockWorkersAi(() => ({ kind: "error", code: 5028, message: "Model deprecated" })).binding });
       expect(await getJob(env.DB, g.id)).toMatchObject({ status: "failed", error: "bad_request" });
       const l = await queued("seo", { title: "Cut", summary: "", body: "b" }, ["Moderator"], "ai-len");
-      await handleAiQueue(batch("al-ummah-now-cms-ai", l.id).batch, aiEnv(), mockWorkersAi(() => ({ kind: "json", data: {}, finish: "length" })).binding);
+      await handleAiQueue(batch("al-ummah-now-cms-ai", l.id).batch, aiEnv(), { binding: mockWorkersAi(() => ({ kind: "json", data: {}, finish: "length" })).binding });
       expect(await getJob(env.DB, l.id)).toMatchObject({ status: "failed", error: "incomplete" });
       const r = await queued("seo", { title: "Busy", summary: "", body: "b" }, ["Moderator"], "ai-429");
       const msg = batch("al-ummah-now-cms-ai", r.id, 3);
-      await handleAiQueue(msg.batch, aiEnv(), mockWorkersAi(() => ({ kind: "error", code: 3040, status: 429, message: "Capacity temporarily exceeded" })).binding);
+      await handleAiQueue(msg.batch, aiEnv(), { binding: mockWorkersAi(() => ({ kind: "error", code: 3040, status: 429, message: "Capacity temporarily exceeded" })).binding });
       expect(msg.m.retried).toBe(60); // 15 · 2^(3-1)
       expect(await getJob(env.DB, r.id)).toMatchObject({ status: "queued", error: "rate_limited" });
    });
@@ -332,7 +332,7 @@ describe("queue consumer (mocked Workers AI)", () => {
       const { id } = await queued("seo", { title: "Dead", summary: "", body: "b" }, ["Moderator"], "ai-dlq");
       const d = batch("al-ummah-now-cms-ai-dlq-qa", id, 1);
       const mock = mockWorkersAi();
-      await handleAiQueue(d.batch, aiEnv(), mock.binding);
+      await handleAiQueue(d.batch, aiEnv(), { binding: mock.binding });
       expect(d.m.acked).toBe(true);
       expect(mock.requests).toHaveLength(0);
       expect(await getJob(env.DB, id)).toMatchObject({ status: "failed", error: "retries_exhausted", flagged: 1 });
@@ -345,7 +345,7 @@ describe("queue consumer (mocked Workers AI)", () => {
 describe("usage rollup for the cost dashboard (#266)", () => {
    it("admin only; vendor_costs_daily rows per model, totals by feature and user", async () => {
       const { id, worker } = await queued("seo", { title: "Usage", summary: "", body: "b" }, ["Moderator"], "ai-usage-ed");
-      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), mockWorkersAi().binding);
+      await handleAiQueue(batch("al-ummah-now-cms-ai", id).batch, aiEnv(), { binding: mockWorkersAi().binding });
       const editor = await session(["Moderator"], "ai-usage-ed");
       const admin = await session(["Admin"], "ai-usage-admin");
       const today = new Date().toISOString().slice(0, 10);

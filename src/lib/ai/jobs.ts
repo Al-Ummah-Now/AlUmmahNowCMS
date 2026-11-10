@@ -3,9 +3,10 @@
  * lease-based claim (a duplicate queue delivery is a no-op), partial results for resumable chunked
  * translation, failure flags for admins, the usage log and its daily rollup for the cost dashboard.
  */
-import { estimateNeurons, neuronsToUsd } from "./pricing.ts";
+import { estimateNeurons } from "./pricing.ts";
+import { log } from "../log.ts";
 import { PROMPT_VERSION, type Feature, type Locale } from "./prompts.ts";
-import type { CallUsage } from "./client.ts";
+import type { CompletionResult } from "./providers/types.ts";
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
 export type ContentKind = "pages" | "posts";
@@ -179,7 +180,7 @@ export async function failJob(db: D1Database, id: string, error: string, now: nu
       .prepare("UPDATE ai_jobs SET status = 'failed', error = ?2, flagged = 1, lease_until = 0, updated_at = ?3 WHERE id = ?1 AND status != 'done'")
       .bind(id, error, now)
       .run();
-   if (res.meta.changes === 1) console.error(JSON.stringify({ msg: "ai_job_failed", jobId: id, error }));
+   if (res.meta.changes === 1) log.error("ai_job_failed", { jobId: id, error });
    return res.meta.changes === 1;
 }
 
@@ -220,28 +221,35 @@ export async function dismissFailure(db: D1Database, id: string): Promise<boolea
    return res.meta.changes === 1;
 }
 
-export async function recordUsage(db: D1Database, p: { env: string; job: Pick<Job, "id" | "user_id" | "feature">; usage: CallUsage; status: string; now: number }): Promise<void> {
-   const { usage: u } = p;
+/** `job.id` is null for an admin's "Test connection" call (feature "test"); it still counts toward the budget. */
+export async function recordUsage(db: D1Database, p: { env: string; job: { id: string | null; user_id: number | null; feature: Feature | "test" }; result: CompletionResult; now: number }): Promise<void> {
+   const r = p.result;
+   const u = r.usage ?? { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
    const day = new Date(p.now).toISOString().slice(0, 10);
-   const neurons = u.neurons ?? estimateNeurons(u.model, { input: u.input, output: u.output, cached: u.cached });
+   // Neurons are a Workers AI unit; HTTP providers log 0 and their USD estimate.
+   const neurons = r.kind === "workers-ai" ? (u.neurons ?? estimateNeurons(r.model, { input: u.inputTokens, output: u.outputTokens, cached: u.cachedTokens })) : 0;
+   const status = r.ok ? "ok" : r.code;
    await db
       .prepare(
-         `INSERT INTO ai_usage (id, at, day, env, user_id, feature, model, job_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, neurons, cost_usd, status)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?12, ?13, ?14)`,
+         `INSERT INTO ai_usage (id, at, day, env, user_id, feature, provider, model, job_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, neurons, cost_usd, status)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15)`,
       )
-      .bind(crypto.randomUUID(), p.now, day, p.env, p.job.user_id, p.job.feature, u.model, p.job.id, u.input, u.output, u.cached, neurons, neuronsToUsd(neurons), p.status)
+      .bind(crypto.randomUUID(), p.now, day, p.env, p.job.user_id, p.job.feature, r.provider, r.model, p.job.id, u.inputTokens, u.outputTokens, u.cachedTokens, neurons, r.costUsd ?? 0, status)
       .run();
    // Workers Logs line per call, so cost can be checked without D1 access (spec §5).
-   console.log(JSON.stringify({ msg: "ai_usage", env: p.env, feature: p.job.feature, model: u.model, jobId: p.job.id, input: u.input, output: u.output, neurons, status: p.status }));
+   log.info("ai_usage", { env: p.env, feature: p.job.feature, provider: r.provider, model: r.model, jobId: p.job.id, input: u.inputTokens, output: u.outputTokens, neurons, cost_usd: r.costUsd ?? 0, status });
 }
+
+/** The cost spec's vendor name for a provider: the built-in one, or `http:<id>` for an admin-configured one. */
+export const vendorOf = (provider: string) => (provider === "workers-ai" ? "cloudflare-workers-ai" : `http:${provider}`);
 
 /** Daily rollup in the cost spec's vendor_costs_daily shape, plus token and Neuron totals by feature and by user. */
 export async function usageRollup(db: D1Database, from: string, to: string) {
    const [daily, byFeature, byUser] = await db.batch([
       db
          .prepare(
-            `SELECT day, env, model, SUM(cost_usd) AS amount_usd, SUM(neurons) AS neurons, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, COUNT(*) AS calls
-             FROM ai_usage WHERE day BETWEEN ?1 AND ?2 GROUP BY day, env, model ORDER BY day, model`,
+            `SELECT day, env, provider, model, SUM(cost_usd) AS amount_usd, SUM(neurons) AS neurons, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, COUNT(*) AS calls
+             FROM ai_usage WHERE day BETWEEN ?1 AND ?2 GROUP BY day, env, provider, model ORDER BY day, provider, model`,
          )
          .bind(from, to),
       db
@@ -257,11 +265,12 @@ export async function usageRollup(db: D1Database, from: string, to: string) {
          )
          .bind(from, to),
    ]);
-   type Daily = { day: string; env: string; model: string; amount_usd: number; neurons: number; input_tokens: number; output_tokens: number; calls: number };
+   type Daily = { day: string; env: string; provider: string; model: string; amount_usd: number; neurons: number; input_tokens: number; output_tokens: number; calls: number };
    return {
       vendor_costs_daily: ((daily.results ?? []) as Daily[]).map((r) => ({
          day: r.day,
-         vendor: "cloudflare-workers-ai",
+         vendor: vendorOf(r.provider),
+         provider: r.provider,
          line_item: r.model,
          env: r.env,
          amount_usd: Math.round(Number(r.amount_usd) * 1e6) / 1e6,

@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseJsonc } from "./lib/jsonc.ts";
 import { ENVS, type EnvName } from "./release/envs.ts";
+import { AI_KEY_PATTERN, KEY_LIKE } from "./secrets-manifest.ts";
 
 interface EnvConfig {
    name?: string;
@@ -65,9 +66,11 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
          if (!v[k]?.startsWith("https://")) errors.push(`${where}: ${k} must be an https URL`);
       }
       if ("BKND_JWT_SECRET" in v || "CMS_CLIENT_SECRET" in v) errors.push(`${where}: secrets must not be vars`);
+      // AI provider keys are Worker secrets / Secrets Store bindings named AI_KEY_* (docs/AI_PROVIDERS.md), never vars.
+      for (const k of Object.keys(v)) if (AI_KEY_PATTERN.test(k) || KEY_LIKE.test(k)) errors.push(`${where}: ${k} looks like a credential; it must be a secret, not a var`);
       // A mock model URL is for local runs only (src/lib/ai/config.ts ignores it outside ENVIRONMENT=local).
       if ("AI_MOCK_URL" in v) errors.push(`${where}: AI_MOCK_URL is local-only (.dev.vars)`);
-      // AI assist runs on Workers AI (docs/AI_ASSIST_SPEC.md §2): bindings aren't inherited, each env declares it.
+      // Workers AI is AI assist's default provider (docs/AI_ASSIST_SPEC.md §2): bindings aren't inherited, each env declares it.
       if (c.ai?.binding !== "AI") errors.push(`${where}: ai must be { binding: "AI" } (Workers AI for AI assist)`);
       // AI assist jobs (docs/AI_ASSIST_SPEC.md §3): producer AI_JOBS, a consumer with a DLQ, and the DLQ's consumer.
       const q = c.queues ?? {};

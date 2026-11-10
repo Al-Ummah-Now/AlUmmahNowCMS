@@ -24,7 +24,7 @@ export interface Env {
    /** Worker secret (`openssl rand -hex 32`). Signs bknd sessions and the SSO state cookie. */
    BKND_JWT_SECRET?: string;
    /** Workers AI (docs/AI_ASSIST_SPEC.md §2): the AI assist model. Without it the feature is off. */
-   AI?: import("./lib/ai/client.ts").AiBinding;
+   AI?: import("./lib/ai/providers/workers-ai.ts").AiBinding;
    /** Local runs only (ENVIRONMENT=local): a mock of the Workers AI REST shape for the local E2E. */
    AI_MOCK_URL?: string;
    /** AI jobs queue (al-ummah-now-cms-ai[-env]). */

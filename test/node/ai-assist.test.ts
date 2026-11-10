@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { aiErrorText } from "../../src/admin/client/ai-errors.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
-import { aiBinding, aiConfigured, mockUrl } from "../../src/lib/ai/config.ts";
-import { classify, createWorkersAi, readOutput } from "../../src/lib/ai/client.ts";
+import { aiBinding, mockUrl } from "../../src/lib/ai/config.ts";
+import { classify, createWorkersAiProvider, readOutput } from "../../src/lib/ai/providers/workers-ai.ts";
+import { anyProviderReady } from "../../src/lib/ai/router.ts";
+import { defaultSettings, SECRET_NAME } from "../../src/lib/ai/settings.ts";
 import { dedupeKey, targetOf } from "../../src/lib/ai/jobs.ts";
 import { chunkMarkdown, invariantWarnings, urls, videoIds } from "../../src/lib/ai/markdown.ts";
 import { BASE_CATEGORIES, EXTENSION_CATEGORIES, POLICY_CATEGORY_IDS } from "../../src/lib/ai/policy.ts";
@@ -13,7 +15,7 @@ import { MODEL_ID, MODELS, SCHEMAS, translateSystem, validateCheck, validateSeo 
 import { backoffSeconds, isAiQueue, isDeadLetterQueue } from "../../src/lib/ai/runner.ts";
 import { addArgs, consumerPlan, consumersFor, listedConsumers } from "../../scripts/release/queue-consumers.ts";
 import { checkBindings } from "../../scripts/check-secrets.ts";
-import { SECRETS_MANIFEST } from "../../scripts/secrets-manifest.ts";
+import { AI_KEY_PATTERN, SECRETS_MANIFEST } from "../../scripts/secrets-manifest.ts";
 import { parseJsonc } from "../../scripts/lib/jsonc.ts";
 
 const httpError = (status: number, body: unknown) => Object.assign(new Error("http"), { status, body });
@@ -120,25 +122,25 @@ describe("Neurons and cost", () => {
 });
 
 describe("keys, dedupe, errors", () => {
-   it("is configured by the AI binding plus the jobs queue; the mock URL is local-only", () => {
+   it("the default settings run on the AI binding; the mock URL is local-only", () => {
       const AI = { run: async () => ({}) };
-      const AI_JOBS = {} as Queue<{ jobId: string }>;
-      expect(aiConfigured({ ENVIRONMENT: "qa" })).toBe(false);
-      expect(aiConfigured({ ENVIRONMENT: "qa", AI })).toBe(false);
-      expect(aiConfigured({ ENVIRONMENT: "qa", AI, AI_JOBS })).toBe(true);
-      expect(aiConfigured({ ENVIRONMENT: "qa", AI: {} as never, AI_JOBS })).toBe(false);
+      const d = defaultSettings();
+      expect(anyProviderReady(d, { ENVIRONMENT: "qa" })).toBe(false);
+      expect(anyProviderReady(d, { ENVIRONMENT: "qa", AI })).toBe(true);
+      expect(anyProviderReady(d, { ENVIRONMENT: "qa", AI: {} as never })).toBe(false);
       expect(aiBinding({ ENVIRONMENT: "qa", AI })).toBe(AI);
       expect(mockUrl({ ENVIRONMENT: "qa", AI_MOCK_URL: "http://127.0.0.1:1" })).toBeUndefined();
       expect(mockUrl({ ENVIRONMENT: "local", AI_MOCK_URL: "http://127.0.0.1:1//" })).toBe("http://127.0.0.1:1");
-      expect(aiConfigured({ ENVIRONMENT: "local", AI_MOCK_URL: "http://127.0.0.1:1", AI_JOBS })).toBe(true);
+      expect(anyProviderReady(d, { ENVIRONMENT: "local", AI_MOCK_URL: "http://127.0.0.1:1" })).toBe(true);
    });
 
    it("sends chat + JSON schema + reasoning to the binding and reads both output shapes", async () => {
       const calls: [string, Record<string, unknown>][] = [];
       const reply = (r: unknown) => ({ run: async (m: string, i: Record<string, unknown>) => (calls.push([m, i]), r) });
-      const call = { model: MODEL_ID, reasoning: "none" as const, maxTokens: 100, system: "sys", user: "doc", schema: SCHEMAS.seo };
-      const ok = await createWorkersAi(reply({ choices: [{ message: { content: '```json\n{"a":1}\n```' }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, neurons: 0.8, prompt_tokens_details: { cached_tokens: 4 } } })).call(call);
-      expect(ok).toEqual({ ok: true, data: { a: 1 }, usage: { model: MODEL_ID, input: 10, output: 5, cached: 4, neurons: 0.8 } });
+      const call = { model: MODEL_ID, reasoning: "none" as const, maxTokens: 100, system: "sys", messages: [{ role: "user" as const, content: "doc" }], schema: SCHEMAS.seo };
+      const w = (r: unknown, timeoutMs?: number) => createWorkersAiProvider(r as never, { timeoutMs, now: () => 0 });
+      const ok = await w(reply({ choices: [{ message: { content: '```json\n{"a":1}\n```' }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, neurons: 0.8, prompt_tokens_details: { cached_tokens: 4 } } })).complete(call);
+      expect(ok).toMatchObject({ ok: true, json: { a: 1 }, provider: "workers-ai", kind: "workers-ai", model: MODEL_ID, usage: { inputTokens: 10, outputTokens: 5, cachedTokens: 4, neurons: 0.8 }, costUsd: neuronsToUsd(0.8) });
       expect(calls[0][0]).toBe(MODEL_ID);
       expect(calls[0][1]).toMatchObject({
          messages: [{ role: "system", content: "sys" }, { role: "user", content: "doc" }],
@@ -148,14 +150,14 @@ describe("keys, dedupe, errors", () => {
          chat_template_kwargs: { enable_thinking: false },
       });
       expect(readOutput({ response: { b: 2 }, usage: { prompt_tokens: 1 } }).text).toBe('{"b":2}');
-      const length = await createWorkersAi(reply({ choices: [{ message: { content: '{"a"' }, finish_reason: "length" }], usage: {} })).call(call);
+      const length = await w(reply({ choices: [{ message: { content: '{"a"' }, finish_reason: "length" }], usage: {} })).complete(call);
       expect(length).toMatchObject({ ok: false, retryable: false, code: "incomplete", usage: { neurons: null } });
-      const refused = await createWorkersAi(reply({ choices: [{ message: { content: "", refusal: "no" }, finish_reason: "stop" }] })).call(call);
+      const refused = await w(reply({ choices: [{ message: { content: "", refusal: "no" }, finish_reason: "stop" }] })).complete(call);
       expect(refused).toMatchObject({ ok: false, retryable: false, code: "declined" });
-      const garbage = await createWorkersAi(reply({ choices: [{ message: { content: "not json" }, finish_reason: "stop" }] })).call(call);
+      const garbage = await w(reply({ choices: [{ message: { content: "not json" }, finish_reason: "stop" }] })).complete(call);
       expect(garbage).toMatchObject({ ok: false, retryable: true, code: "invalid_output" });
-      const slow = await createWorkersAi({ run: () => new Promise(() => {}) }, 5).call(call);
-      expect(slow).toEqual({ ok: false, retryable: true, code: "network" });
+      const slow = await w({ run: () => new Promise(() => {}) }, 5).complete(call);
+      expect(slow).toMatchObject({ ok: false, retryable: true, code: "network" });
    });
 
    it("dedupe key depends on the input, feature and user, and on the UI language only for checks", async () => {
@@ -226,11 +228,20 @@ describe("release: queue consumers, the AI binding and secrets", () => {
       expect(consumersFor(config as never, "production").map((c) => c.queue)).toContain("al-ummah-now-cms-ai");
    });
 
-   it("needs no AI secret; a third-party AI key is forbidden in every env", () => {
+   it("needs no AI secret; provider keys only as AI_KEY_* secrets, any other key-like binding fails", () => {
+      expect(String(AI_KEY_PATTERN)).toBe(String(SECRET_NAME));
       for (const entry of SECRETS_MANIFEST) {
-         const base = [{ type: "secret_text", name: "BKND_JWT_SECRET" }];
+         const base = [{ type: "secret_text", name: "BKND_JWT_SECRET" }, { type: "plain_text", name: "PUBLIC_URL" }];
          expect(checkBindings(entry, base).every((f) => f.ok)).toBe(true);
-         expect(checkBindings(entry, [...base, { type: "secret_text", name: "ANTHROPIC_API_KEY" }]).some((f) => !f.ok)).toBe(true);
+         expect(checkBindings(entry, [...base, { type: "secret_text", name: "AI_KEY_MAIN" }]).every((f) => f.ok)).toBe(true);
+         expect(checkBindings(entry, [...base, { type: "secrets_store_secret", name: "AI_KEY_BACKUP" }]).every((f) => f.ok)).toBe(true);
+         // A key pasted as a plain var is visible in the dashboard and the config: refused
+         expect(checkBindings(entry, [...base, { type: "plain_text", name: "AI_KEY_MAIN" }]).some((f) => !f.ok)).toBe(true);
+         // A key under any other name can't be referenced by the settings and isn't allowed
+         for (const name of ["SOME_VENDOR_API_KEY", "LLM_TOKEN", "MODEL_SECRET"]) {
+            expect(checkBindings(entry, [...base, { type: "secret_text", name }]).some((f) => !f.ok)).toBe(true);
+         }
+         expect(checkBindings(entry, [...base, { type: "secret_text", name: "CMS_CLIENT_SECRET" }]).some((f) => !f.ok)).toBe(true);
       }
    });
 

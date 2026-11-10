@@ -47,6 +47,7 @@ const SITE: NavItem[] = [
    { href: "/library", label: "library", icon: "image" },
    { href: "/people", label: "people", icon: "users", admin: true },
    { href: "/deleted", label: "deleted", icon: "trash", admin: true },
+   { href: "/ai-settings", label: "aiSettings", icon: "sparkle", admin: true },
 ];
 
 const current = (path: string, href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));

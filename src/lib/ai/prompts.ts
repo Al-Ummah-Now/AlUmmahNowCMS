@@ -4,7 +4,7 @@
  * the dedupe key, so cached results from the old prompt aren't reused).
  */
 import { POLICY_CATEGORY_IDS, policyText, type PolicyCategory } from "./policy.ts";
-import type { Reasoning } from "./client.ts";
+import type { Reasoning } from "./providers/types.ts";
 
 export const PROMPT_VERSION = "2026-11-10.2-workers-ai";
 

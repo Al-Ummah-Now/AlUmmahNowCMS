@@ -30,9 +30,10 @@ soon as a deploy carries the binding.
 | A9 | QA E2E: both roles get the controls when the binding is there; "not set up" for admins otherwise | `e2e/ai-assist.spec.ts` | Playwright vs QA |
 | A11 | Move from the Claude API to Workers AI (owner, 2026-11-10): models chosen on real en/ar samples (spec §1.5), Neurons in `ai_usage` (migration `0009_ai_usage_neurons.sql`), SDK removed | `src/lib/ai/*`, `migrations/`, `test/support/workers-ai-mock.ts` | unit, worker, local E2E, real runs on Workers AI |
 | A10 | Docs: ARCHITECTURE, README env/secrets notes | docs | — |
+| A12 | Pluggable providers (owner, 2026-11-10): provider contract, Workers AI + one generic HTTP adapter configured as data, admin settings with per-feature routing, fallback, Test connection, audit, monthly budget stop (migration `0011_ai_providers.sql`) | `src/lib/ai/{providers/*,settings,router,budget}.ts`, `src/admin/screens/ai-settings.tsx`, `docs/AI_PROVIDERS.md` | node contract + validation, worker API/budget/fallback, local E2E |
 
 ## Follow-ups (queue issues)
 
 - AlUmmahNow: cost monitor reads the CMS AI usage rollup (vendor `cloudflare-workers-ai`) to attribute the CMS share of the account's Workers AI bill.
-- CMS: monthly AI budget with a hard stop (after #266 budgets).
+- ~~CMS: monthly AI budget with a hard stop~~ done with pluggable providers (spec §5.1).
 - Re-check the model choice when Workers AI adds or deprecates models (`wrangler ai models list`); the evaluation in spec §1.5 is the bar.

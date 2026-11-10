@@ -67,9 +67,13 @@ npx playwright test -c playwright.local.config.ts  # AI assist flows: wrangler d
 | GitHub | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Workers, D1 and R2 edit on account `0e4b6e7f…` |
 | GitHub | `QA_SEED_PASSWORD`, `STAGE_SEED_PASSWORD` | E2E test accounts (`qa-admin`, `qa-moderator`, `qa-viewer`) |
 
-AI writing assist needs no secret: it runs on Workers AI through the `AI` binding every env declares
-in `wrangler.jsonc` (docs/AI_ASSIST_SPEC.md §2). No third-party AI vendor; `ANTHROPIC_API_KEY` is on
-the forbidden list. Usage and cost: `GET /admin/api/ai/usage` (admin) and `ai_usage` log lines.
+AI writing assist needs no secret by default: it runs on Workers AI through the `AI` binding every env
+declares in `wrangler.jsonc` (docs/AI_ASSIST_SPEC.md §2). Workers AI is the default, and third-party
+providers are pluggable and admin-enabled: an admin configures a generic HTTP provider on the
+AI assist screen (`/ai-settings`, docs/AI_PROVIDERS.md). Its key is a Worker secret or Secrets Store
+binding named `AI_KEY_*` (`wrangler secret put AI_KEY_<NAME> [--env qa|stage]`). Only the name goes in the
+settings. Any other credential-named binding fails the secrets check. Usage, cost and the monthly budget:
+`GET /admin/api/ai/usage` (admin), the AI assist screen, and `ai_usage` log lines.
 
 Queues (created once per account, not by deploys): `al-ummah-now-cms-variants[-stage|-qa]` and
 their DLQs `al-ummah-now-cms-variants-dlq[-stage|-qa]` (image variant jobs),

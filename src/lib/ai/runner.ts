@@ -5,15 +5,22 @@
  *   DLQ:        retries exhausted → failed (+flag)
  *
  * Idempotent: a done/failed job acks without calling the model; a translation stores each finished
- * chunk, so a retry continues where the last attempt stopped. Every model call is logged in ai_usage.
+ * chunk, so a retry continues where the last attempt stopped. Every model call (each provider attempt,
+ * fallback included) is logged in ai_usage. Before every call the monthly budget is checked: once it
+ * is reached the job fails with `budget_reached` instead of spending more.
  */
-import { aiBinding, type AiEnv, type AiJobMessage } from "./config.ts";
-import { createWorkersAi, type AiBinding, type CallOutcome, type Model } from "./client.ts";
+import type { AiEnv, AiJobMessage } from "./config.ts";
+import { budgetState } from "./budget.ts";
+import type { Reasoning } from "./providers/types.ts";
+import { createRouter, type ProviderDeps, type Router } from "./router.ts";
+import { loadSettings, type AiSettings } from "./settings.ts";
+import { errText, log } from "../log.ts";
 import { claimJob, completeJob, failJob, getJob, recordUsage, releaseJob, savePartial, type Job } from "./jobs.ts";
 import { chunkMarkdown, invariantWarnings } from "./markdown.ts";
 import {
    checkSystem,
    documentBlock,
+   type Feature,
    InvalidOutput,
    MODELS,
    SCHEMAS,
@@ -41,14 +48,35 @@ class StepFailed extends Error {
    }
 }
 
-async function step(env: RunnerEnv, job: Job, model: Model, call: Parameters<Model["call"]>[0], now: () => number): Promise<unknown> {
-   const out: CallOutcome = await model.call(call);
-   if (out.usage) await recordUsage(env.DB, { env: env.ENVIRONMENT, job, usage: out.usage, status: out.ok ? "ok" : out.code, now: now() });
-   if (!out.ok) throw new StepFailed(out.code, out.retryable);
-   return out.data;
+interface Ctx {
+   env: RunnerEnv;
+   job: Job;
+   router: Router;
+   settings: AiSettings;
+   now: () => number;
 }
 
-async function translate(env: RunnerEnv, job: Job, model: Model, now: () => number) {
+interface Call {
+   reasoning: Reasoning;
+   maxTokens: number;
+   system: string;
+   user: string;
+   schema: Record<string, unknown>;
+}
+
+async function step(x: Ctx, feature: Feature, call: Call): Promise<unknown> {
+   const budget = await budgetState(x.env.DB, x.env.ENVIRONMENT, x.settings, x.now());
+   if (budget.reached) throw new StepFailed("budget_reached", false);
+   const out = await x.router.complete(feature, { system: call.system, messages: [{ role: "user", content: call.user }], schema: call.schema, reasoning: call.reasoning, maxTokens: call.maxTokens }, async ({ result }) => {
+      await recordUsage(x.env.DB, { env: x.env.ENVIRONMENT, job: x.job, result, now: x.now() });
+      if (!result.ok) log.warn("ai call failed", { jobId: x.job.id, provider: result.provider, model: result.model, code: result.code, detail: result.detail });
+   });
+   if (!out.ok) throw new StepFailed(out.code, out.retryable);
+   return out.json;
+}
+
+async function translate(x: Ctx) {
+   const { env, job, now } = x;
    const { input } = job;
    const to = job.target_locale ?? (job.locale === "en" ? "ar" : "en");
    const cfg = MODELS.translate;
@@ -61,7 +89,7 @@ async function translate(env: RunnerEnv, job: Job, model: Model, now: () => numb
       const first = i === 0;
       const fields: Record<string, string> = first ? { title: input.title, summary: input.summary, body: chunks[0] ?? "" } : { body: chunks[i] };
       const note = count > 1 ? `\n\nThis is part ${i + 1} of ${count} of the body; translate only this part.` : "";
-      const data = await step(env, job, model, { ...cfg, system, user: documentBlock(fields) + note, schema: first ? SCHEMAS.translateFirst : SCHEMAS.translateMore }, now);
+      const data = await step(x, "translate", { ...cfg, system, user: documentBlock(fields) + note, schema: first ? SCHEMAS.translateFirst : SCHEMAS.translateMore });
       let parsed;
       try {
          parsed = validateTranslateChunk(data, first);
@@ -79,35 +107,34 @@ async function translate(env: RunnerEnv, job: Job, model: Model, now: () => numb
    return { title: partial.title ?? "", summary: partial.summary ?? "", body, locale: to, warnings: invariantWarnings(input.body, body) };
 }
 
-async function run(env: RunnerEnv, job: Job, model: Model, now: () => number): Promise<unknown> {
+async function run(x: Ctx): Promise<unknown> {
+   const { job } = x;
    const { input } = job;
-   if (job.feature === "translate") return translate(env, job, model, now);
+   if (job.feature === "translate") return translate(x);
    const doc = documentBlock({ title: input.title, summary: input.summary, body: input.body });
    try {
-      if (job.feature === "seo") return validateSeo(await step(env, job, model, { ...MODELS.seo, system: seoSystem(job.locale), user: doc, schema: SCHEMAS.seo }, now));
-      return validateCheck(await step(env, job, model, { ...MODELS.check, system: checkSystem(input.ui), user: doc, schema: SCHEMAS.check }, now));
+      if (job.feature === "seo") return validateSeo(await step(x, "seo", { ...MODELS.seo, system: seoSystem(job.locale), user: doc, schema: SCHEMAS.seo }));
+      return validateCheck(await step(x, "check", { ...MODELS.check, system: checkSystem(input.ui), user: doc, schema: SCHEMAS.check }));
    } catch (e) {
       if (e instanceof InvalidOutput) throw new StepFailed("invalid_output", true);
       throw e;
    }
 }
 
-/** Runs one job delivery. `attempts` = the queue's delivery count (1-based). */
-export async function runJob(env: RunnerEnv, jobId: string, model: Model | null, attempts: number, now: () => number = Date.now): Promise<Outcome> {
+/** Runs one job delivery. `attempts` = the queue's delivery count (1-based). `deps` overrides providers (tests). */
+export async function runJob(env: RunnerEnv, jobId: string, deps: ProviderDeps, attempts: number, now: () => number = Date.now): Promise<Outcome> {
    const { job, busy } = await claimJob(env.DB, jobId, now());
    if (!job) return busy ? { kind: "retry", delaySeconds: 60, error: "busy" } : { kind: "skip" };
-   if (!model) {
-      await failJob(env.DB, jobId, "not_configured", now());
-      return { kind: "failed", error: "not_configured" };
-   }
+   const { settings } = await loadSettings(env.DB);
+   const x: Ctx = { env, job, router: createRouter(settings, env, deps), settings, now };
    try {
-      const result = await run(env, job, model, now);
+      const result = await run(x);
       await completeJob(env.DB, jobId, result, now());
       return { kind: "done" };
    } catch (e) {
       const code = e instanceof StepFailed ? e.code : "unknown";
       const retryable = e instanceof StepFailed ? e.retryable : true;
-      if (!(e instanceof StepFailed)) console.error(JSON.stringify({ msg: "ai_job_error", jobId, error: e instanceof Error ? e.name : "unknown" }));
+      if (!(e instanceof StepFailed)) log.error("ai job error", { jobId, error: errText(e) });
       if (retryable) {
          await releaseJob(env.DB, jobId, code, now());
          return { kind: "retry", delaySeconds: backoffSeconds(attempts), error: code };
@@ -117,20 +144,13 @@ export async function runJob(env: RunnerEnv, jobId: string, model: Model | null,
    }
 }
 
-/** The model client for this env, or null when the `AI` binding is missing. `binding` overrides it (tests). */
-export function modelFor(env: AiEnv, binding?: AiBinding): Model | null {
-   const ai = binding ?? aiBinding(env);
-   return ai ? createWorkersAi(ai) : null;
-}
-
 export const isDeadLetterQueue = (name: string) => /-dlq(?:-|$)/.test(name);
 /** al-ummah-now-cms-ai[-dlq][-stage|-qa]: the AI assist queues (every other consumer is image variants). */
 export const isAiQueue = (name: string) => /^al-ummah-now-cms-ai(?:-|$)/.test(name);
 
 /** The Worker's `queue` handler for both the AI queue and its DLQ. */
-export async function handleAiQueue(batch: MessageBatch<AiJobMessage>, env: RunnerEnv, binding?: AiBinding, now: () => number = Date.now): Promise<void> {
+export async function handleAiQueue(batch: MessageBatch<AiJobMessage>, env: RunnerEnv, deps: ProviderDeps = {}, now: () => number = Date.now): Promise<void> {
    const dlq = isDeadLetterQueue(batch.queue);
-   const model = dlq ? null : modelFor(env, binding);
    for (const msg of batch.messages) {
       const jobId = typeof msg.body?.jobId === "string" ? msg.body.jobId : "";
       if (!jobId) {
@@ -143,7 +163,7 @@ export async function handleAiQueue(batch: MessageBatch<AiJobMessage>, env: Runn
          msg.ack();
          continue;
       }
-      const out = await runJob(env, jobId, model, msg.attempts, now);
+      const out = await runJob(env, jobId, deps, msg.attempts, now);
       if (out.kind === "retry") msg.retry({ delaySeconds: out.delaySeconds });
       else msg.ack();
    }
