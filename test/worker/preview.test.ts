@@ -105,7 +105,7 @@ describe("preview API (GET /api/preview/v1/:kind/:id)", () => {
       // Alternates stay published-only (the Arabic translation is published).
       expect(body.content.alternates).toEqual([{ locale: "ar", slug: "pv-ar" }]);
       expect(Object.keys(body.content).sort()).toEqual(
-         ["alternates", "body", "cover", "locale", "published_at", "seo_description", "seo_title", "slug", "summary", "title", "updated_at"].sort(),
+         ["alternates", "body", "cover", "images", "locale", "published_at", "seo_description", "seo_title", "slug", "summary", "title", "updated_at"].sort(),
       );
    });
 
