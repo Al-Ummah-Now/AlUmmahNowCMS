@@ -5,6 +5,7 @@
  * and a preview of the whole page. The DOM is the state (src/admin/screens/blocks.tsx documents the
  * contract); `readBlocks` / `readSlides` read it back and validate with the server's own rules.
  */
+import { liveSearch } from "./live-search.ts";
 import { BlockError, isComplete, newBlockId, normalizeBlocks, normalizeSlides, validBlockUrl, type Block, type BlockType, type Slide } from "../../lib/blocks.ts";
 import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
 import { renderMarkdownInto } from "./markdown.ts";
@@ -696,10 +697,13 @@ function initPostsDialog(): void {
          status.textContent = T.blocks.postsFailed;
       }
    };
-   $<HTMLFormElement>("[data-posts-form]", dlg)!.addEventListener("submit", (e) => {
+   const form = $<HTMLFormElement>("[data-posts-form]", dlg)!;
+   form.addEventListener("submit", (e) => {
       e.preventDefault();
-      void search(String(new FormData(e.target as HTMLFormElement).get("q") ?? "").trim());
+      void search(String(new FormData(form).get("q") ?? "").trim());
    });
+   // Results follow the typing (same pause as the search boxes' suggestions); Enter still searches at once.
+   liveSearch($<HTMLInputElement>("input[name=q]", form), (q) => void search(q));
    (dlg as HTMLDialogElement & { search?: typeof search }).search = search;
 }
 

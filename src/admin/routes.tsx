@@ -20,6 +20,7 @@ import { timelineApi } from "./timeline-api.ts";
 import { trashApi } from "./trash-api.ts";
 import { trashScreen } from "./screens/trash.tsx";
 import { isTrashKind } from "../lib/trash.ts";
+import { suggestApi } from "./suggest-api.ts";
 import { timelineScreen } from "./screens/timeline.tsx";
 import { parseCursor } from "../lib/feed/model.ts";
 import { aiRoutes } from "./ai-api.ts";
@@ -101,6 +102,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    }
 
    r.route("/admin/api/timeline", timelineApi(deps));
+   r.route("/admin/api/suggest", suggestApi(deps));
    r.route("/admin/api/ai", aiRoutes());
    r.route("/admin/api/trash", trashApi());
    r.route("/admin/api", mediaAltRoute(deps));

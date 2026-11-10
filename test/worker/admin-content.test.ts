@@ -83,6 +83,49 @@ describe("pages and posts screens", () => {
    });
 });
 
+describe("GET /admin/api/suggest (search box suggestions)", () => {
+   type Item = { kind: string; id: string; label: string; secondary: string; href: string; lang: string | null };
+   const suggest = async (f: ReturnType<typeof makeWorker>, cookie: string, query: string) => {
+      const res = await f(`/admin/api/suggest?${query}`, { headers: { cookie } });
+      return { status: res.status, items: res.status === 200 ? ((await res.json()) as { items: Item[] }).items : [] };
+   };
+
+   it("suggests pages and posts by title or address, opens the editor, and filters by kind and language", async () => {
+      const cookie = await session(["Moderator"], "sg-ed");
+      const f = makeWorker();
+      const page = await create(f, cookie, "pages", { slug: "zakat-guide", locale: "en", title: "Zakat guide", status: "published" });
+      const post = await create(f, cookie, "posts", { slug: "zakat-2026", locale: "ar", title: "زكاة الفطر", status: "draft" });
+      const both = await suggest(f, cookie, "kind=content&q=zakat");
+      expect(both.status).toBe(200);
+      expect(both.items.map((i) => `${i.kind}:${i.id}`).sort()).toEqual([`pages:${page}`, `posts:${post}`].sort());
+      const p = both.items.find((i) => i.kind === "pages")!;
+      expect(p).toMatchObject({ label: "Zakat guide", href: `/pages/${page}`, lang: "en" });
+      expect(p.secondary).toBe("Page · Published · English · /zakat-guide");
+      expect((await suggest(f, cookie, "kind=posts&q=zakat")).items.map((i) => i.id)).toEqual([String(post)]);
+      expect((await suggest(f, cookie, "kind=content&q=zakat&locale=en")).items.map((i) => i.id)).toEqual([String(page)]);
+      expect((await suggest(f, cookie, "kind=pages&q=" + page)).items[0]?.id, "an id matches its row first").toBe(String(page));
+   });
+
+   it("answers an empty query with nothing, refuses unknown kinds and anyone who is not staff", async () => {
+      const cookie = await session(["Admin"], "sg-admin");
+      const f = makeWorker();
+      expect(await suggest(f, cookie, "kind=content&q=%20")).toEqual({ status: 200, items: [] });
+      expect((await suggest(f, cookie, "kind=users&q=ab")).status).toBe(400);
+      expect((await f("/admin/api/suggest?kind=content&q=ab")).status).not.toBe(200);
+   });
+
+   it("the header and list search boxes are comboboxes wired to it", async () => {
+      const cookie = await session(["Admin"], "sg-shell");
+      const html = await (await makeWorker()("/posts?locale=ar", { headers: { cookie } })).text();
+      expect(html).toContain('data-ac="content"');
+      expect(html).toMatch(/id="global-q"[^>]*role="combobox"/);
+      expect(html).toContain('aria-controls="global-q-list"');
+      expect(html).toMatch(/<div class="ac" data-ac="posts" data-ac-locale="ar">/);
+      expect(html).toMatch(/id="list-q-list" class="ac-list" role="listbox"/);
+      expect(html).toContain('"acSearchAll"');
+   });
+});
+
 describe("PATCH /admin/api/media/:id/alt", () => {
    async function mediaRow(): Promise<number> {
       const r = await env.DB.prepare("INSERT INTO media (path, mime_type, size, reference, entity_id, metadata) VALUES (?1, 'image/png', 10, 'pages.cover', '1', ?2) RETURNING id")

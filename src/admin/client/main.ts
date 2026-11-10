@@ -6,6 +6,7 @@
 import { $$, api, strings, toast } from "./dom.ts";
 import { initBlocks } from "./blocks.ts";
 import { initAi } from "./ai.ts";
+import { initAutocomplete } from "./autocomplete.ts";
 import { initEditor } from "./editor.ts";
 import { initHistory } from "./history.ts";
 import { initPicker } from "./picker.ts";
@@ -16,6 +17,7 @@ import { initTimes } from "./time.ts";
 import { initTrash } from "./trash.ts";
 
 initShell();
+initAutocomplete();
 initTimes();
 initPicker();
 initBlocks();

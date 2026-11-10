@@ -18,7 +18,7 @@ const TTL_MS = 30_000;
 const TIMEOUT_MS = 500;
 const PREVIEW_COOKIE = "cms_theme_preview";
 const MODE_COOKIE = "cms_mode";
-const LANG_COOKIE = "cms_lang";
+export const LANG_COOKIE = "cms_lang";
 const YEAR = 365 * 24 * 60 * 60;
 
 export const isThemeId = (v: unknown): v is ThemeId => typeof v === "string" && (THEME_IDS as readonly string[]).includes(v);

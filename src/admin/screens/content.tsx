@@ -7,6 +7,7 @@ import { publishState, timeOf, type PublishState } from "../../lib/schedule.ts";
 import { Icon } from "../ui/icons.tsx";
 import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { PickerDialog } from "../ui/picker.tsx";
+import { Autocomplete, comboboxProps } from "../ui/autocomplete.tsx";
 import { blockMediaIds, blockPostIds, blockVideoRefs, bodyAsBlocks, storedBlocks, storedSlides, type Block, type Slide } from "../../lib/blocks.ts";
 import { getSnapshots } from "../../lib/video-snapshots.ts";
 import { BlocksEditor, emptyRefs, MediaDialog, mediaInfoOf, PostsDialog, SlidesEditor, type Refs } from "./blocks.tsx";
@@ -130,11 +131,12 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
             </a>
          </PageHead>
          <form class="toolbar" method="get" action={base} role="search">
+            <Autocomplete kind={kind} listId="list-q-list" label={t.common.search} locale={p.locale}>
             <div class="search">
                <label class="vh" for="list-q">
                   {t.common.search}
                </label>
-               <input id="list-q" name="q" type="search" value={p.q} placeholder={t.common.search} maxlength={100} autocomplete="off" />
+               <input id="list-q" name="q" type="search" value={p.q} placeholder={t.common.search} maxlength={100} {...comboboxProps("list-q-list")} />
                {p.status ? <input type="hidden" name="status" value={p.status} /> : null}
                {p.locale ? <input type="hidden" name="locale" value={p.locale} /> : null}
                {p.sort !== "updated" ? <input type="hidden" name="sort" value={p.sort} /> : null}
@@ -142,6 +144,7 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
                   <Icon name="search" />
                </button>
             </div>
+            </Autocomplete>
             {seg("status", ["", "draft", "scheduled", "published"], (x) => (x ? t.status[x] : t.common.all))}
             {seg("locale", ["", "en", "ar"], (x) => (x ? t.locales[x] : t.common.all))}
             <label class="vh" for="list-sort">

@@ -7,6 +7,7 @@ import { ADMIN_STRINGS, type AdminStrings } from "../i18n.ts";
 import type { Prefs } from "../prefs.ts";
 import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "./icons.tsx";
+import { Autocomplete, comboboxProps } from "./autocomplete.tsx";
 
 export interface View {
    prefs: Prefs;
@@ -197,15 +198,17 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                         </span>
                      </a>
                   </div>
-                  <form class="search" role="search" action="/pages" method="get">
-                     <label class="vh" for="global-q">
-                        {t.header.search}
-                     </label>
-                     <input id="global-q" name="q" type="search" placeholder={t.header.search} autocomplete="off" maxlength={100} />
-                     <button type="submit" aria-label={t.header.searchButton}>
-                        <Icon name="search" />
-                     </button>
-                  </form>
+                  <Autocomplete kind="content" listId="global-q-list" label={t.header.search}>
+                     <form class="search" role="search" action="/pages" method="get">
+                        <label class="vh" for="global-q">
+                           {t.header.search}
+                        </label>
+                        <input id="global-q" name="q" type="search" placeholder={t.header.search} maxlength={100} {...comboboxProps("global-q-list")} />
+                        <button type="submit" aria-label={t.header.searchButton}>
+                           <Icon name="search" />
+                        </button>
+                     </form>
+                  </Autocomplete>
                   <div class="hd-end">
                      <CreateMenu v={v} />
                      <AccountMenu v={v} />
@@ -253,6 +256,11 @@ export function Shell(props: { v: View; title: string; children: Child }) {
             <script type="application/json" id="i18n-shell" nonce={v.nonce}>
                {raw(
                   JSON.stringify({
+                     acSearching: t.autocomplete.searching,
+                     acFailed: t.autocomplete.failed,
+                     acNone: t.autocomplete.none,
+                     acCount: t.autocomplete.count,
+                     acSearchAll: t.autocomplete.searchAll,
                      published: t.content.published,
                      unpublished: t.content.unpublished,
                      draft: t.content.draftSaved,
