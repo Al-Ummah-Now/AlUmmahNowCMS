@@ -253,6 +253,7 @@ dialog.dlg::backdrop{background:rgb(4 8 12/.6);-webkit-backdrop-filter:blur(3px)
 [data-md] .textarea.code{border-start-start-radius:0;border-start-end-radius:0;margin-top:-1px}
 .md-preview{min-height:360px;overflow-wrap:anywhere;line-height:1.7;border-start-start-radius:0;border-start-end-radius:0}
 .md-preview h2,.md-preview h3{margin:1em 0 .4em}.md-preview p{margin:0 0 1em}.md-preview blockquote{margin:0 0 1em;padding-inline-start:14px;border-inline-start:3px solid var(--fanous-color-primary);color:var(--fanous-color-text-secondary)}
+.md-link{color:var(--fanous-c-link-text);text-decoration:underline}
 .md-video{display:flex;align-items:center;gap:10px;margin:0 0 1em;padding:12px;border-radius:var(--r-md);background:var(--m-card);box-shadow:var(--m-thumb-edge);font-weight:600}
 .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;min-height:44px;height:auto}
 .tags:focus-within{border-color:var(--fanous-c-form-focus-ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--fanous-c-form-focus-ring) 45%,transparent)}
