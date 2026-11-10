@@ -5,6 +5,8 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
                       │  src/index.ts — Hono wrapper
                       ├─ /healthz                     liveness (+ ?deep=1: config, D1, version id)
                       ├─ /api/public/v1/*             public read API (D1 SQL, published rows only) ◄── www (service binding CMS)
+                      ├─ /api/preview/v1/:kind/:id    one row, any status, with a preview token     ◄── www /preview (no-store)
+                      ├─ /preview/:kind/:id           staff: mint a 30-min token → 303 www/preview  ┐ session required
                       ├─ /sso/login|callback|logout   PKCE → auth.alummahnow.net, bknd session cookie
                       ├─ /sso/no-access, /sso/accounts account chooser (browser reads auth's accounts API)
                       ├─ /picker, /picker/api/*       video picker → videos.api.alummahnow.net (server-side)
@@ -25,6 +27,7 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
 | `src/lib/accounts.ts`, `src/lib/admin-ui.ts` | Account chooser on /sso/no-access and /sso/accounts; links + session watcher injected into bknd's admin UI. |
 | `src/lib/content-rules.ts` | bknd plugin: timestamps, `published_at` on first publish, URL/slug/tag validation. |
 | `src/routes/public-api.ts` | `docs/PUBLIC_API.md`. Every query has `status = 'published'`. ETag + `s-maxage=60`. |
+| `src/routes/preview.ts`, `src/lib/preview.ts` | Draft preview on www: signed, 30-minute, one-row tokens (HMAC key derived from `BKND_JWT_SECRET`), minted by staff only; the preview API serves the public Page/Post shape, `no-store`. `docs/PUBLIC_API.md` "Preview API". |
 | `src/routes/picker.ts`, `src/lib/videos.ts`, `src/lib/embeds.ts` | Picker page (en/ar), videos-API proxy that drops non-public items, embed URL adapter. |
 | `src/lib/security.ts`, `src/lib/paths.ts` | CSP with per-response nonce, no-store/noindex, CSRF Origin check, blocked bknd routes, upload policy (jpeg/png/webp/avif ≤ 10 MB). |
 | `src/lib/variants/` | Image variants (CMS-10, docs/PUBLIC_API.md "Image variants"): `plan.ts` widths/formats/R2 keys, `jobs.ts` queue consumer + D1 `media_variants` state + cron sweep, `codecs.ts` WASM codecs (fresh instance per call, decode read in place), `resize.ts` streaming area resize, `png.ts`, `probe.ts` header size + EXIF orientation. |

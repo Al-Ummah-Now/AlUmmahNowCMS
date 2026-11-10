@@ -121,3 +121,38 @@ image is ever resized inside a request.
   `<source type="image/webp" srcset=webp>`, `<img srcset=fallback src=url width height>`, with a
   `sizes` that matches the layout. Until a variant is made its URL returns the original (correct,
   just larger) with a 60-second cache, so pages never break while jobs run.
+
+## Preview API (not public) — `/api/preview/v1`
+
+Draft preview on www (issue #9). **Not** part of the public API above: `/api/public/v1` still serves
+published rows only, with or without a token. www calls this server-side through the same service
+binding, never from a browser (no CORS headers).
+
+| GET | Header | Response |
+|---|---|---|
+| `/api/preview/v1/:kind/:id` (`kind`: `pages` \| `posts`) | `Authorization: Bearer <token>` | `PreviewResponse`; 401 `{ error: 'invalid_token' \| 'expired_token' }`; 404 `{ error: 'not_found' }` (row deleted) |
+
+```ts
+interface PreviewResponse {
+  kind: 'page' | 'post';
+  id: number;
+  status: 'draft' | 'published';
+  expires_at: string;            // ISO, when the token stops working
+  edit_url: string;              // the row in the CMS editor
+  content: Page | Post;          // exactly the public shapes above; alternates are published rows only;
+                                 // published_at falls back to created_at for a never-published draft
+}
+```
+
+Every response: `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow`,
+`Referrer-Policy: no-referrer`.
+
+**Tokens** (`src/lib/preview.ts`): `v1.<base64url(payload)>.<base64url(HMAC-SHA256)>`, payload
+`{ k: 'pages' | 'posts', id, iat, exp }` (seconds), valid 30 minutes, bound to one row (a token for
+another row or kind is `invalid_token`). Minted only by `GET /preview/:kind/:id` on the CMS, behind
+the staff session gate (admin or editor; anyone else has no CMS session), which answers
+`303 → {WWW_URL}/preview?token=…`. The HMAC key is derived from `BKND_JWT_SECRET`
+(`HMAC-SHA256(BKND_JWT_SECRET, "al-ummah-now/cms/preview-token/v1")`): no extra secret, and a preview
+signature can never stand in for a session one. Rotating `BKND_JWT_SECRET` ends open preview links.
+www reads `k`/`id`/`exp` from the payload only to name its cookie; the CMS checks the signature on
+every render, so a token can't be stretched or moved to another row.
