@@ -47,6 +47,8 @@ export function attachCombobox(input: HTMLInputElement, options: () => string[],
    };
    const open = () => {
       const found = filterOptions(options(), input.value);
+      // Nothing left to choose: the value already is the one suggestion (don't cover what's below).
+      if (found.length === 1 && found[0] === input.value.trim()) return close();
       list.replaceChildren();
       items = found.map((o, n) => {
          const li = document.createElement("li");
