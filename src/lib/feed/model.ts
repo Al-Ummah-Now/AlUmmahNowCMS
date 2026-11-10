@@ -82,6 +82,11 @@ export interface HeadWeek extends WeekPtr {
 
 export interface HeadDoc {
    v: number;
+   /**
+    * The feed FORMAT every week and this head were fully rebuilt with (src/lib/feed/format.ts; absent
+    * on heads written before formats existed). Additive: www's reader ignores it.
+    */
+   format?: number;
    locale: FeedLocale;
    build: string;
    built_at: string;

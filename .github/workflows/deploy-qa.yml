@@ -74,6 +74,14 @@ jobs:
           done
           node --experimental-strip-types --no-warnings scripts/release/smoke.ts --env qa
 
+      # The home timeline in KV must be in this code's feed format (docs/FEED.md "Format version"):
+      # rebuilds it when not and waits until it is. Idempotent.
+      - name: Home timeline format (QA)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node --experimental-strip-types --no-warnings scripts/release/feed-format.ts --env qa
+
   e2e:
     name: E2E (QA)
     needs: deploy

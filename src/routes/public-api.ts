@@ -16,6 +16,7 @@ import { parseVariantQuery, VARIANT_TYPES, variantKey } from "../lib/variants/pl
 import { MEDIA_COLS, mediaRefOf, mediaUrl, mediaVariants, type MediaRef, type MediaRow, type MediaVariants } from "../lib/media-ref.ts";
 import { feedItems } from "../lib/feed/source.ts";
 import { cursorOf, parseCursor } from "../lib/feed/model.ts";
+import { checkFeedFormat } from "../lib/feed/auto-rebuild.ts";
 import { parseQuery, rank } from "../lib/search/rank.ts";
 import { searchDocs, type PostDoc } from "../lib/search/source.ts";
 import { mediaByIds, publicBlocks, publicSlides, rowSlides, slideMediaIds, type BlockDeps, type PublicSlide } from "../lib/blocks-public.ts";
@@ -580,6 +581,13 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       ]);
       const items = rows.slice(0, limit);
       const next = rows.length > limit ? cursorOf(items[items.length - 1]) : null;
+      // Safety net (docs/FEED.md "Format version"): a feed stored in an older format is rebuilt in the
+      // background; this response never waits for it.
+      try {
+         c.executionCtx.waitUntil(checkFeedFormat(c.env, "read"));
+      } catch {
+         // No execution context (unit tests calling app.request without one).
+      }
       return json(c, { pinned, items, next });
    });
 

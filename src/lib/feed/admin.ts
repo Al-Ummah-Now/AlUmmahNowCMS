@@ -149,6 +149,15 @@ export async function logChange(env: Env, actor: Actor, action: string, key: str
       .run();
 }
 
+/** A full rebuild in the change log (who asked: a staff member, or "system/release"). */
+export async function logRebuild(env: Env, actor: Actor, detail: Record<string, unknown>): Promise<void> {
+   await env.DB.prepare(
+      "INSERT INTO timeline_changes (action, entry_kind, entry_ref, locale, detail, actor_id, actor_email, created_at) VALUES ('rebuild', 'feed', 'all', NULL, ?1, ?2, ?3, ?4)",
+   )
+      .bind(JSON.stringify(detail), actor.id === null || actor.id === undefined ? null : Number(actor.id), actor.email, new Date().toISOString())
+      .run();
+}
+
 export interface Change {
    id: number;
    action: string;
@@ -162,7 +171,7 @@ export interface Change {
 
 export async function recentChanges(env: Env, limit = 20): Promise<Change[]> {
    const { results } = await env.DB.prepare(
-      `SELECT c.*, CASE WHEN c.entry_kind = 'post' THEN (SELECT title FROM posts WHERE id = CAST(substr(c.entry_ref, 2) AS INTEGER))
+      `SELECT c.*, CASE WHEN c.entry_kind = 'feed' THEN NULL WHEN c.entry_kind = 'post' THEN (SELECT title FROM posts WHERE id = CAST(substr(c.entry_ref, 2) AS INTEGER))
          ELSE (SELECT coalesce(te.title_override, json_extract(vs.snapshot, '$.title')) FROM timeline_entries te LEFT JOIN video_snapshots vs ON vs.kind = te.video_kind AND vs.ref_id = te.ref_id WHERE te.id = CAST(substr(c.entry_ref, 2) AS INTEGER)) END AS title
        FROM timeline_changes c ORDER BY c.id DESC LIMIT ?1`,
    )
