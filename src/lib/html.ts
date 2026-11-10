@@ -45,6 +45,8 @@ export function page(o: PageOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>${esc(o.title)}</title>
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style nonce="${o.nonce}">${BASE_CSS}${o.extraCss ?? ""}</style>
 </head>
 <body>

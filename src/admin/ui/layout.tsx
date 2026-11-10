@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx */
 /** The staff shell: header, rail / drawer / bottom bar, theme atmosphere (docs/ADMIN_UI_SPEC.md §2). */
 import { raw } from "hono/html";
+import { ICON_THEME_COLOR } from "../../lib/app-icons.ts";
 import type { Child } from "hono/jsx";
 import { ADMIN_STRINGS, type AdminStrings } from "../i18n.ts";
 import type { Prefs } from "../prefs.ts";
@@ -17,6 +18,8 @@ export interface View {
    wwwUrl: string;
    adminWebUrl: string;
    assets: { css: string; theme: string; js: string };
+   /** Tab icon for this environment (src/lib/app-icons.ts). */
+   favicon: string;
    /** AI writing assist is configured in this env (docs/AI_ASSIST_SPEC.md §2). */
    ai: boolean;
 }
@@ -153,6 +156,11 @@ export function Shell(props: { v: View; title: string; children: Child }) {
             <meta name="color-scheme" content="dark light" />
             <title>{`${props.title} · ${t.cms} · ${t.brand}`}</title>
             <script nonce={v.nonce}>{raw(MODE_SCRIPT)}</script>
+            <link rel="icon" href="/favicon.ico" sizes="32x32" />
+            <link rel="icon" type="image/svg+xml" href={v.favicon} />
+            <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+            <link rel="manifest" href="/site.webmanifest" />
+            <meta name="theme-color" content={ICON_THEME_COLOR} />
             <link rel="stylesheet" href={v.assets.theme} />
             <link rel="stylesheet" href={v.assets.css} />
             <script type="module" src={v.assets.js} nonce={v.nonce} />
