@@ -13,7 +13,8 @@ import { upsertSsoUser } from "../lib/users.ts";
 import { ensureScholar } from "../lib/scholars/profiles.ts";
 import { ownedChannels } from "../lib/scholars/videos-internal.ts";
 import { errText, log } from "../lib/log.ts";
-import { recordSignOut } from "../lib/sign-outs.ts";
+import { SESSION_TTL_SECONDS } from "../bknd-config.ts";
+import { newSessionId, recordSignOut, revokeSession } from "../lib/sign-outs.ts";
 import type { AppEnv, AuthUser, Ctx, Deps } from "../types.ts";
 
 const TX_TTL_SECONDS = 600;
@@ -200,7 +201,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       }
       const app = await deps.getApp(c);
       const authenticator = app.module.auth.authenticator;
-      const token = await authenticator.jwt({ id: user.id, email: user.email, role: user.role, strategy: "sso" });
+      const token = await authenticator.jwt({ id: user.id, email: user.email, role: user.role, strategy: "sso", sid: newSessionId() });
       const headers = await authenticator.getAuthCookieHeader(token, new Headers());
       for (const cookie of headers.getSetCookie()) c.header("Set-Cookie", cookie, { append: true });
       return c.redirect(tx.r, 302);
@@ -209,11 +210,13 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
    sso.get("/logout", async (c) => {
       const cfg = c.get("cfg");
       const app = await deps.getApp(c);
-      // End every session of this account, not only this cookie (a copy of it stays signed)
+      // End this browser's session, not only its cookie (a copy of the cookie stays signed)
       const signedIn = (await app.module.auth.authenticator.resolveAuthFromRequest(c.req.raw)) as AuthUser | undefined;
       if (signedIn?.id !== undefined) {
          try {
-            await recordSignOut(c.env.DB, signedIn.id);
+            // This browser's session only; a session from before sids existed: the account's
+            if (typeof signedIn.sid === "string" && signedIn.sid) await revokeSession(c.env.DB, signedIn.sid, signedIn.exp ?? Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS);
+            else await recordSignOut(c.env.DB, signedIn.id);
          } catch (error) {
             log.error("sso logout: could not record the sign-out", { userId: signedIn.id, error: errText(error) });
          }

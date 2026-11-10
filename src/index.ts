@@ -49,7 +49,7 @@ import { pickerRoutes } from "./routes/picker.ts";
 import { previewApi, previewRoutes } from "./routes/preview.ts";
 import { publicApi } from "./routes/public-api.ts";
 import { renderStatus, ssoRoutes } from "./routes/sso.ts";
-import { endedBySignOut } from "./lib/sign-outs.ts";
+import { sessionEnded } from "./lib/sign-outs.ts";
 import type { AppEnv, AuthUser, Ctx, Deps } from "./types.ts";
 
 async function multipartAllowed(request: Request): Promise<boolean> {
@@ -85,8 +85,8 @@ async function sessionUser(c: Ctx, deps: Deps): Promise<AuthUser | undefined> {
    const app = await deps.getApp(c);
    const user = (await app.module.auth.authenticator.resolveAuthFromRequest(c.req.raw)) as AuthUser | undefined;
    if (!user || !isCmsRole(user.role)) return undefined;
-   // Single sign-out: a session issued before the account signed out is over (copied cookies too)
-   if (await endedBySignOut(c.env.DB, user.id, user.iat)) return undefined;
+   // Single sign-out ended this session (copied cookies too); other browsers keep theirs
+   if (await sessionEnded(c.env.DB, user)) return undefined;
    return user;
 }
 
