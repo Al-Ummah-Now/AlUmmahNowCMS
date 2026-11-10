@@ -186,7 +186,10 @@ export async function videosScreen(v: View, data: Data, placement: "home" | "vid
                         <span class="grip" aria-hidden="true">
                            <Icon name="grip" size={18} />
                         </span>
-                        <a class="vthumb" href={watch(String(r.kind), String(r.ref_id))} target="_blank" rel="noopener" aria-label={`${t.videos.watch}: ${title}`}>
+                        <a class="vthumb" href={watch(String(r.kind), String(r.ref_id))} target="_blank" rel="noopener">
+                           <span class="vh">
+                              {t.videos.watch}: {title} ·{" "}
+                           </span>
                            {snap.thumbnail_url ? <img src={snap.thumbnail_url} alt="" loading="lazy" /> : <Icon name={KIND_ICON[String(r.kind)] ?? "film"} size={28} />}
                            <span class="vkind">
                               <Icon name={KIND_ICON[String(r.kind)] ?? "film"} size={14} /> {kindLabel(String(r.kind))}
