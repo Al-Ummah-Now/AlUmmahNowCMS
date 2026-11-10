@@ -81,6 +81,7 @@ const en = {
    status: { draft: "Draft", published: "Published", scheduled: "Scheduled" },
    locales: { en: "English", ar: "Arabic", all: "Both languages" },
    common: {
+      leaveUploading: "An upload is still in progress. Leaving this page now will cancel it. Leave anyway?",
       save: "Save",
       saveDraft: "Save draft",
       saving: "Saving…",
@@ -760,6 +761,7 @@ const ar: Strings = {
    status: { draft: "مسودة", published: "منشور", scheduled: "مجدول" },
    locales: { en: "الإنجليزية", ar: "العربية", all: "اللغتان" },
    common: {
+      leaveUploading: "ما زال هناك رفع قيد التنفيذ. مغادرة هذه الصفحة الآن ستلغيه. هل تريد المغادرة على أي حال؟",
       save: "حفظ",
       saveDraft: "حفظ كمسودة",
       saving: "جارٍ الحفظ…",
