@@ -6,6 +6,9 @@
  * the other apps sign in without a password. Single sign-out from the CMS ends it everywhere, and a
  * copy of the CMS session cookie taken before the sign-out is refused (it used to keep working for
  * its 8 hours).
+ *
+ * Signs in as ACCOUNTS.ssoCms, an account used by nothing else: the sign-out ends every session of
+ * the account in every app, so on a shared account it signed the rest of the suite out mid-test.
  */
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { ACCOUNTS, AUTH_URL, CMS_URL, hasCredentials } from "./support/env.ts";
@@ -41,8 +44,8 @@ for (const lang of ["en", "ar"] as const) {
       // auth's sign-in page follows the CMS page's language
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
 
-      await page.fill('input[name="email"]', ACCOUNTS.admin.email);
-      await fillSecret(page.locator('input[name="password"]'), ACCOUNTS.admin.password);
+      await page.fill('input[name="email"]', ACCOUNTS.ssoCms.email);
+      await fillSecret(page.locator('input[name="password"]'), ACCOUNTS.ssoCms.password);
       await page.click('button[data-component="button"]');
       await page.waitForURL((u) => u.origin === new URL(CMS_URL).origin && !u.pathname.startsWith("/sso/"), { timeout: 45_000 });
       expect(new URL(page.url()).pathname + new URL(page.url()).search, "sign-in did not come back to the deep link").toBe(deepLink);
