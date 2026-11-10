@@ -98,6 +98,8 @@ interface CuratedSnapshot {
 | `/videos` | `locale`, `placement` (`home` \| `videos`, default `videos`) | `{ items: CuratedVideo[] }` (by sort, at most 48) |
 | `/cards` | `locale`, `tag` (optional), `page` (1-based, default 1), `limit` (1–24, default 12) | `{ items: PostSummary[], page: number, limit: number, total: number, tags: string[] }` card posts only, newest first; `tags` = every tag on this locale's live card posts (for the filter) |
 | `/timeline` | `locale`, `limit` (1–40, default 20), `before` (cursor from `next`) | `{ pinned: TimelineItem[], items: TimelineItem[], next: string \| null }`: the home timeline (see "Timeline"); `pinned` only on the first page; bad `before` → 400 |
+| `/search/suggest` | `locale` (or `lang`), `q`, `limit` (1–10, default 6) | `SearchHit[]`: the best few live posts for `q` (see "Search"); empty `q` → `[]` |
+| `/search` | `locale` (or `lang`), `q`, `page`, `limit` (1–20, default 10) | `{ items: SearchHit[], page, limit, total }`: every match, best first |
 | `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string }[] }` (pages with show_in_sitemap only) |
 | `/media/*` | — | the R2 object, `Cache-Control: public, max-age=31536000, immutable` |
 | `/media/*` | `w` (1–1600), `f` (`avif` \| `webp` \| `jpeg` \| `png`) | the variant: `Content-Type` of `f`, immutable cache, `X-Variant: hit`. Not made yet: the **original**, `Cache-Control: public, max-age=60, s-maxage=60`, `X-Variant: pending`, and the job is queued. Malformed `w`/`f` → 400 |
@@ -125,6 +127,39 @@ On it: live posts with "Show on home timeline" on (the default), and video entri
 or both languages whose video is still public, minus hidden items. Pinned first (pin order). The
 rest go newest first, ties `v` before `p`, then id descending. `next` is a cursor (`<ms>-<key>`),
 so pages never shift when items are added.
+
+## Search
+
+`/search/suggest` feeds www's search-as-you-type box (called from the browser, CORS for
+`WWW_ORIGINS`); `/search` feeds www's search page (server-side, service binding). Live posts only
+(articles and card posts; never drafts, scheduled or unpublished rows).
+
+```ts
+interface SearchHit {
+  id: number; type: 'article' | 'cards';
+  title: string; slug: string; locale: Locale;
+  href: string;                 // www path: /{locale}/articles/{slug}/
+  thumbnailUrl: string | null;  // the cover (or a card post's first slide), 320 px WebP variant
+  excerpt: string | null;
+  publishedAt: string;          // ISO 8601
+}
+```
+
+- **Matching.** The query and the posts (title; excerpt, tags and the first 10 000 normalised
+  characters of the body) are normalised the same way (`src/lib/search/normalize.ts`, a port of the
+  monorepo's `packages/shared-types/src/search/normalize.ts`): Arabic tashkeel, Quranic marks and
+  tatweel removed, alef forms → ا, ى/ی → ي, ة → ه, ؤ → و, ئ → ي, standalone ء dropped,
+  Arabic-Indic digits → 0-9, NFKC, lower case, Latin accents removed. Every query word (≤ 8, `q`
+  cut at 100 characters) must match; a leading Arabic article is optional on both sides
+  (الحديث ~ حديث). The newest 2000 live posts per locale are searched.
+- **Ranking.** Title starts with the query > every word starts a title word > title contains it >
+  excerpt/tags/body contain it; ties newest first.
+- **Caching.** `Cache-Control: public, max-age=60, s-maxage=60`; answers are kept in the edge cache
+  for 60 s by normalised query, and each isolate keeps its normalised posts for 60 s, so a change
+  shows in search within about two minutes.
+- **Limits.** Per IP (`SEARCH_LIMITER`, 120 uncached requests a minute): over it → 429
+  `{ "error": "rate_limited" }`, `Retry-After: 60`, `no-store`. A request over the service binding
+  carries no `CF-Connecting-IP`; www passes the visitor's IP as `X-Client-IP` instead.
 
 ## Image variants (CMS-10)
 

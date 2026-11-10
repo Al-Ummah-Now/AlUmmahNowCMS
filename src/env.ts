@@ -29,6 +29,8 @@ export interface Env {
    AI_MOCK_URL?: string;
    /** AI jobs queue (al-ummah-now-cms-ai[-env]). */
    AI_JOBS?: Queue<{ jobId: string }>;
+   /** Per-IP limit on the public search (src/routes/public-api.ts). Without it search is unlimited. */
+   SEARCH_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 
 export interface RuntimeConfig {

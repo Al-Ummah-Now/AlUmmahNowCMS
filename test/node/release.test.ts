@@ -190,6 +190,15 @@ describe("wrangler config", () => {
       expect(errs).toMatch(/env.qa: queues.consumers must consume the DLQ al-ummah-now-cms-feed-dlq-qa/);
       expect(errs).toMatch(/env.qa: triggers.crons must include "\* \* \* \* \*"/);
    });
+   it("catches a missing search limiter or one shared between envs", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a deep edit of parsed JSON
+      const bad = structuredClone(config) as Record<string, any>;
+      delete bad.env.stage.ratelimits;
+      bad.env.qa.ratelimits[0].namespace_id = bad.ratelimits[0].namespace_id;
+      const errs = checkWranglerConfig(bad as never).join("\n");
+      expect(errs).toMatch(/env.stage: ratelimits must bind SEARCH_LIMITER/);
+      expect(errs).toMatch(/env.qa: SEARCH_LIMITER namespace_id 1101 is used by another env/);
+   });
    it("parseJsonc handles comments, trailing commas and // inside strings", () => {
       expect(parseJsonc('{ // c\n "a": "http://x", /* b */ "b": [1,2,], }')).toEqual({ a: "http://x", b: [1, 2] });
    });

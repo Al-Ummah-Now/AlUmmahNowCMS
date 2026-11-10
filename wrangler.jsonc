@@ -41,6 +41,8 @@
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms" }],
   // www's home timeline (docs/FEED.md): written only by this Worker, read by www (binding FEED there too).
   "kv_namespaces": [{ "binding": "FEED", "id": "5f27cddf86c84bbdbb59445ad867253c" }],
+  // Per-IP limit on the public search (src/routes/public-api.ts): 120 a minute. Not inherited by envs.
+  "ratelimits": [{ "name": "SEARCH_LIMITER", "namespace_id": "1101", "simple": { "limit": 120, "period": 60 } }],
   // Image variant jobs (src/lib/variants/jobs.ts, CMS-10), AI assist jobs (docs/AI_ASSIST_SPEC.md §3) and home timeline builds (src/lib/feed/jobs.ts:
   // one consumer at a time so builds never overlap, retries with backoff, then the DLQ, whose consumer
   // flags the admin). Not inherited by envs: each env repeats them.
@@ -87,6 +89,7 @@
       "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-stage" }],
       // www's home timeline (docs/FEED.md): written only by this Worker, read by www (binding FEED there too).
       "kv_namespaces": [{ "binding": "FEED", "id": "33ddf8bb7eae439c91fcc4af22797f42" }],
+      "ratelimits": [{ "name": "SEARCH_LIMITER", "namespace_id": "1102", "simple": { "limit": 120, "period": 60 } }],
       "queues": {
         "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-stage" }, { "binding": "FEED_JOBS", "queue": "al-ummah-now-cms-feed-stage" }, { "binding": "AI_JOBS", "queue": "al-ummah-now-cms-ai-stage" }],
         "consumers": [
@@ -129,6 +132,7 @@
       "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "al-ummah-now-cms-qa" }],
       // www's home timeline (docs/FEED.md): written only by this Worker, read by www (binding FEED there too).
       "kv_namespaces": [{ "binding": "FEED", "id": "6e459b34fb954cf4a199cfef57036a8c" }],
+      "ratelimits": [{ "name": "SEARCH_LIMITER", "namespace_id": "1103", "simple": { "limit": 120, "period": 60 } }],
       "queues": {
         "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-qa" }, { "binding": "FEED_JOBS", "queue": "al-ummah-now-cms-feed-qa" }, { "binding": "AI_JOBS", "queue": "al-ummah-now-cms-ai-qa" }],
         "consumers": [
