@@ -8,6 +8,7 @@
 import { latestOnly, liveSearch } from "./live-search.ts";
 import { BlockError, isComplete, newBlockId, normalizeBlocks, normalizeSlides, validBlockUrl, type Block, type BlockType, type Slide } from "../../lib/blocks.ts";
 import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
+import { askLink } from "./dialogs.ts";
 import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker, type PickedItem } from "./picker.ts";
 
@@ -16,7 +17,6 @@ interface S {
    blocks: Dict & { types: Dict; errors: Dict };
    slides: Dict;
    videoLine: string;
-   linkPrompt: string;
    failed: string;
    status?: Dict;
 }
@@ -416,11 +416,13 @@ function mdTools(root: HTMLElement): void {
          case "list":
             prefix("- ");
             break;
-         case "link": {
-            const href = prompt(T.linkPrompt, "https://");
-            if (href && validBlockUrl(href.trim())) wrap("[", `](${href.trim()})`, "link");
+         case "link":
+            askLink(area).then((href) => {
+               if (!href) return;
+               wrap("[", `](${href})`, "link");
+               area.dispatchEvent(new Event("input", { bubbles: true }));
+            });
             break;
-         }
          case "video":
             openPicker((item) => {
                if (item.kind !== "video") return toast(T.blocks.channelNoEmbed, "bad");

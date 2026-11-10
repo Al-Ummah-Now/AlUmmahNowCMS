@@ -4,6 +4,7 @@
  * Videos: add / change through the picker endpoints. Site settings and Library.
  */
 import { $, $$, api, ApiError, strings, takeReason, toast } from "./dom.ts";
+import { askConfirm } from "./dialogs.ts";
 import { openPicker } from "./picker.ts";
 
 interface S {
@@ -36,20 +37,6 @@ export function validNavUrl(url: string): boolean {
 }
 
 const fail = (T: S, e: unknown) => toast(e instanceof ApiError ? `${T.failed} ${e.message}` : T.failed, "bad");
-
-/** Asks the shared confirm dialog; resolves true on "ok". */
-function confirmDialog(extra?: string): Promise<boolean> {
-   const dlg = $<HTMLDialogElement>("#confirm");
-   if (!dlg) return Promise.resolve(window.confirm(extra ?? "?"));
-   const body = $(".dlg-b p", dlg);
-   const original = body?.dataset.original ?? body?.textContent ?? "";
-   if (body) {
-      body.dataset.original = original;
-      body.textContent = extra ? `${extra} ${original}` : original;
-   }
-   dlg.showModal();
-   return new Promise((resolve) => dlg.addEventListener("close", () => resolve(dlg.returnValue === "ok"), { once: true }));
-}
 
 function initRowList(T: S): void {
    const list = $("[data-rows]");
@@ -116,7 +103,8 @@ function initRowList(T: S): void {
       const li = btn?.closest<HTMLLIElement>("li[data-id]");
       if (!btn || !li) return;
       if (btn.hasAttribute("data-row-delete")) {
-         if (!(await confirmDialog())) return;
+         // Soft delete (docs/SOFT_DELETE.md): restorable from Recently deleted for 30 days.
+         if (!(await askConfirm({ reason: true }))) return;
          try {
             await api("DELETE", `/api/data/entity/${entity}/${li.dataset.id}`, { reason: takeReason($("#confirm")) });
             li.remove();
@@ -367,7 +355,8 @@ function initLibrary(T: S): void {
             fail(T, err2);
          }
       } else if (t.closest("[data-media-delete]")) {
-         if (!(await confirmDialog(card.dataset.used ? T.deleteUsed : undefined))) return;
+         // Soft delete (docs/SOFT_DELETE.md): restorable from Recently deleted for 30 days.
+         if (!(await askConfirm({ extra: card.dataset.used ? T.deleteUsed : undefined, reason: true }))) return;
          try {
             await api("DELETE", `/api/media/file/${encodeURIComponent(card.dataset.path!)}`, { reason: takeReason($("#confirm")) });
             card.remove();

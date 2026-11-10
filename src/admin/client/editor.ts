@@ -1,5 +1,6 @@
 /** Page/post editor: save, publish, slug rules, conflict check, markdown, tags, cover, translations, delete. */
 import { $, $$, api, ApiError, takeReason, toast, strings } from "./dom.ts";
+import { addLeaveGuard, askConfirm, askLink } from "./dialogs.ts";
 import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
 import { readBlocks, readSlides, showReadError } from "./blocks.ts";
@@ -14,7 +15,6 @@ interface S {
    failed: string;
    conflict: string;
    invalid: string;
-   linkPrompt: string;
    previewEmpty: string;
    videoLine: string;
    removeTag: string;
@@ -24,6 +24,15 @@ interface S {
    schedulePast: string;
    scheduleRequired: string;
    previewSaveFirst: string;
+   unpublish: string;
+   unpublishTitle: string;
+   unpublishBody: string;
+   unschedule: string;
+   unscheduleTitle: string;
+   unscheduleBody: string;
+   coverRemove: string;
+   coverRemoveTitle: string;
+   coverRemoveBody: string;
 }
 
 export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -82,9 +91,8 @@ export function initEditor(): void {
    };
    form.addEventListener("input", markDirty);
    form.addEventListener("seq:change", markDirty);
-   addEventListener("beforeunload", (e) => {
-      if (dirty) e.preventDefault();
-   });
+   // Unsaved changes: in-app links ask first (src/admin/client/dialogs.ts); closing the tab doesn't prompt.
+   addLeaveGuard(() => (dirty ? "unsaved" : null));
 
    // "Preview on site" shows the last SAVED draft: with unsaved edits, ask for a save first.
    $<HTMLAnchorElement>("[data-preview]")?.addEventListener("click", (e) => {
@@ -189,11 +197,11 @@ export function initEditor(): void {
                return linePrefix("> ");
             case "list":
                return linePrefix("- ");
-            case "link": {
-               const href = prompt(T.linkPrompt, "https://");
-               if (href && (/^https:\/\//.test(href) || href.startsWith("/"))) wrap("[", `](${href})`, "link");
+            case "link":
+               askLink(body).then((href) => {
+                  if (href) wrap("[", `](${href})`, "link");
+               });
                return;
-            }
             case "video":
                return openPicker((item) => insertLine(`::video[${item.id}]`), b);
          }
@@ -303,6 +311,20 @@ export function initEditor(): void {
       const blocks = blocksRead?.ok ? blocksRead.value : undefined;
       const slides = slidesRead?.ok ? slidesRead.value : undefined;
       submitting = true;
+      // Unpublish / Unschedule take it off the site (or off the schedule): ask first.
+      if (action === "draft" && (state === "published" || state === "scheduled")) {
+         const off = state === "published";
+         const yes = await askConfirm({
+            title: off ? T.unpublishTitle : T.unscheduleTitle,
+            body: off ? T.unpublishBody : T.unscheduleBody,
+            ok: off ? T.unpublish : T.unschedule,
+            noIcon: true,
+         });
+         if (!yes) {
+            submitting = false;
+            return;
+         }
+      }
       const buttons = $$<HTMLButtonElement>("button[type=submit]", form);
       buttons.forEach((b) => b.setAttribute("disabled", ""));
       try {
@@ -405,10 +427,10 @@ export function initEditor(): void {
    });
 
    // Delete (admins; bknd refuses editors anyway).
-   const confirmDlg = $<HTMLDialogElement>("#confirm");
-   $("[data-delete]")?.addEventListener("click", () => confirmDlg?.showModal());
-   confirmDlg?.addEventListener("close", async () => {
-      if (confirmDlg.returnValue !== "ok") return;
+   // Soft delete (docs/SOFT_DELETE.md): restorable from Recently deleted for 30 days.
+   const delBtn = $<HTMLButtonElement>("[data-delete]");
+   delBtn?.addEventListener("click", async () => {
+      if (!(await askConfirm({ reason: true }))) return;
       try {
          await api("DELETE", `/api/data/entity/${kind}/${id}`, { reason: takeReason(confirmDlg) });
          dirty = false;
@@ -477,6 +499,7 @@ export function initEditor(): void {
    $("[data-cover-remove]")?.addEventListener("click", async () => {
       const path = coverBox?.dataset.coverPath;
       if (!path) return;
+      if (!(await askConfirm({ title: T.coverRemoveTitle, body: T.coverRemoveBody, ok: T.coverRemove }))) return;
       try {
          await api("DELETE", `/api/media/file/${encodeURIComponent(path)}`);
          location.assign(`/${kind}/${id}?done=saved`);

@@ -203,6 +203,9 @@ test.describe("pages and posts (E1–E16)", () => {
       // Unpublish: leaves the public API.
       await page.goto(`/pages/${id}?lang=en`);
       await page.getByRole("button", { name: "Unpublish" }).first().click();
+      const unpublish = page.getByRole("dialog", { name: "Unpublish this?" });
+      await expect(unpublish.getByRole("button", { name: "Cancel" })).toBeFocused();
+      await unpublish.getByRole("button", { name: "Unpublish" }).click();
       await expect(page.locator("[data-status-badge]")).toHaveText("Draft");
       expect((await publicApi(`/pages/about-${STAMP}?locale=en`)).status).toBe(404);
 
@@ -334,6 +337,7 @@ test.describe("scheduled publishing (#7)", () => {
       // Unschedule: a draft again, still not public.
       saved = savedAs(page, "unscheduled");
       await page.getByRole("button", { name: "Unschedule" }).first().click();
+      await page.getByRole("dialog", { name: "Unschedule this?" }).getByRole("button", { name: "Unschedule" }).click();
       await saved;
       await expect(page.locator("[data-status-badge]")).toHaveText("Draft");
       expect((await adminApi("GET", `/api/data/entity/posts/${id}`)).json?.data).toMatchObject({ status: "draft", publish_at: null, published_at: null });

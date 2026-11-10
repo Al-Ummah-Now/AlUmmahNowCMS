@@ -12,6 +12,8 @@ interface S {
 }
 
 function ask(dlg: HTMLDialogElement): Promise<boolean> {
+   // Esc / the backdrop close without a new value: clear the last answer so it isn't read as OK again.
+   dlg.returnValue = "";
    dlg.showModal();
    return new Promise((resolve) => dlg.addEventListener("close", () => resolve(dlg.returnValue === "ok"), { once: true }));
 }

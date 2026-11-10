@@ -8,6 +8,7 @@ import type { Prefs } from "../prefs.ts";
 import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "./icons.tsx";
 import { Autocomplete, comboboxProps } from "./autocomplete.tsx";
+import { LeaveDialog, LinkDialog } from "./dialogs.tsx";
 
 export interface View {
    prefs: Prefs;
@@ -168,7 +169,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
             <link rel="stylesheet" href={v.assets.css} />
             <script type="module" src={v.assets.js} nonce={v.nonce} />
          </head>
-         <body data-leave-uploading={t.common.leaveUploading}>
+         <body>
             <a class="skip" href="#main">
                {t.skip}
             </a>
@@ -253,6 +254,8 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                   </div>
                </div>
             </dialog>
+            <LeaveDialog v={v} />
+            <LinkDialog v={v} />
             <div class="toasts" id="toasts" role="status" aria-live="polite" />
             <script type="application/json" id="i18n-shell" nonce={v.nonce}>
                {raw(
@@ -272,6 +275,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                      scheduled: t.content.scheduled,
                      unscheduled: t.content.unscheduled,
                      restored: t.history.restored,
+                     failed: t.common.failed,
                   }).replace(/</g, "\\u003c"),
                )}
             </script>

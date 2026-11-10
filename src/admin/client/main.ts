@@ -8,6 +8,7 @@ import { initBlocks } from "./blocks.ts";
 import { initAi } from "./ai.ts";
 import { initAiSettings } from "./ai-settings.ts";
 import { initAutocomplete } from "./autocomplete.ts";
+import { initLeaveGuard } from "./dialogs.ts";
 import { initEditor } from "./editor.ts";
 import { initHistory } from "./history.ts";
 import { initPicker } from "./picker.ts";
@@ -19,6 +20,7 @@ import { initTrash } from "./trash.ts";
 
 initShell();
 initAutocomplete();
+initLeaveGuard();
 initTimes();
 initPicker();
 initBlocks();

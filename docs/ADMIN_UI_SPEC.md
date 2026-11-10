@@ -125,7 +125,7 @@ content-rules plugin runs on every write (`src/lib/content-rules.ts:97-124`).
 | X4 | Light and dark | Follows the device; a toggle in the rail foot (System, Light, Dark) stored in cookie `cms_mode`, rendered on the server (no flash). |
 | X5 | Translation linking | Translations panel (E3). |
 | X6 | Live preview on www | "View on site" link for published rows (`${WWW_URL}/${locale}/${slug}` for pages, `/${locale}/articles/${slug}` for posts; www serves posts in its Articles section under `/articles/`, and 301s the old `/news/` urls). Saved drafts get **"Preview on site"** instead: `/preview/{kind}/{id}` mints a 30-minute token for that row and opens www's preview (banner, noindex, never cached). With unsaved edits the editor asks for a save first. See `docs/PUBLIC_API.md` "Preview API". |
-| X7 | Unsaved changes | `beforeunload` guard and a "You have unsaved changes" bar. |
+| X7 | Unsaved changes | A "You have unsaved changes" bar, and an in-app "Leave this page?" dialog (Stay / Leave anyway) on in-app links while there are unsaved changes or an upload is running. Never the browser's own prompts (no `confirm` / `prompt` / `alert`, no leave-page prompt on reload or close; ESLint forbids them). Unpublish, Unschedule and Remove cover ask in the confirm dialog; deletes ask with an optional reason and go to Recently deleted (docs/SOFT_DELETE.md), whose "Delete permanently" is type-to-confirm (`src/admin/client/dialogs.ts`). |
 
 Nothing in the inventory needs a bknd change. **Exceptions: none blocking**; the Worker additions
 in §0 are the only server changes.
