@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { pickLang } from "../lib/i18n.ts";
-import { buildAuthorizeUrl, exchangeCode, OidcError, parsePrompt, verifyAccessToken, type Prompt } from "../lib/oidc.ts";
+import { buildAuthorizeUrl, exchangeCode, signInLang, OidcError, parsePrompt, verifyAccessToken, type Prompt } from "../lib/oidc.ts";
 import { statusPage } from "../lib/pages.ts";
 import { createPkce, randomToken } from "../lib/pkce.ts";
 import { safeReturnPath } from "../lib/return-path.ts";
@@ -113,6 +113,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
             state: tx.s,
             codeChallenge: challenge,
             prompt,
+            lang: signInLang(c.req.query("lang"), tx.r),
          }),
          302,
       );

@@ -5,7 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
  *   CMS_URL, AUTH_URL, CMS_CLIENT_ID, QA_SEED_PASSWORD (or SEED_PASSWORD), WWW_URL (optional)
  */
 /** The SSO-flow suite tests sign-in itself (one sign-in per test): Chromium projects only. */
-const SSO_FLOW = /cms\.spec\.ts/;
+const SSO_FLOW = /(cms|sso-journey)\.spec\.ts/;
 /** e2e/local runs against wrangler dev + mocks (playwright.local.config.ts), never a deployed CMS. */
 const LOCAL = /[\\/]local[\\/]/;
 
