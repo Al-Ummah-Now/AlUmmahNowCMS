@@ -22,6 +22,7 @@ import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
 import { consumeVariants, deleteVariants, sweepVariants, type VariantMessage } from "./lib/variants/jobs.ts";
 import { VARIANT_ROOT } from "./lib/variants/plan.ts";
 import { withActor } from "./lib/revisions.ts";
+import { slugConflictOf } from "./lib/content-rules.ts";
 import { runSnapshotQueue } from "./lib/video-snapshots.ts";
 import { collectGarbage, consumeFeed, consumeFeedDlq, duePosts, verifyFeed, videoChanged, type FeedMessage } from "./lib/feed/jobs.ts";
 import { isFeedDlq, isFeedQueue } from "./lib/feed/queues.ts";
@@ -201,7 +202,14 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       const bknd = await deps.getApp(c);
       // Writes run with the signed-in user as the actor, so content history records who (#8).
       const actor = c.req.method === "GET" || c.req.method === "HEAD" ? undefined : await sessionUser(c, deps);
+      const write = c.req.method === "POST" || c.req.method === "PATCH" || c.req.method === "PUT";
+      const sent = write && p.startsWith("/api/data/entity/") ? await c.req.raw.clone().text() : null;
       const res = await withActor({ id: actor?.id ?? null, email: actor?.email ?? null }, () => bknd.fetch(c.req.raw, c.env, c.executionCtx));
+      if (res.status === 500 && sent !== null) {
+         // A (slug, locale) clash that raced past the content rules reaches D1's UNIQUE index as a 500 (#50).
+         const conflict = await slugConflictOf(c.env.DB, c.req.method, p, sent).catch(() => null);
+         if (conflict) return c.json({ error: conflict.message, type: conflict.name }, 409);
+      }
       const target = c.req.method === "POST" && res.ok ? entityUploadTarget(p) : null;
       if (target) await keepNewestMedia(bknd, c.env.MEDIA, target, (path) => deleteVariants(c.env, path));
       if (res.ok && c.req.method === "POST" && (p.startsWith("/api/media/upload") || target)) {

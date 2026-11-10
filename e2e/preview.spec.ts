@@ -26,12 +26,15 @@ async function adminApi(method: string, path: string, body?: unknown) {
    return { status: res.status, json: (await res.json().catch(() => null)) as { data?: { id: number } } | null };
 }
 
-async function draft(entity: "pages" | "posts", locale: "en" | "ar", title: string, body: string): Promise<number> {
-   const res = await adminApi("POST", `/api/data/entity/${entity}`, { slug: `preview-${STAMP}-${locale}`, locale, title, body, status: "draft" });
-   expect(res.status).toBe(201);
+let drafts = 0;
+/** Each draft gets its own slug: (slug, locale) is unique, and the rows are only deleted in afterAll (#50). */
+async function draft(entity: "pages" | "posts", locale: "en" | "ar", title: string, body: string): Promise<{ id: number; slug: string }> {
+   const slug = `preview-${STAMP}-${++drafts}-${locale}`;
+   const res = await adminApi("POST", `/api/data/entity/${entity}`, { slug, locale, title, body, status: "draft" });
+   expect(res.status, JSON.stringify(res.json)).toBe(201);
    const id = res.json!.data!.id;
    created.push({ entity, id });
-   return id;
+   return { id, slug };
 }
 
 /** www has the preview route when an invalid link gets its friendly page (not the site's 404). */
@@ -54,8 +57,8 @@ test.afterAll(async () => {
 });
 
 test("the public API never serves the draft; the preview API needs a token for that row", async () => {
-   const id = await draft("pages", "en", `Draft ${STAMP}`, "Draft body");
-   const pub = await fetch(`${CMS_URL}/api/public/v1/pages/preview-${STAMP}-en?locale=en&_=${Date.now()}`);
+   const { id, slug } = await draft("pages", "en", `Draft ${STAMP}`, "Draft body");
+   const pub = await fetch(`${CMS_URL}/api/public/v1/pages/${slug}?locale=en&_=${Date.now()}`);
    expect(pub.status).toBe(404);
    const none = await fetch(`${CMS_URL}/api/preview/v1/pages/${id}`);
    expect(none.status).toBe(401);
@@ -72,7 +75,7 @@ test("signed out, the preview link asks for sign-in first", async ({ request }) 
 
 test("an editor previews an English draft page on www", async ({ context, page: first }) => {
    let page = first;
-   const id = await draft("pages", "en", `Preview page ${STAMP}`, `## Draft heading ${STAMP}\n\nOnly in the draft.`);
+   const { id } = await draft("pages", "en", `Preview page ${STAMP}`, `## Draft heading ${STAMP}\n\nOnly in the draft.`);
    await sessionPage(context, page, ACCOUNTS.moderator, `/pages/${id}`);
    const link = page.getByRole("link", { name: "Preview on site" });
    await expect(link).toHaveAttribute("href", `/preview/pages/${id}`);
@@ -107,7 +110,7 @@ test("an editor previews an English draft page on www", async ({ context, page: 
 
 test("an Arabic draft post previews right-to-left", async ({ context, page }) => {
    test.skip(!(await wwwHasPreview()), "www on this env has no /preview route yet (it ships after the CMS)");
-   const id = await draft("posts", "ar", `معاينة ${STAMP}`, "نص المسودة.");
+   const { id } = await draft("posts", "ar", `معاينة ${STAMP}`, "نص المسودة.");
    await sessionPage(context, page, ACCOUNTS.moderator, `/posts/${id}?lang=ar`);
    const www = await openPreview(context, page);
    await expect(www).toHaveURL(new RegExp(`/preview/posts/${id}/?$`));
