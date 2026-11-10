@@ -7,12 +7,14 @@
  *   /preview/:kind/:id       staff: mint a preview token, 303 → www/preview (session required)
  *   /sso/*                   SSO login/callback/logout (PKCE public client)
  *   /admin-assets/*          staff screens' CSS/JS (public, immutable, no data)
+ *   /favicon.*, /icon-*, …   tab and app icons (public, no data)
  *   /, /pages, /posts, …     staff screens (src/admin; session required, else → /sso/login)
  *   /admin/api/*, /picker/api/*  Worker endpoints the screens need (session, same-origin)
  *   /api/*                   bknd API (guard on; same-origin check on mutations)
  *   /data/*, /media, /bknd   bknd's retired admin UI → redirects to the staff screens
  */
 import { Hono } from "hono";
+import { appIconRoutes } from "./lib/app-icons.ts";
 import { getBkndApp, MediaExistsError } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
 import { ALLOWED_UPLOAD, blockedApiPath, contentCollectionPath, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
@@ -107,6 +109,8 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
 
    // Staff screens' CSS/JS: public, immutable, no data (content-hashed names).
    app.route("/admin-assets", adminAssets() as unknown as Hono<AppEnv>);
+   // Tab and app icons (src/lib/app-icons.ts): public, no data, served before any session check.
+   app.route("/", appIconRoutes() as unknown as Hono<AppEnv>);
 
    // Everything below needs a valid runtime config (fail closed when a secret is missing).
    app.use("*", async (c, next) => {

@@ -4,6 +4,7 @@
  * src/index.ts; every handler renders complete HTML from bknd reads (src/admin/data.ts).
  */
 import { Hono } from "hono";
+import { faviconSvgPath } from "../lib/app-icons.ts";
 import type { Child } from "hono/jsx";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
 import { assetResponse, assetUrls } from "./assets.ts";
@@ -44,6 +45,7 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       wwwUrl: cfg.wwwUrl,
       adminWebUrl: adminWeb,
       assets: assetUrls(prefs.theme),
+      favicon: faviconSvgPath(c.env.ENVIRONMENT),
       ai: aiConfigured(c.env),
    };
 }
