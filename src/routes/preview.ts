@@ -12,6 +12,7 @@ import { Hono, type Context } from "hono";
 import { ConfigError, runtimeConfig, type Env } from "../env.ts";
 import { bearer, isPreviewKind, mintPreviewToken, verifyPreviewToken, type PreviewKind } from "../lib/preview.ts";
 import type { AppEnv } from "../types.ts";
+import { publishState } from "../lib/schedule.ts";
 import { pageOf, postOf, toIso } from "./public-api.ts";
 import { renderStatus } from "./sso.ts";
 
@@ -56,7 +57,8 @@ export function previewApi(): Hono<{ Bindings: Env }> {
          {
             kind: kind === "pages" ? "page" : "post",
             id,
-            status: row.status === "published" ? "published" : "draft",
+            // "scheduled" = published with a go-live time still ahead: not on the site yet (#7).
+            status: publishState(row),
             expires_at: toIso(verdict.claims.exp * 1000),
             edit_url: `${publicUrl}/${kind}/${id}`,
             content: kind === "pages" ? await pageOf(c.env, row) : await postOf(c.env, row),

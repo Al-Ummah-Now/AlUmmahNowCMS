@@ -136,7 +136,7 @@ binding, never from a browser (no CORS headers).
 interface PreviewResponse {
   kind: 'page' | 'post';
   id: number;
-  status: 'draft' | 'published';
+  status: 'draft' | 'scheduled' | 'published';   // scheduled: published with publish_at still ahead
   expires_at: string;            // ISO, when the token stops working
   edit_url: string;              // the row in the CMS editor
   content: Page | Post;          // exactly the public shapes above; alternates are published rows only;
