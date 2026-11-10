@@ -360,7 +360,12 @@ export function initEditor(): void {
          location.assign(`/${kind}/${rowId}?done=${done}`);
       } catch (e) {
          // No raw server text: a 400 is a rule the form couldn't check (e.g. a block), anything else a failure.
-         if (e instanceof ApiError && e.status === 409) toast(T.conflict, "bad");
+         if (e instanceof ApiError && e.status === 409 && (e.body as { type?: string } | null)?.type === "SlugTakenError") {
+            // Another row took this address after the check above (#50).
+            slugErr = T.slugTaken;
+            fieldError(slug, "f-slug-err", slugErr);
+            slug.focus();
+         } else if (e instanceof ApiError && e.status === 409) toast(T.conflict, "bad");
          else toast(e instanceof ApiError && e.status === 400 ? T.invalid : T.failed, "bad");
       } finally {
          submitting = false;

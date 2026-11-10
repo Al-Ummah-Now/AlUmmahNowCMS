@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { publishState } from "../../src/lib/schedule.ts";
-import { applyRules, ContentRuleError, nextVersion, validNavUrl, versionCandidates } from "../../src/lib/content-rules.ts";
+import { applyRules, ContentRuleError, nextVersion, slugTarget, validNavUrl, versionCandidates } from "../../src/lib/content-rules.ts";
 
 const now = new Date("2026-11-08T10:00:00Z");
 
@@ -132,5 +132,20 @@ describe("optimistic lock helpers", () => {
       expect(versionCandidates(null)).toBeNull();
       expect(versionCandidates("")).toBeNull();
       expect(() => versionCandidates({})).toThrow(ContentRuleError);
+   });
+});
+
+describe("slugTarget (#50: the (slug, locale) a page/post write ends up with)", () => {
+   it("create: both from the payload; only for pages and posts", () => {
+      expect(slugTarget("pages", { slug: "a", locale: "en" })).toEqual({ slug: "a", locale: "en" });
+      expect(slugTarget("posts", { slug: "a", locale: "ar", title: "x" })).toEqual({ slug: "a", locale: "ar" });
+      expect(slugTarget("nav_items", { slug: "a", locale: "en" })).toBeNull();
+      expect(slugTarget("pages", { slug: "a" })).toBeNull();
+      expect(slugTarget("pages", { slug: "", locale: "en" })).toBeNull();
+   });
+   it("update: a missing half comes from the stored row; untouched slug and locale need no check", () => {
+      expect(slugTarget("pages", { slug: "b" }, { slug: "a", locale: "en" })).toEqual({ slug: "b", locale: "en" });
+      expect(slugTarget("pages", { locale: "ar" }, { slug: "a", locale: "en" })).toEqual({ slug: "a", locale: "ar" });
+      expect(slugTarget("pages", { title: "t" }, { slug: "a", locale: "en" })).toBeNull();
    });
 });

@@ -100,7 +100,7 @@ export function mediaAltRoute(deps: Deps): Hono<AppEnv> {
          const name = error instanceof Error ? error.name : "";
          const text = String(error);
          if (name === "StaleWriteError") return c.json({ error: "conflict" }, 409);
-         if (/UNIQUE/i.test(text)) return c.json({ error: "slug_taken" }, 409);
+         if (name === "SlugTakenError" || /UNIQUE/i.test(text)) return c.json({ error: "slug_taken" }, 409);
          if (name === "ContentRuleError") return c.json({ error: "invalid" }, 400);
          console.error("restore failed", rev.id, text);
          return c.json({ error: "internal_error" }, 500);

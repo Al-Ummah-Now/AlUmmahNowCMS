@@ -13,6 +13,9 @@
  *   written, pages.body is derived from them (the v1 contract's markdown fallback).
  * - posts.kind is "article" (default) or "cards"; posts.slides is a valid slide list, and a card
  *   post's body is derived from its slides.
+ * - pages / posts: (slug, locale) is unique (migrations/0001). A write onto a taken pair is refused
+ *   with 409 and a message naming the slug and language, before D1's UNIQUE index would turn it into
+ *   an opaque 500 (issue #50). src/index.ts maps a race past this check to the same 409.
  * - optimistic lock: an update that carries `updated_at` only applies if the row still has that
  *   `updated_at`; otherwise it fails with 409 (two editors saving the same row: the second, stale
  *   save no longer silently overwrites the first). Updates without `updated_at` are unchanged.
@@ -45,6 +48,68 @@ export class StaleWriteError extends Exception {
    constructor() {
       super("This item was changed by someone else after you opened it. Reload it, then apply your changes again.", 409);
       this.name = "StaleWriteError";
+   }
+}
+
+/** 409: the (slug, locale) pair is already used by another page or post (bknd serializes it with its code). */
+export class SlugTakenError extends Exception {
+   constructor(entity: string, slug: string, locale: string) {
+      const noun = entity === "posts" ? "post" : "page";
+      super(`There is already a ${noun} with the slug "${slug}" in ${LANGUAGE[locale] ?? locale}. Choose another slug.`, 409);
+      this.name = "SlugTakenError";
+   }
+}
+
+const LANGUAGE: Record<string, string> = { en: "English", ar: "Arabic" };
+const SLUGGED = new Set(["pages", "posts"]);
+
+/**
+ * The (slug, locale) a page or post write ends up with, when it touches either and both are known.
+ * `current` is the stored row for updates.
+ */
+export function slugTarget(entity: string, data: Row, current?: Row | null): { slug: string; locale: string } | null {
+   if (!SLUGGED.has(entity) || !("slug" in data || "locale" in data)) return null;
+   const slug = "slug" in data ? data.slug : current?.slug;
+   const locale = "locale" in data ? data.locale : current?.locale;
+   return typeof slug === "string" && slug !== "" && typeof locale === "string" && locale !== "" ? { slug, locale } : null;
+}
+
+/** Throws SlugTakenError when another row of `entity` (not `exceptId`) already has this (slug, locale). */
+export async function assertSlugFree(db: D1Database, entity: string, target: { slug: string; locale: string }, exceptId?: number | string): Promise<void> {
+   if (!SLUGGED.has(entity)) throw new Error(`no slug rule for ${entity}`);
+   const other = await db
+      .prepare(`SELECT id FROM "${entity}" WHERE slug = ?1 AND locale = ?2 AND id IS NOT ?3 LIMIT 1`)
+      .bind(target.slug, target.locale, exceptId === undefined ? null : Number(exceptId))
+      .first();
+   if (other) throw new SlugTakenError(entity, target.slug, target.locale);
+}
+
+/**
+ * Backstop for a race past the listener's check (two creates of the same pair at once): when bknd
+ * answered 500 to a page/post write, says which (slug, locale) conflict caused it, if any.
+ * `path` is the data API path, `body` the request's JSON text.
+ */
+export async function slugConflictOf(db: D1Database, method: string, path: string, body: string): Promise<SlugTakenError | null> {
+   const m = /^\/api\/data\/entity\/(pages|posts)(?:\/(\d+))?\/?$/.exec(path);
+   if (!m || !(method === "POST" ? !m[2] : method === "PATCH" || method === "PUT")) return null;
+   let data: Row;
+   try {
+      const parsed = JSON.parse(body) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+      data = parsed as Row;
+   } catch {
+      return null;
+   }
+   const [, entity, id] = m;
+   const current = id ? await db.prepare(`SELECT slug, locale FROM "${entity}" WHERE id = ?1`).bind(Number(id)).first<Row>() : null;
+   const target = slugTarget(entity, data, current);
+   if (!target) return null;
+   try {
+      await assertSlugFree(db, entity, target, id);
+      return null;
+   } catch (error) {
+      if (error instanceof SlugTakenError) return error;
+      throw error;
    }
 }
 
@@ -211,9 +276,11 @@ export function contentRulesPlugin(db?: D1Database): AppPlugin {
       onBuilt: async () => {
          app.emgr.onEvent(
             DatabaseEvents.MutatorInsertBefore,
-            (event) => {
+            async (event) => {
                const { entity, data } = event.params as { entity: { name: string }; data: Row };
                applyRules(entity.name, data, "create");
+               const target = db ? slugTarget(entity.name, data) : null;
+               if (target) await assertSlugFree(db!, entity.name, target);
             },
             { mode: "sync", id: "aun-content-insert" },
          );
@@ -230,6 +297,8 @@ export function contentRulesPlugin(db?: D1Database): AppPlugin {
                }
                const now = locked ? nextVersion(expected) : new Date();
                applyRules(entity.name, data, "update", current, now);
+               const target = db ? slugTarget(entity.name, data, current) : null;
+               if (target) await assertSlugFree(db!, entity.name, target, entityId);
                if (locked) {
                   // Validate before claiming, so an invalid save does not move updated_at.
                   await (app.em.mutator(entity.name) as unknown as { getValidatedData(d: Row, m: "update"): Promise<unknown> }).getValidatedData({ ...data }, "update");
