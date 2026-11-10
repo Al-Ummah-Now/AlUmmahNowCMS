@@ -4,16 +4,17 @@
  *   /healthz                 liveness (+ ?deep=1: config and D1)
  *   /api/public/v1/*         public read API (published rows only), CORS for www
  *   /sso/*                   SSO login/callback/logout (PKCE public client)
- *   /picker, /picker/api/*   video picker (session required)
- *   /, /data/*, /media/*, …  bknd admin UI (session required, else → /sso/login)
+ *   /admin-assets/*          staff screens' CSS/JS (public, immutable, no data)
+ *   /, /pages, /posts, …     staff screens (src/admin; session required, else → /sso/login)
+ *   /admin/api/*, /picker/api/*  Worker endpoints the screens need (session, same-origin)
  *   /api/*                   bknd API (guard on; same-origin check on mutations)
+ *   /data/*, /media, /bknd   bknd's retired admin UI → redirects to the staff screens
  */
 import { Hono } from "hono";
 import { getBkndApp } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
-import { ALLOWED_UPLOAD, blockedApiPath, isAdminUiPath, uploadAllowed } from "./lib/paths.ts";
+import { ALLOWED_UPLOAD, blockedApiPath, isRetiredBkndAdminPath, uploadAllowed } from "./lib/paths.ts";
 import { ConfigError, runtimeConfig, type Env } from "./env.ts";
-import { ADMIN_LINKS, ADMIN_SESSION_SCRIPT } from "./lib/admin-ui.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
 import { adminAssets, adminRoutes, isStaffScreen } from "./admin/routes.tsx";
@@ -36,22 +37,6 @@ async function multipartAllowed(request: Request): Promise<boolean> {
       if (!exts || !exts.includes(ext) || file.size > MEDIA_MAX_BYTES) return false;
    }
    return true;
-}
-
-/** Adds the per-response CSP nonce to bknd's inline bootstrap script, the CMS links and the session watcher. */
-function decorateAdminHtml(res: Response, n: string): Response {
-   return new HTMLRewriter()
-      .on("script", {
-         element(el) {
-            el.setAttribute("nonce", n);
-         },
-      })
-      .on("body", {
-         element(el) {
-            el.append(`${ADMIN_LINKS}<script nonce="${n}">${ADMIN_SESSION_SCRIPT}</script>`, { html: true });
-         },
-      })
-      .transform(res);
 }
 
 function withHeaders(res: Response, csp?: string, ownOrigin?: string): Response {
@@ -133,14 +118,14 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
 
    // bknd's old admin URLs → the matching staff screen (bookmarks, links in old messages).
    app.get("*", async (c, next) => {
-      const to = legacyAdminRedirect(c.req.path);
+      const to = isRetiredBkndAdminPath(c.req.path) ? "/" : legacyAdminRedirect(c.req.path);
       return to ? c.redirect(to, 302) : next();
    });
 
-   // Session gate for the staff screens, bknd's admin UI (/bknd, admins only) and the picker.
+   // Session gate for the staff screens and the picker.
    app.use("*", async (c, next) => {
       const p = c.req.path;
-      const gated = isStaffScreen(p) || isAdminUiPath(p) || p === "/picker" || p.startsWith("/picker/");
+      const gated = isStaffScreen(p) || p === "/picker" || p.startsWith("/picker/");
       if (!gated) return next();
       const user = await sessionUser(c, deps);
       if (!user) {
@@ -148,7 +133,6 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          const url = new URL(c.req.url);
          return c.redirect(`/sso/login?return=${encodeURIComponent(url.pathname + url.search)}`, 302);
       }
-      if (isAdminUiPath(p) && user.role !== "admin") return renderStatus(c, "no_access", 403);
       c.set("user", user);
       return next();
    });
@@ -185,14 +169,6 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       const target = c.req.method === "POST" && res.ok ? entityUploadTarget(p) : null;
       if (target) await keepNewestMedia(bknd, c.env.MEDIA, target);
       return res;
-   });
-
-   app.get("*", async (c) => {
-      if (!isAdminUiPath(c.req.path)) return renderStatus(c, "not_found", 404);
-      const bknd = await deps.getApp(c);
-      const res = await bknd.fetch(c.req.raw, c.env, c.executionCtx);
-      const type = res.headers.get("content-type") ?? "";
-      return type.includes("text/html") ? decorateAdminHtml(res, c.get("nonce")) : res;
    });
 
    app.all("*", (c) => renderStatus(c, "not_found", 404));

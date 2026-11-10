@@ -142,29 +142,19 @@ test.describe("signed in", () => {
       await context.close();
    });
 
-   test("an admin (qa-admin) reaches the admin UI and the picker (en/ar, axe)", async ({ context, page }) => {
+   test("an admin (qa-admin) reaches the staff screens (en/ar, axe)", async ({ context, page }) => {
       const res = await browserSignIn(context, page, ACCOUNTS.admin);
       expect(res?.status()).toBeLessThan(400);
       await expect(page).toHaveURL(`${CMS_URL}/`);
-      await expect(page.locator("#loading")).toHaveCount(0, { timeout: 30_000 });
-      await expect(page.getByRole("link", { name: /Video picker/ })).toBeVisible();
-      await expect(page.getByRole("link", { name: /^Accounts/ })).toHaveAttribute("href", "/sso/accounts?return=%2F");
+      await page.locator("summary.who").click();
+      await expect(page.getByRole("menuitem", { name: "Switch account" })).toHaveAttribute("href", "/sso/accounts?return=%2F");
       await shot(page, "admin-home");
-
       for (const lang of ["en", "ar"] as const) {
-         await page.goto(`/picker?lang=${lang}`);
+         await page.goto(`/videos?lang=${lang}`);
          await expect(page.locator("html")).toHaveAttribute("dir", lang === "ar" ? "rtl" : "ltr");
-         await expect(page.getByLabel(lang === "ar" ? "عبارة البحث" : "Search term")).toBeVisible();
          await expectNoAxeViolations(page);
-         await shot(page, `picker-${lang}`);
+         await shot(page, `videos-${lang}`);
       }
-
-      // Keyboard: the search form is reachable and submits with Enter.
-      await page.goto("/picker?lang=en");
-      await page.getByLabel("Search term").fill("qa");
-      await page.keyboard.press("Enter");
-      await expect(page.locator("#search-status")).not.toHaveText("", { timeout: 20_000 });
-      await shot(page, "picker-results-en");
    });
 
    test("an admin publishes a post via the data API; it appears in the public API (and on www); drafts never do", async ({ request }) => {

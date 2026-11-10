@@ -111,7 +111,6 @@ export function initEditor(): void {
          for (const t of $$("[data-md-tab]", form)) {
             const on = t === tab;
             t.setAttribute("aria-selected", String(on));
-            t.setAttribute("aria-pressed", String(on));
          }
          body.hidden = show;
          preview.hidden = !show;
@@ -212,6 +211,14 @@ export function initEditor(): void {
          all.at(-1)?.remove();
          markDirty();
       }
+   });
+   // Typed or pasted commas split into tags.
+   tagInput?.addEventListener("input", () => {
+      if (!tagInput.value.includes(",")) return;
+      const parts = tagInput.value.split(",");
+      const rest = parts.pop() ?? "";
+      for (const p of parts) addTag(p);
+      tagInput.value = rest;
    });
    tagInput?.addEventListener("blur", () => {
       if (tagInput.value.trim()) {

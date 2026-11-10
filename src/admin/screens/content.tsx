@@ -35,15 +35,37 @@ export function parseListParams(url: URL): ListParams {
    };
 }
 
-export function listWhere(p: Pick<ListParams, "q" | "status" | "locale">): Record<string, unknown> {
+/**
+ * bknd 0.21 joins `$or` to its sibling conditions with OR (`status = 'draft' OR title LIKE …`), so
+ * a search is two AND-only queries (title, then address) merged here (docs/ADMIN_UI_SPEC.md §0).
+ */
+export function listWheres(p: Pick<ListParams, "q" | "status" | "locale">): Record<string, unknown>[] {
    const where: Record<string, unknown> = {};
    if (p.status) where.status = p.status;
    if (p.locale) where.locale = p.locale;
-   if (p.q) {
-      const like = `*${p.q.replace(/\*/g, "")}*`;
-      where.$or = { title: { $like: like }, slug: { $like: like } };
-   }
-   return where;
+   if (!p.q) return [where];
+   const like = `*${p.q.replace(/\*/g, "")}*`;
+   return [
+      { ...where, title: { $like: like } },
+      { ...where, slug: { $like: like } },
+   ];
+}
+
+const SEARCH_CAP = 500;
+
+async function searchList(data: Data, kind: ContentKind, p: ListParams, select: string[]): Promise<{ data: Row[]; total: number }> {
+   const wheres = listWheres(p);
+   if (wheres.length === 1) return data.list(kind, { limit: PAGE_SIZE, offset: (p.page - 1) * PAGE_SIZE, sort: SORTS[p.sort], where: wheres[0], select });
+   const parts = await Promise.all(wheres.map((where) => data.list(kind, { limit: SEARCH_CAP, sort: SORTS[p.sort], where, select })));
+   const seen = new Map<string, Row>();
+   for (const r of parts.flatMap((x) => x.data)) seen.set(String(r.id), r);
+   const key = SORTS[p.sort].replace(/^-/, "");
+   const desc = SORTS[p.sort].startsWith("-");
+   const all = [...seen.values()].sort((a, b) => {
+      const c = String(a[key] ?? "").localeCompare(String(b[key] ?? ""));
+      return (desc ? -c : c) || Number(b.id) - Number(a.id);
+   });
+   return { data: all.slice((p.page - 1) * PAGE_SIZE, p.page * PAGE_SIZE), total: all.length };
 }
 
 const qs = (p: ListParams, over: Partial<ListParams>) => {
@@ -60,9 +82,8 @@ const qs = (p: ListParams, over: Partial<ListParams>) => {
 
 export async function contentList(v: View, data: Data, kind: ContentKind, p: ListParams) {
    const { t } = v;
-   const where = listWhere(p);
    const select = ["id", "title", "slug", "locale", "status", "updated_at", "published_at", ...(kind === "posts" ? ["author_name"] : [])];
-   const res = await data.list(kind, { limit: PAGE_SIZE, offset: (p.page - 1) * PAGE_SIZE, sort: SORTS[p.sort], where, select });
+   const res = await searchList(data, kind, p, select);
    const pages = Math.max(1, Math.ceil(res.total / PAGE_SIZE));
    const base = `/${kind}`;
    const filtered = !!(p.q || p.status || p.locale);
@@ -258,7 +279,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
             novalidate
          >
             <div class="stack">
-               <section class="card stack" aria-label={t.content.title}>
+               <section class="card stack">
                   <div class="field">
                      <label for="f-title">{t.content.title}</label>
                      <input id="f-title" class="input" name="title" required maxlength={200} value={s("title")} placeholder={t.content.titlePh} lang={locale} dir="auto" style="font-size:20px;font-weight:700" />
@@ -292,10 +313,10 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                      </span>
                      <div class="md-bar" role="toolbar" aria-label={t.content.toolbar} aria-controls="f-body">
                         <div class="seg" role="tablist">
-                           <button type="button" role="tab" aria-selected="true" aria-pressed="true" data-md-tab="write">
+                           <button type="button" role="tab" aria-selected="true" data-md-tab="write">
                               {t.content.write}
                            </button>
-                           <button type="button" role="tab" aria-selected="false" aria-pressed="false" data-md-tab="preview">
+                           <button type="button" role="tab" aria-selected="false" data-md-tab="preview">
                               {t.content.preview}
                            </button>
                         </div>

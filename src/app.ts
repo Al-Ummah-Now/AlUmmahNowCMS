@@ -10,7 +10,6 @@ import { createApp, registries, StorageR2Adapter, type CloudflareBkndConfig } fr
 import { code } from "bknd/modes";
 import { MEDIA_BINDING, moduleConfig } from "./bknd-config.ts";
 import { contentRulesPlugin } from "./lib/content-rules.ts";
-import { BKND_ADMIN_BASE } from "./lib/paths.ts";
 import type { Env, RuntimeConfig } from "./env.ts";
 
 /** Registers the "r2" media adapter on the MEDIA bucket (config `{ binding: "MEDIA" }`). */
@@ -41,7 +40,8 @@ export function bkndConfig(cfg: RuntimeConfig, db?: D1Database): CloudflareBkndC
       bindings: (env) => ({ db: env.DB }),
       // bknd's default registerMedia scans every env binding with util.inspect; register ours directly.
       registerMedia: (env) => registerR2(env.MEDIA),
-      adminOptions: { adminBasepath: BKND_ADMIN_BASE, logoReturnPath: "/", theme: "light" },
+      // bknd's admin UI is retired (docs/ADMIN_UI_SPEC.md §9): staff use the screens in src/admin.
+      adminOptions: false,
    });
 }
 

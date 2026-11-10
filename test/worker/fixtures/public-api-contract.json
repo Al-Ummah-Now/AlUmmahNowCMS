@@ -1,0 +1,342 @@
+{
+  "/api/public/v1/site?locale=en": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "settings": {
+        "locale": "en",
+        "site_title": "Al Ummah Now",
+        "tagline": "Tag",
+        "hero_title": "Hero",
+        "hero_body": "Body",
+        "social": [
+          {
+            "kind": "youtube",
+            "url": "https://youtube.com/@x"
+          }
+        ]
+      },
+      "nav": {
+        "header": [
+          {
+            "label": "Videos",
+            "url": "/videos"
+          }
+        ],
+        "footer": [
+          {
+            "label": "Contact",
+            "url": "https://example.org/contact"
+          }
+        ]
+      }
+    }
+  },
+  "/api/public/v1/site?locale=ar": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "settings": null,
+      "nav": {
+        "header": [],
+        "footer": []
+      }
+    }
+  },
+  "/api/public/v1/home?locale=en": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "settings": {
+        "locale": "en",
+        "site_title": "Al Ummah Now",
+        "tagline": "Tag",
+        "hero_title": "Hero",
+        "hero_body": "Body",
+        "social": [
+          {
+            "kind": "youtube",
+            "url": "https://youtube.com/@x"
+          }
+        ]
+      },
+      "videos": [
+        {
+          "id": "<id>",
+          "kind": "video",
+          "ref_id": "vid-1",
+          "title_override": "Featured talk",
+          "snapshot": {
+            "title": "Talk one",
+            "thumbnail_url": "https://cdn.test/1.jpg",
+            "channel_name": "Channel"
+          },
+          "sort": 10
+        }
+      ],
+      "posts": [
+        {
+          "slug": "second",
+          "locale": "en",
+          "title": "Second",
+          "excerpt": null,
+          "cover": null,
+          "author_name": null,
+          "tags": [],
+          "published_at": "<iso-date>",
+          "updated_at": "<iso-date>"
+        },
+        {
+          "slug": "first",
+          "locale": "en",
+          "title": "First",
+          "excerpt": "One",
+          "cover": null,
+          "author_name": "Editorial",
+          "tags": [
+            "news"
+          ],
+          "published_at": "<iso-date>",
+          "updated_at": "<iso-date>"
+        }
+      ]
+    }
+  },
+  "/api/public/v1/pages/about?locale=en": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "slug": "about",
+      "locale": "en",
+      "title": "About Al Ummah Now",
+      "summary": "Who we are",
+      "body": "# About\n\n::video[vid-1]\n",
+      "seo_title": "About us",
+      "seo_description": "Desc",
+      "cover": {
+        "url": "https://cms.test/api/public/v1/media/<file>",
+        "alt": "A lantern",
+        "width": null,
+        "height": null
+      },
+      "published_at": "<iso-date>",
+      "updated_at": "<iso-date>",
+      "alternates": [
+        {
+          "locale": "ar",
+          "slug": "about"
+        }
+      ]
+    }
+  },
+  "/api/public/v1/pages/about?locale=ar": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "slug": "about",
+      "locale": "ar",
+      "title": "من نحن",
+      "summary": null,
+      "body": "نص",
+      "seo_title": null,
+      "seo_description": null,
+      "cover": null,
+      "published_at": "<iso-date>",
+      "updated_at": "<iso-date>",
+      "alternates": [
+        {
+          "locale": "en",
+          "slug": "about"
+        }
+      ]
+    }
+  },
+  "/api/public/v1/pages/secret?locale=en": {
+    "status": 404,
+    "cache": "public, s-maxage=30",
+    "etag": false,
+    "body": {
+      "error": "not_found"
+    }
+  },
+  "/api/public/v1/posts?locale=en": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "items": [
+        {
+          "slug": "second",
+          "locale": "en",
+          "title": "Second",
+          "excerpt": null,
+          "cover": null,
+          "author_name": null,
+          "tags": [],
+          "published_at": "<iso-date>",
+          "updated_at": "<iso-date>"
+        },
+        {
+          "slug": "first",
+          "locale": "en",
+          "title": "First",
+          "excerpt": "One",
+          "cover": null,
+          "author_name": "Editorial",
+          "tags": [
+            "news"
+          ],
+          "published_at": "<iso-date>",
+          "updated_at": "<iso-date>"
+        }
+      ],
+      "page": 1,
+      "limit": 10,
+      "total": 2
+    }
+  },
+  "/api/public/v1/posts?locale=en&page=2&limit=1": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "items": [
+        {
+          "slug": "first",
+          "locale": "en",
+          "title": "First",
+          "excerpt": "One",
+          "cover": null,
+          "author_name": "Editorial",
+          "tags": [
+            "news"
+          ],
+          "published_at": "<iso-date>",
+          "updated_at": "<iso-date>"
+        }
+      ],
+      "page": 2,
+      "limit": 1,
+      "total": 2
+    }
+  },
+  "/api/public/v1/posts/first?locale=en": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "slug": "first",
+      "locale": "en",
+      "title": "First",
+      "excerpt": "One",
+      "cover": null,
+      "author_name": "Editorial",
+      "tags": [
+        "news"
+      ],
+      "published_at": "<iso-date>",
+      "updated_at": "<iso-date>",
+      "body": "Body",
+      "seo_title": null,
+      "seo_description": null,
+      "alternates": []
+    }
+  },
+  "/api/public/v1/posts/hidden?locale=en": {
+    "status": 404,
+    "cache": "public, s-maxage=30",
+    "etag": false,
+    "body": {
+      "error": "not_found"
+    }
+  },
+  "/api/public/v1/videos?locale=en&placement=videos": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "items": [
+        {
+          "id": "<id>",
+          "kind": "playlist",
+          "ref_id": "pl-1",
+          "title_override": null,
+          "snapshot": {
+            "title": "Series",
+            "thumbnail_url": null,
+            "channel_name": "Channel"
+          },
+          "sort": 10
+        }
+      ]
+    }
+  },
+  "/api/public/v1/videos?locale=ar&placement=home": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "items": [
+        {
+          "id": "<id>",
+          "kind": "video",
+          "ref_id": "vid-1",
+          "title_override": "Featured talk",
+          "snapshot": {
+            "title": "Talk one",
+            "thumbnail_url": "https://cdn.test/1.jpg",
+            "channel_name": "Channel"
+          },
+          "sort": 10
+        }
+      ]
+    }
+  },
+  "/api/public/v1/sitemap": {
+    "status": 200,
+    "cache": "public, s-maxage=60, stale-while-revalidate=600",
+    "etag": true,
+    "body": {
+      "items": [
+        {
+          "type": "page",
+          "locale": "ar",
+          "slug": "about",
+          "updated_at": "<iso-date>"
+        },
+        {
+          "type": "page",
+          "locale": "en",
+          "slug": "about",
+          "updated_at": "<iso-date>"
+        },
+        {
+          "type": "post",
+          "locale": "en",
+          "slug": "second",
+          "updated_at": "<iso-date>"
+        },
+        {
+          "type": "post",
+          "locale": "en",
+          "slug": "first",
+          "updated_at": "<iso-date>"
+        }
+      ]
+    }
+  },
+  "/api/public/v1/site?locale=fr": {
+    "status": 400,
+    "cache": "no-store",
+    "etag": false,
+    "body": {
+      "error": "bad_request",
+      "message": "locale must be en or ar"
+    }
+  }
+}
