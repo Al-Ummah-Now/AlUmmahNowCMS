@@ -183,7 +183,7 @@ export function AiDialogs(props: { v: View; locale: Locale; other: Locale; kind:
                      {a.discard}
                   </button>
                   <button class="btn primary" type="button" data-ai-tr-create hidden>
-                     <Icon name="plus" size={18} /> {a.createDraft(otherName)}
+                     <Icon name="pen" size={18} /> {a.createDraft(otherName)}
                   </button>
                   <button class="btn primary" type="button" data-ai-tr-fill hidden>
                      <Icon name="external" size={18} class="flip" /> {a.fillExisting(otherName)}

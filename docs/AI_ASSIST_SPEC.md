@@ -159,7 +159,7 @@ One `ai_usage` row per Messages API call: `at`, `day` (UTC), `env`, `user_id`, `
 - The collector side (vendor `anthropic` in #266's product list, and a server-to-server read of this
   rollup) is AlUmmahNow work; a `queue` issue is filed there.
 
-## 6. Data (expand-only migration `0003_ai_assist.sql`)
+## 6. Data (expand-only migration `0006_ai_assist.sql`)
 
 Worker-owned tables, outside bknd's schema (so bknd's data API never exposes them):
 

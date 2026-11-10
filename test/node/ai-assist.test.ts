@@ -10,7 +10,7 @@ import { chunkMarkdown, invariantWarnings, urls, videoIds } from "../../src/lib/
 import { BASE_CATEGORIES, EXTENSION_CATEGORIES, POLICY_CATEGORY_IDS } from "../../src/lib/ai/policy.ts";
 import { costUsd } from "../../src/lib/ai/pricing.ts";
 import { MODELS, SCHEMAS, translateSystem, validateCheck, validateSeo } from "../../src/lib/ai/prompts.ts";
-import { backoffSeconds, isDeadLetterQueue } from "../../src/lib/ai/runner.ts";
+import { backoffSeconds, isAiQueue, isDeadLetterQueue } from "../../src/lib/ai/runner.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import { addArgs, consumerPlan, consumersFor, listedConsumers } from "../../scripts/release/queue-consumers.ts";
 import { checkBindings } from "../../scripts/check-secrets.ts";
@@ -149,6 +149,9 @@ describe("keys, dedupe, errors", () => {
       expect(backoffSeconds(1)).toBe(15);
       expect(backoffSeconds(5)).toBe(240);
       expect(backoffSeconds(9)).toBe(300);
+      // One queue() serves both features: AI queues go to the AI runner, the rest to image variants
+      for (const q of ["al-ummah-now-cms-ai", "al-ummah-now-cms-ai-dlq", "al-ummah-now-cms-ai-stage", "al-ummah-now-cms-ai-dlq-qa"]) expect(isAiQueue(q)).toBe(true);
+      for (const q of ["al-ummah-now-cms-variants", "al-ummah-now-cms-variants-dlq-qa", "al-ummah-now-cms-aix"]) expect(isAiQueue(q)).toBe(false);
       expect(isDeadLetterQueue("al-ummah-now-cms-ai-dlq")).toBe(true);
       expect(isDeadLetterQueue("al-ummah-now-cms-ai-dlq-qa")).toBe(true);
       expect(isDeadLetterQueue("al-ummah-now-cms-ai-qa")).toBe(false);
@@ -173,18 +176,19 @@ describe("release: queue consumers and the optional secret", () => {
 
    it("plans a consumer add only for queues that don't list the Worker yet", () => {
       const consumers = consumersFor(config as never, "stage");
-      expect(consumers.map((c) => c.queue)).toEqual(["al-ummah-now-cms-ai-stage", "al-ummah-now-cms-ai-dlq-stage"]);
+      expect(consumers.map((c) => c.queue)).toEqual(["al-ummah-now-cms-variants-stage", "al-ummah-now-cms-ai-stage", "al-ummah-now-cms-ai-dlq-stage"]);
       expect(listedConsumers("Number of Consumers: 1\nConsumers: worker:al-ummah-now-cms-stage, worker:other")).toEqual(["al-ummah-now-cms-stage", "other"]);
       expect(listedConsumers("Number of Consumers: 0")).toEqual([]);
-      const plan = consumerPlan("al-ummah-now-cms-stage", consumers, (q) => (q.includes("dlq") ? "Consumers: worker:al-ummah-now-cms-stage" : "Number of Consumers: 0"));
+      // The variants queue and the AI DLQ already list the Worker; only the AI queue needs adding
+      const plan = consumerPlan("al-ummah-now-cms-stage", consumers, (q) => (q.includes("dlq") || q.includes("variants") ? "Consumers: worker:al-ummah-now-cms-stage" : "Number of Consumers: 0"));
       expect(plan).toEqual([
-         addArgs("al-ummah-now-cms-stage", consumers[0]),
+         addArgs("al-ummah-now-cms-stage", consumers[1]),
       ]);
       expect(plan[0]).toEqual([
          "queues", "consumer", "add", "al-ummah-now-cms-ai-stage", "al-ummah-now-cms-stage",
          "--batch-size", "1", "--batch-timeout", "1", "--message-retries", "5", "--max-concurrency", "5", "--dead-letter-queue", "al-ummah-now-cms-ai-dlq-stage",
       ]);
-      expect(consumersFor(config as never, "production")[0].queue).toBe("al-ummah-now-cms-ai");
+      expect(consumersFor(config as never, "production").map((c) => c.queue)).toContain("al-ummah-now-cms-ai");
    });
 
    it("ANTHROPIC_API_KEY is optional: missing is fine, a plain var is not", () => {
