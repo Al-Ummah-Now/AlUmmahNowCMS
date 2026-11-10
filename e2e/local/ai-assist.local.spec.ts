@@ -1,6 +1,6 @@
 /**
  * AI writing assist, every editor flow (docs/AI_ASSIST_SPEC.md §9), against `wrangler dev` with a mock
- * auth issuer and a mock Claude API (playwright.local.config.ts). English and Arabic UI (RTL), light
+ * auth issuer and a mock Workers AI (playwright.local.config.ts). English and Arabic UI (RTL), light
  * and dark, accessible names and axe on every state.
  */
 import AxeBuilder from "@axe-core/playwright";
@@ -193,7 +193,7 @@ test("admins see the failed job on the Overview and can dismiss it", async ({ pa
    else await expect(card.getByRole("button", { name: ADMIN_STRINGS.en.ai.dismiss })).toHaveCount(before - 1);
 });
 
-test.describe("not set up (no key)", () => {
+test.describe("not set up (no Workers AI binding)", () => {
    for (const lang of ["en", "ar"] as const) {
       test(`admins see the notice, editors see nothing (${lang})`, async ({ page }) => {
          const A = ADMIN_STRINGS[lang].ai;

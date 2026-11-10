@@ -3,7 +3,7 @@
  * lease-based claim (a duplicate queue delivery is a no-op), partial results for resumable chunked
  * translation, failure flags for admins, the usage log and its daily rollup for the cost dashboard.
  */
-import { costUsd } from "./pricing.ts";
+import { estimateNeurons, neuronsToUsd } from "./pricing.ts";
 import { PROMPT_VERSION, type Feature, type Locale } from "./prompts.ts";
 import type { CallUsage } from "./client.ts";
 
@@ -223,61 +223,50 @@ export async function dismissFailure(db: D1Database, id: string): Promise<boolea
 export async function recordUsage(db: D1Database, p: { env: string; job: Pick<Job, "id" | "user_id" | "feature">; usage: CallUsage; status: string; now: number }): Promise<void> {
    const { usage: u } = p;
    const day = new Date(p.now).toISOString().slice(0, 10);
+   const neurons = u.neurons ?? estimateNeurons(u.model, { input: u.input, output: u.output, cached: u.cached });
    await db
       .prepare(
-         `INSERT INTO ai_usage (id, at, day, env, user_id, feature, model, job_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd, status)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)`,
+         `INSERT INTO ai_usage (id, at, day, env, user_id, feature, model, job_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, neurons, cost_usd, status)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?12, ?13, ?14)`,
       )
-      .bind(
-         crypto.randomUUID(),
-         p.now,
-         day,
-         p.env,
-         p.job.user_id,
-         p.job.feature,
-         u.model,
-         p.job.id,
-         u.input,
-         u.output,
-         u.cacheRead,
-         u.cacheWrite,
-         costUsd(u.model, { input: u.input, output: u.output, cacheRead: u.cacheRead, cacheWrite: u.cacheWrite }),
-         p.status,
-      )
+      .bind(crypto.randomUUID(), p.now, day, p.env, p.job.user_id, p.job.feature, u.model, p.job.id, u.input, u.output, u.cached, neurons, neuronsToUsd(neurons), p.status)
       .run();
+   // Workers Logs line per call, so cost can be checked without D1 access (spec §5).
+   console.log(JSON.stringify({ msg: "ai_usage", env: p.env, feature: p.job.feature, model: u.model, jobId: p.job.id, input: u.input, output: u.output, neurons, status: p.status }));
 }
 
-/** Daily rollup in the cost spec's vendor_costs_daily shape, plus token totals by feature and by user. */
+/** Daily rollup in the cost spec's vendor_costs_daily shape, plus token and Neuron totals by feature and by user. */
 export async function usageRollup(db: D1Database, from: string, to: string) {
    const [daily, byFeature, byUser] = await db.batch([
       db
          .prepare(
-            `SELECT day, env, model, SUM(cost_usd) AS amount_usd, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, COUNT(*) AS calls
+            `SELECT day, env, model, SUM(cost_usd) AS amount_usd, SUM(neurons) AS neurons, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, COUNT(*) AS calls
              FROM ai_usage WHERE day BETWEEN ?1 AND ?2 GROUP BY day, env, model ORDER BY day, model`,
          )
          .bind(from, to),
       db
          .prepare(
-            `SELECT feature, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, SUM(cost_usd) AS amount_usd, COUNT(*) AS calls
+            `SELECT feature, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, SUM(neurons) AS neurons, SUM(cost_usd) AS amount_usd, COUNT(*) AS calls
              FROM ai_usage WHERE day BETWEEN ?1 AND ?2 GROUP BY feature ORDER BY feature`,
          )
          .bind(from, to),
       db
          .prepare(
-            `SELECT a.user_id, u.email, SUM(a.input_tokens) AS input_tokens, SUM(a.output_tokens) AS output_tokens, SUM(a.cost_usd) AS amount_usd, COUNT(*) AS calls
+            `SELECT a.user_id, u.email, SUM(a.input_tokens) AS input_tokens, SUM(a.output_tokens) AS output_tokens, SUM(a.neurons) AS neurons, SUM(a.cost_usd) AS amount_usd, COUNT(*) AS calls
              FROM ai_usage a LEFT JOIN users u ON u.id = a.user_id WHERE a.day BETWEEN ?1 AND ?2 GROUP BY a.user_id ORDER BY amount_usd DESC`,
          )
          .bind(from, to),
    ]);
-   type Daily = { day: string; env: string; model: string; amount_usd: number; input_tokens: number; output_tokens: number; calls: number };
+   type Daily = { day: string; env: string; model: string; amount_usd: number; neurons: number; input_tokens: number; output_tokens: number; calls: number };
    return {
       vendor_costs_daily: ((daily.results ?? []) as Daily[]).map((r) => ({
          day: r.day,
-         vendor: "anthropic",
+         vendor: "cloudflare-workers-ai",
          line_item: r.model,
          env: r.env,
          amount_usd: Math.round(Number(r.amount_usd) * 1e6) / 1e6,
          source: "estimate" as const,
+         neurons: Math.round(Number(r.neurons) * 1000) / 1000,
          input_tokens: Number(r.input_tokens),
          output_tokens: Number(r.output_tokens),
          calls: Number(r.calls),

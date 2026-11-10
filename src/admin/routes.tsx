@@ -44,7 +44,7 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       wwwUrl: cfg.wwwUrl,
       adminWebUrl: adminWeb,
       assets: assetUrls(prefs.theme),
-      ai: await aiConfigured(c.env),
+      ai: aiConfigured(c.env),
    };
 }
 

@@ -1,8 +1,8 @@
 /**
- * AI writing assist on a deployed CMS (docs/AI_ASSIST_SPEC.md §9). QA has no Anthropic key yet, so
- * this checks the "not set up" states: admins see the notice, moderators see no AI controls. When a
- * key is configured in the env, it checks that both roles get the controls instead. The editor
- * flows themselves run against mocks in e2e/local (no real API calls from CI).
+ * AI writing assist on a deployed CMS (docs/AI_ASSIST_SPEC.md §9). Every env declares the Workers AI
+ * binding, so both roles normally get the controls; an env without the binding shows admins the "not
+ * set up" notice and moderators nothing. The editor flows themselves run against mocks in e2e/local
+ * (no model calls from CI).
  */
 import { expect, test } from "@playwright/test";
 import { ADMIN_STRINGS } from "../src/admin/i18n.ts";

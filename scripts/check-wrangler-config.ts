@@ -1,7 +1,8 @@
 /**
  * wrangler.jsonc must match the environment table (SPEC §2, scripts/release/envs.ts):
  * top level = production, env.stage and env.qa; custom domains only; workers_dev off; every env
- * lists its own D1 (with migrations_dir) and R2 binding and the right auth issuer/client id.
+ * lists its own D1 (with migrations_dir) and R2 binding, the Workers AI binding, and the right auth
+ * issuer/client id.
  *
  *   node --experimental-strip-types scripts/check-wrangler-config.ts
  */
@@ -18,6 +19,7 @@ interface EnvConfig {
    d1_databases?: { binding: string; database_name: string; database_id: string; migrations_dir?: string }[];
    r2_buckets?: { binding: string; bucket_name: string }[];
    kv_namespaces?: { binding: string; id: string }[];
+   ai?: { binding?: string };
    triggers?: { crons?: string[] };
    queues?: {
       producers?: { binding: string; queue: string }[];
@@ -59,9 +61,11 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
       for (const k of ["VIDEOS_API_URL", "VIDEOS_WEB_URL", "WWW_URL", "WWW_ORIGINS", "ADMIN_API_URL", "ADMIN_WEB_URL"]) {
          if (!v[k]?.startsWith("https://")) errors.push(`${where}: ${k} must be an https URL`);
       }
-      if ("BKND_JWT_SECRET" in v || "CMS_CLIENT_SECRET" in v || "ANTHROPIC_API_KEY" in v) errors.push(`${where}: secrets must not be vars`);
-      // A mock API URL is for local runs only (src/lib/ai/config.ts ignores it outside ENVIRONMENT=local).
-      if ("ANTHROPIC_BASE_URL" in v) errors.push(`${where}: ANTHROPIC_BASE_URL is local-only (.dev.vars)`);
+      if ("BKND_JWT_SECRET" in v || "CMS_CLIENT_SECRET" in v) errors.push(`${where}: secrets must not be vars`);
+      // A mock model URL is for local runs only (src/lib/ai/config.ts ignores it outside ENVIRONMENT=local).
+      if ("AI_MOCK_URL" in v) errors.push(`${where}: AI_MOCK_URL is local-only (.dev.vars)`);
+      // AI assist runs on Workers AI (docs/AI_ASSIST_SPEC.md §2): bindings aren't inherited, each env declares it.
+      if (c.ai?.binding !== "AI") errors.push(`${where}: ai must be { binding: "AI" } (Workers AI for AI assist)`);
       // AI assist jobs (docs/AI_ASSIST_SPEC.md §3): producer AI_JOBS, a consumer with a DLQ, and the DLQ's consumer.
       const q = c.queues ?? {};
       const { name: aiQueue, dlq } = want.aiQueue;

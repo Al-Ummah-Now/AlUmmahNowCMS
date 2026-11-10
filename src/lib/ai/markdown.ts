@@ -4,7 +4,11 @@
  * (`::video[ID]` lines, URLs).
  */
 
-export const CHUNK_MAX_CHARS = 12_000;
+/**
+ * Workers AI evidence (docs/AI_ASSIST_SPEC.md §1.5): at ~12,000 characters a chunk's en → ar output
+ * drifted (repeated sections) in 2 of 2 runs; at ~6,000 it was exact in 4 of 4, and twice as fast.
+ */
+export const CHUNK_MAX_CHARS = 6_000;
 
 const FENCE = /^\s{0,3}(```|~~~)/;
 
