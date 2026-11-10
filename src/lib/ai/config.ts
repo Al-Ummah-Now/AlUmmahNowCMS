@@ -38,8 +38,10 @@ export async function resolveApiKey(env: AiEnv): Promise<string | null> {
 /** The API base URL: the SDK default, unless this is a local run pointing at a mock. */
 export function apiBaseUrl(env: AiEnv): string | undefined {
    if (env.ENVIRONMENT !== "local") return undefined;
-   const u = env.ANTHROPIC_BASE_URL?.trim();
-   return u ? u.replace(/\/+$/, "") : undefined;
+   let u = env.ANTHROPIC_BASE_URL?.trim() ?? "";
+   // Drop trailing slashes with a loop, not /\/+$/ (polynomial backtracking on long "////" runs)
+   while (u.endsWith("/")) u = u.slice(0, -1);
+   return u || undefined;
 }
 
 /** Configured = a key and a queue to run jobs on. */
