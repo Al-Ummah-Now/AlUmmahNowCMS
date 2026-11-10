@@ -100,7 +100,7 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
       <>
          <PageHead title={t.entities[kind].many} intro={kind === "pages" ? t.content.pagesIntro : t.content.postsIntro}>
             <a class="btn primary" href={`${base}/new`}>
-               <Icon name="plus" size={18} /> {kind === "pages" ? t.content.newPage : t.content.newPost}
+               <Icon name={kind === "pages" ? "file" : "pen"} size={18} /> {kind === "pages" ? t.content.newPage : t.content.newPost}
             </a>
          </PageHead>
          <form class="toolbar" method="get" action={base} role="search">
@@ -162,7 +162,7 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
             <Empty icon={kind === "pages" ? "file" : "pen"} title={filtered ? t.common.emptySearch : t.common.empty}>
                {filtered ? null : (
                   <a class="btn primary" href={`${base}/new`}>
-                     <Icon name="plus" size={18} /> {kind === "pages" ? t.content.newPage : t.content.newPost}
+                     <Icon name={kind === "pages" ? "file" : "pen"} size={18} /> {kind === "pages" ? t.content.newPage : t.content.newPost}
                   </a>
                )}
             </Empty>
