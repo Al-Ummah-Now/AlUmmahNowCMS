@@ -25,8 +25,10 @@ export default defineConfig({
       // E2E_BROWSERS=all: the same suite in Firefox and WebKit, desktop and phone (QA verification).
       ...(process.env.E2E_BROWSERS === "all"
          ? [
-              { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-              { name: "firefox-phone", use: { ...devices["Desktop Firefox"], viewport: { width: 390, height: 844 } } },
+              // Headless Firefox on CI runners crashes now and then ("Page crashed"; not reproducible locally,
+              // see that issue): one extra retry on top of the global one.
+              { name: "firefox", retries: process.env.CI ? 2 : 0, use: { ...devices["Desktop Firefox"] } },
+              { name: "firefox-phone", retries: process.env.CI ? 2 : 0, use: { ...devices["Desktop Firefox"], viewport: { width: 390, height: 844 } } },
               { name: "webkit", use: { ...devices["Desktop Safari"] } },
               { name: "webkit-phone", use: { ...devices["iPhone 13"] } },
            ]
