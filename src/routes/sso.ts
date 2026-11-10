@@ -10,7 +10,9 @@ import { createPkce, randomToken } from "../lib/pkce.ts";
 import { safeReturnPath } from "../lib/return-path.ts";
 import { mapRoles } from "../lib/roles.ts";
 import { upsertSsoUser } from "../lib/users.ts";
-import type { AppEnv, Ctx, Deps } from "../types.ts";
+import { errText, log } from "../lib/log.ts";
+import { recordSignOut } from "../lib/sign-outs.ts";
+import type { AppEnv, AuthUser, Ctx, Deps } from "../types.ts";
 
 const TX_TTL_SECONDS = 600;
 
@@ -194,6 +196,15 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
    sso.get("/logout", async (c) => {
       const cfg = c.get("cfg");
       const app = await deps.getApp(c);
+      // End every session of this account, not only this cookie (a copy of it stays signed)
+      const signedIn = (await app.module.auth.authenticator.resolveAuthFromRequest(c.req.raw)) as AuthUser | undefined;
+      if (signedIn?.id !== undefined) {
+         try {
+            await recordSignOut(c.env.DB, signedIn.id);
+         } catch (error) {
+            log.error("sso logout: could not record the sign-out", { userId: signedIn.id, error: errText(error) });
+         }
+      }
       const headers = await app.module.auth.authenticator.removeAuthCookieHeader(new Headers());
       for (const cookie of headers.getSetCookie()) c.header("Set-Cookie", cookie, { append: true });
       // Front-channel hop of auth's single sign-out: auth calls
