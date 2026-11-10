@@ -10,7 +10,9 @@
     "isolatedModules": true,
     "strict": true,
     "noUnusedLocals": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx"
   },
-  "include": ["src/admin/client/**/*.ts"]
+  "include": ["src/admin/client/**/*.ts", "test/dom/**/*.ts"]
 }

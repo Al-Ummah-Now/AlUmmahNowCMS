@@ -5,6 +5,7 @@
  * /admin/api/timeline/* and the page reloads where the list itself changes.
  */
 import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
+import { askConfirm } from "./dialogs.ts";
 import { openPicker } from "./picker.ts";
 
 interface S {
@@ -24,15 +25,6 @@ interface S {
 }
 
 const fmt = (s: string, ...a: (string | number)[]) => a.reduce<string>((out, v, i) => out.split(`{${i}}`).join(String(v)), s);
-
-function confirmRemove(text: string): Promise<boolean> {
-   const dlg = $<HTMLDialogElement>("#confirm");
-   if (!dlg) return Promise.resolve(window.confirm(text));
-   const body = $(".dlg-b p", dlg);
-   if (body) body.textContent = text;
-   dlg.showModal();
-   return new Promise((resolve) => dlg.addEventListener("close", () => resolve(dlg.returnValue === "ok"), { once: true }));
-}
 
 const reload = () => location.reload();
 
@@ -61,7 +53,7 @@ export function initTimeline(): void {
             reload();
          } else if (btn.dataset.remove) {
             const isPost = btn.dataset.remove === "post";
-            if (!(await confirmRemove(isPost ? T.removePost : T.removeVideo))) return;
+            if (!(await askConfirm({ body: isPost ? T.removePost : T.removeVideo }))) return;
             if (isPost) await api("POST", `/admin/api/timeline/posts/${key.slice(1)}`, { on: false });
             else await api("DELETE", `/admin/api/timeline/entries/${key}`);
             reload();

@@ -7,6 +7,14 @@ export default defineConfig(async () => {
       test: {
          projects: [
             {
+               // The admin client's DOM behaviour (dialogs), in happy-dom.
+               test: {
+                  name: "dom",
+                  include: ["test/dom/**/*.test.ts"],
+                  environment: "happy-dom",
+               },
+            },
+            {
                test: {
                   name: "node",
                   include: ["test/node/**/*.test.ts"],

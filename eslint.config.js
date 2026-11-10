@@ -14,4 +14,24 @@ export default tseslint.config(
          eqeqeq: ["error", "smart"],
       },
    },
+   {
+      // Never the browser's own prompts: destructive actions and questions use the in-app dialogs
+      // (src/admin/client/dialogs.ts), and nothing hooks beforeunload (in-app links ask instead).
+      files: ["src/**/*.{ts,tsx}"],
+      rules: {
+         "no-alert": "error",
+         "no-restricted-globals": [
+            "error",
+            { name: "confirm", message: "Use askConfirm (src/admin/client/dialogs.ts)." },
+            { name: "alert", message: "Use toast or an inline error." },
+            { name: "prompt", message: "Use an in-app dialog (e.g. askLink)." },
+            { name: "onbeforeunload", message: "No beforeunload prompts: use the in-app leave guard." },
+         ],
+         "no-restricted-syntax": [
+            "error",
+            { selector: "Literal[value='beforeunload']", message: "No beforeunload prompts: use the in-app leave guard (addLeaveGuard)." },
+            { selector: "Identifier[name='onbeforeunload']", message: "No beforeunload prompts: use the in-app leave guard (addLeaveGuard)." },
+         ],
+      },
+   },
 );

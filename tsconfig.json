@@ -19,5 +19,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "scripts/**/*.ts", "e2e/**/*.ts", "bknd.config.ts", "vitest.config.ts", "playwright.config.ts", "playwright.local.config.ts"],
-  "exclude": ["src/admin/client/**"]
+  "exclude": ["src/admin/client/**", "test/dom/**"]
 }
