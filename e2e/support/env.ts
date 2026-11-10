@@ -14,15 +14,26 @@ export interface Account {
    password: string;
 }
 
-// Dedicated CMS E2E accounts by default, on QA and on stage (each env's auth has its own copy;
-// QA_SEED_PASSWORD / STAGE_SEED_PASSWORD hold their passwords, roles are granted in that env's
-// auth D1). E2E_*_EMAIL point the suite at other accounts that share SEED_PASSWORD.
+/** Stage's auth: only seed-managed accounts are used there (see ACCOUNTS). */
+export const ON_STAGE = new URL(AUTH_URL).hostname.includes(".stage.");
+
+// QA: the dedicated CMS E2E accounts (delivered+cms-e2e-*), as before. Stage: ONLY the accounts
+// AlUmmahNow's seed manages (seed-qa.yml, target stage) on the code sink domain: it creates them,
+// grants their roles and resets their password when STAGE_SEED_PASSWORD is rotated, so every
+// repo's copy of the secret keeps working. QA_SEED_PASSWORD / STAGE_SEED_PASSWORD hold the
+// passwords. E2E_*_EMAIL point the suite at other accounts that share SEED_PASSWORD.
+const defaultAccount = (cmsE2e: string, seed: string) =>
+   ON_STAGE ? `${seed}@${SEED_EMAIL_DOMAIN}` : `delivered+cms-e2e-${cmsE2e}@resend.dev`;
+
 export const ACCOUNTS = {
-   admin: { email: process.env.E2E_ADMIN_EMAIL || "delivered+cms-e2e-admin@resend.dev", password: SEED_PASSWORD },
-   moderator: { email: process.env.E2E_MODERATOR_EMAIL || "delivered+cms-e2e-moderator@resend.dev", password: SEED_PASSWORD },
-   viewer: { email: process.env.E2E_VIEWER_EMAIL || "delivered+cms-e2e-viewer@resend.dev", password: SEED_PASSWORD },
+   // Auth Admin -> CMS admin
+   admin: { email: process.env.E2E_ADMIN_EMAIL || defaultAccount("admin", "qa-admin"), password: SEED_PASSWORD },
+   // Auth Moderator -> CMS editor
+   moderator: { email: process.env.E2E_MODERATOR_EMAIL || defaultAccount("moderator", "qa-moderator"), password: SEED_PASSWORD },
+   // No CMS role -> the CMS's "no access" page
+   viewer: { email: process.env.E2E_VIEWER_EMAIL || defaultAccount("viewer", "qa-viewer"), password: SEED_PASSWORD },
    // Has the Scholar role and owns a channel on the env's videos site (docs/SCHOLARS.md): the seeded QA creator.
-   scholar: { email: process.env.E2E_SCHOLAR_EMAIL || "qa-creator@delivered.resend.dev", password: SEED_PASSWORD },
+   scholar: { email: process.env.E2E_SCHOLAR_EMAIL || `qa-creator@${SEED_EMAIL_DOMAIN}`, password: SEED_PASSWORD },
    // DEDICATED to e2e/sso-journey.spec.ts and used by nothing else: that spec ends with single
    // sign-out, which ends every session of the account in every app. On a shared account it
    // bounced the rest of the suite (and other repos' suites) to auth's sign-in page mid-test.
