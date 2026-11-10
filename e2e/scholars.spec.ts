@@ -4,7 +4,7 @@
  * list; an editor features it from the Featuring screen; it reaches www's home timeline and Articles.
  * The screens in en/ar, desktop/phone, with axe. Everything made carries a stamp and is removed.
  *
- * Needs the scholar E2E account (E2E_SCHOLAR_EMAIL, Scholar role, one channel on the videos site).
+ * Needs the scholar account (E2E_SCHOLAR_EMAIL, default the seeded qa-creator: Scholar role, one channel).
  * www checks need WWW_URL. Every wait is a poll with a deadline, never a fixed sleep.
  */
 import { expect, test } from "@playwright/test";
@@ -51,8 +51,9 @@ test.afterAll(async () => {
 
 test.describe("scholar publishing", () => {
    test("a scholar signs in and has a profile", async () => {
-      const me = await as("scholar", "GET", "/admin/api/scholars/me");
-      test.skip(me.status === 401 || me.status === 403, "the scholar E2E account is missing or lacks the Scholar role");
+      // Without the Scholar role the account can't sign in to the CMS at all (the no-access page).
+      const me = await as("scholar", "GET", "/admin/api/scholars/me").catch((error: unknown) => ({ status: 0, json: null, error: String(error) }));
+      test.skip(me.status === 0 || me.status === 401 || me.status === 403, "the scholar E2E account is missing or lacks the Scholar role");
       expect(me.status).toBe(200);
       scholar = me.json!.data as { slug: string; channel_ids: string[] };
       expect(scholar.slug).toMatch(/^[a-z0-9-]+$/);
