@@ -117,14 +117,18 @@ for (const lang of ["en", "ar"] as const) {
                body: "## Where\n\nSee [the map](https://example.org/map).\n\n::video[vid-1]",
             });
             await page.goto(`/posts/${id}${q}`);
+            // The AI fields never share a name with the form fields they fill (the QA editor specs find fields by label)
+            for (const label of [T.content.title, T.content.excerpt, T.content.body, T.content.seoTitle, T.content.seoDescription]) {
+               await expect(page.getByLabel(label, { exact: true }), label).toHaveCount(1);
+            }
             await page.getByRole("button", { name: A.translateTo(T.locales[other]) }).click();
             const dlg = page.getByRole("dialog", { name: A.translationTitle(T.locales[other]) });
             await expect(dlg).toBeVisible();
-            const title = dlg.getByLabel(T.content.title, { exact: true });
+            const title = dlg.getByLabel(A.translatedField(T.content.title, T.locales[other]), { exact: true });
             await expect(title).toHaveAttribute("dir", other === "ar" ? "rtl" : "ltr");
             await expect(title).toHaveAttribute("lang", other);
             await expect(title).toHaveValue(other === "ar" ? `ترجمة: Eid prayer ${stamp()}` : `Translated: Eid prayer ${stamp()}`);
-            await expect(dlg.getByLabel(T.content.body)).toHaveValue(/::video\[vid-1\]/);
+            await expect(dlg.getByLabel(A.translatedField(T.content.body, T.locales[other]), { exact: true })).toHaveValue(/::video\[vid-1\]/);
             await expect(dlg.locator("[data-ai-tr-warn]")).toBeHidden();
             await axe(page, "#ai-translate");
             await shot(page, `translate-${lang}-${mode}`);

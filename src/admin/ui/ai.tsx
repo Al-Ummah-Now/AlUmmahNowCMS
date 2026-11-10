@@ -83,7 +83,7 @@ export function AiSeoPanel(props: { v: View; locale: Locale }) {
    const row = (key: string, label: string, max: number, target?: string, help?: string) => (
       <div class="field ai-sugg" data-sugg={key}>
          <span style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-            <label for={`ai-${key}`}>{label}</label>
+            <label for={`ai-${key}`}>{a.suggestedField(label)}</label>
             <span class="muted" style="font-size:12px" data-counter={`ai-${key}`} data-max={String(max)} aria-hidden="true" />
          </span>
          <div class="ai-sugg-row">
@@ -163,15 +163,15 @@ export function AiDialogs(props: { v: View; locale: Locale; other: Locale; kind:
                      <Icon name="alert" size={18} /> <span>{a.warnings}</span>
                   </p>
                   <div class="field">
-                     <label for="ai-tr-title">{v.t.content.title}</label>
+                     <label for="ai-tr-title">{a.translatedField(v.t.content.title, otherName)}</label>
                      <input id="ai-tr-title" class="input" maxlength={200} lang={other} dir={other === "ar" ? "rtl" : "ltr"} />
                   </div>
                   <div class="field">
-                     <label for="ai-tr-summary">{props.kind === "pages" ? v.t.content.summary : v.t.content.excerpt}</label>
+                     <label for="ai-tr-summary">{a.translatedField(props.kind === "pages" ? v.t.content.summary : v.t.content.excerpt, otherName)}</label>
                      <textarea id="ai-tr-summary" class="textarea" rows={3} maxlength={500} lang={other} dir={other === "ar" ? "rtl" : "ltr"} />
                   </div>
                   <div class="field">
-                     <label for="ai-tr-body">{v.t.content.body}</label>
+                     <label for="ai-tr-body">{a.translatedField(v.t.content.body, otherName)}</label>
                      <textarea id="ai-tr-body" class="textarea code" rows={14} lang={other} dir={other === "ar" ? "rtl" : "ltr"} />
                   </div>
                   <p class="help" data-ai-tr-savefirst hidden>
