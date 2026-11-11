@@ -25,11 +25,37 @@ export function appIconRoutes(): Hono {
    return app;
 }
 
-/** QA and local get a violet corner dot, stage a pink one: one build serves stage and production. */
-export function faviconSvgPath(environment: string | undefined): string {
-   if (environment === "production") return "/favicon.svg";
+/**
+ * QA and local get a violet corner dot, stage a pink one: one build serves stage and production.
+ * Production has no SVG (null): browsers prefer an SVG over sized PNGs and blur its image.
+ */
+export function faviconSvgPath(environment: string | undefined): string | null {
+   if (environment === "production") return null;
    if (environment === "stage") return "/favicon-stage.svg";
    return "/favicon-qa.svg";
+}
+
+export interface IconLink { href: string; type?: string; sizes?: string }
+
+/** Exact-size PNGs, each its own downscale of the owner's art, so the browser never shrinks it itself. */
+export const TAB_PNG_SIZES = [16, 32, 48, 96] as const;
+
+/** rel="icon" links: the ICO, then the sized PNGs (production) or the dot SVG (QA, stage, local). */
+export function tabIconLinks(environment: string | undefined): IconLink[] {
+   const svg = faviconSvgPath(environment);
+   return [
+      { href: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+      ...(svg
+         ? [{ href: svg, type: "image/svg+xml" }]
+         : TAB_PNG_SIZES.map((s) => ({ href: `/favicon-${s}x${s}.png`, type: "image/png", sizes: `${s}x${s}` }))),
+   ];
+}
+
+/** The same links as HTML, for pages rendered from strings. */
+export function tabIconHtml(environment: string | undefined): string {
+   return tabIconLinks(environment)
+      .map((l) => `<link rel="icon" href="${l.href}"${l.type ? ` type="${l.type}"` : ""}${l.sizes ? ` sizes="${l.sizes}"` : ""}>`)
+      .join("\n");
 }
 
 /** The logo's night sky, for theme-color (matches the manifest). */

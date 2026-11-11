@@ -10,7 +10,7 @@ import { ownedChannels } from "../lib/scholars/videos-internal.ts";
 import { errText, log } from "../lib/log.ts";
 import { featuringApi, scholarsApi } from "./scholars-api.ts";
 import { featuringScreen, parseFeaturingParams, profileScreen, scholarsListScreen } from "./screens/scholars.tsx";
-import { faviconSvgPath } from "../lib/app-icons.ts";
+import { tabIconLinks } from "../lib/app-icons.ts";
 import type { Child } from "hono/jsx";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
 import { assetResponse, assetUrls } from "./assets.ts";
@@ -65,7 +65,7 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       wwwUrl: cfg.wwwUrl,
       adminWebUrl: adminWeb,
       assets: assetUrls(prefs.theme),
-      favicon: faviconSvgPath(c.env.ENVIRONMENT),
+      tabIcons: tabIconLinks(c.env.ENVIRONMENT),
       ai: await aiReady(c.env).catch(() => false),
    };
 }

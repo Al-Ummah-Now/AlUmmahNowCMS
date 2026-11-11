@@ -1,4 +1,6 @@
 /** Tiny HTML helpers for the CMS's own server-rendered pages. */
+import { tabIconHtml } from "./app-icons.ts";
+
 export function esc(value: unknown): string {
    return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -45,8 +47,7 @@ export function page(o: PageOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>${esc(o.title)}</title>
-<link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+${tabIconHtml("production") /* these pages have no environment: the plain set */}
 <style nonce="${o.nonce}">${BASE_CSS}${o.extraCss ?? ""}</style>
 </head>
 <body>
