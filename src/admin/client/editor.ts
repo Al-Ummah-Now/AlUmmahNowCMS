@@ -5,7 +5,7 @@ import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
 import { readBlocks, readSlides, showReadError } from "./blocks.ts";
 import { toLocalInput } from "./time.ts";
-import { fallbackBase, firstFree, isJunkSlug, SLUG_RE, slugCandidates, slugify } from "../../lib/slug.ts";
+import { fallbackBase, firstFree, hasArabic, isJunkSlug, SLUG_RE, slugCandidates, slugify } from "../../lib/slug.ts";
 
 interface S {
    slugBad: string;
@@ -15,6 +15,9 @@ interface S {
    slugChangeTitle: string;
    slugChangeBody: string;
    slugChangeOk: string;
+   slugSuggesting: string;
+   slugTranslated: string;
+   slugTransliterated: string;
    required: string;
    saving: string;
    failed: string;
@@ -120,12 +123,65 @@ export function initEditor(): void {
    unlock?.addEventListener("click", async () => {
       if (await unlockLive()) slug.focus();
    });
+   // An Arabic title: the Latin transliteration at once, then the server's English suggestion
+   // (src/lib/slug-suggest.ts) once typing pauses. A reply for an older title, or after the editor
+   // typed an address, is dropped. Save waits for a suggestion in flight.
+   const sourceNote = $<HTMLElement>("[data-slug-source]", form);
+   const note = (text: string) => {
+      if (!sourceNote) return;
+      sourceNote.textContent = text;
+      sourceNote.hidden = !text;
+   };
+   let suggestTimer: ReturnType<typeof setTimeout> | undefined;
+   let suggestSeq = 0;
+   let pending: Promise<void> | null = null;
+   function suggest(fresh: boolean): Promise<void> {
+      const text = title.value.trim();
+      const seq = ++suggestSeq;
+      note(T.slugSuggesting);
+      const run = api<{ slug: string; source: "english" | "translated" | "transliterated" }>("POST", "/admin/api/ai/slug", { kind, locale, title: text, id: id || null, fresh })
+         .then((r) => {
+            if (seq !== suggestSeq || !slugAuto || title.value.trim() !== text) return;
+            slug.value = r.slug;
+            fieldError(slug, "f-slug-err", null);
+            note(r.source === "translated" ? T.slugTranslated : r.source === "transliterated" ? T.slugTransliterated : "");
+            updateSerp();
+         })
+         .catch(() => {
+            if (seq === suggestSeq) note(T.slugTransliterated);
+         })
+         .finally(() => {
+            if (seq === suggestSeq) pending = null;
+         });
+      pending = run;
+      return run;
+   }
+   function fromTitle(fresh: boolean, wait: number) {
+      clearTimeout(suggestTimer);
+      suggestSeq++;
+      pending = null;
+      slug.value = slugify(title.value);
+      fieldError(slug, "f-slug-err", null);
+      if (!hasArabic(title.value)) {
+         note("");
+         return;
+      }
+      note(T.slugSuggesting);
+      if (wait <= 0) void suggest(fresh);
+      else {
+         // Save must not race the debounce: it waits on this until the request is sent.
+         pending = new Promise<void>((resolve) => {
+            suggestTimer = setTimeout(() => void suggest(fresh).then(resolve), wait);
+         });
+      }
+   }
+   /** Lets a save wait (at most ~10 s) for the English suggestion of the current title. */
+   const settled = () => (pending ? Promise.race([pending, new Promise<void>((r) => setTimeout(r, 10_000))]) : Promise.resolve());
    regen?.addEventListener("click", async () => {
       if (!(await unlockLive())) return;
       slugTouched = false;
       slugAuto = true;
-      slug.value = slugify(title.value);
-      fieldError(slug, "f-slug-err", null);
+      fromTitle(true, 0);
       showRegen();
       markDirty();
       updateSerp();
@@ -133,14 +189,15 @@ export function initEditor(): void {
    slug.addEventListener("input", () => {
       slugTouched = true;
       slugAuto = false;
+      clearTimeout(suggestTimer);
+      suggestSeq++;
+      pending = null;
+      note("");
       showRegen();
       updateSerp();
    });
    title.addEventListener("input", () => {
-      if (!slugTouched) {
-         slug.value = slugify(title.value);
-         fieldError(slug, "f-slug-err", null);
-      }
+      if (!slugTouched) fromTitle(false, 800);
       updateSerp();
    });
    showRegen();
@@ -309,6 +366,14 @@ export function initEditor(): void {
       const pressed = ((ev as SubmitEvent).submitter as HTMLElement | null)?.dataset.action;
       const action = pressed === "published" || pressed === "schedule" ? pressed : "draft";
       fieldError(title, "f-title-err", title.value.trim() ? null : T.required);
+      if (slugAuto && pending) {
+         submitting = true;
+         try {
+            await settled();
+         } finally {
+            submitting = false;
+         }
+      }
       // A generated slug can be empty (a title of emoji): "post" / "page", numbered on save.
       if (slugAuto && !slug.value.trim() && title.value.trim()) slug.value = fallbackBase(kind);
       let s = slug.value.trim();

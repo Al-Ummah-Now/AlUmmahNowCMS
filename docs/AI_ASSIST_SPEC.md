@@ -315,6 +315,21 @@ Built with the existing staff components and tokens (`card`, `btn`, `badge`, `di
 - Light and dark from the existing `data-mode`; 44 px targets; visible focus; reduced motion respected
   for the progress indicator.
 
+### 8.1 English page and post addresses (owner decision 2026-11-11)
+
+The address (slug) of a new page or post comes from its title (`src/lib/slug-suggest.ts`). The order is:
+1. An English title: the row's own, or its linked English version's.
+2. The Arabic title translated to a 3–8 word English phrase. This is one inline call through the router on the **translate** route (the same provider and model as ar↔en), not a queued job: `POST /admin/api/ai/slug`. Its limits:
+   - an 8 s timeout;
+   - the env's monthly budget is checked first;
+   - each call is logged in `ai_usage` as feature `slug`;
+   - results are cached by title hash in the Cache API for 30 days, and "Regenerate from title" skips the cache.
+3. Transliteration (`src/lib/slug.ts`).
+
+Qur'an and hadith in a title are rendered literally and neutrally, never interpreted. The answer must slugify to 2–8 plain English words, or the transliteration is used. The editor sees which one it got and can always change it.
+
+E2E accounts (`isTestAccount`) never reach a provider on a deployed env. Worker tests inject a mocked binding, and the local E2E uses the mock server. The data API's own slug fill (content rules) does not call AI.
+
 ## 9. Tests
 
 - **Providers (node, `test/node/ai-providers.test.ts`):** one contract suite run against Workers AI, the

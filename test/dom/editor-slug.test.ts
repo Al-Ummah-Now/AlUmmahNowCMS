@@ -3,7 +3,7 @@
  * title as it is typed, the editor's own once typed in, "Regenerate from title" to go back, and a live
  * row's address locked behind the in-app confirm dialog.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initEditor } from "../../src/admin/client/editor.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
 import { ConfirmDialog } from "../../src/admin/ui/dialogs.tsx";
@@ -20,6 +20,9 @@ function render(opts: { id?: string; slug?: string; live?: boolean } = {}): void
       slugChangeTitle: t.content.slugChangeTitle,
       slugChangeBody: t.content.slugChangeBody,
       slugChangeOk: t.content.slugChangeOk,
+      slugSuggesting: t.content.slugSuggesting,
+      slugTranslated: t.content.slugTranslated,
+      slugTransliterated: t.content.slugTransliterated,
       required: t.common.required,
    };
    const id = opts.id ?? "";
@@ -31,6 +34,7 @@ function render(opts: { id?: string; slug?: string; live?: boolean } = {}): void
       `<input id="f-title" />`,
       `<input id="f-slug" value="${opts.slug ?? ""}" ${id ? "" : 'data-auto-slug="1"'} ${opts.live ? 'readonly data-slug-live="1"' : ""} />`,
       `<p id="f-slug-err" hidden></p>`,
+      `<p data-slug-source hidden></p>`,
       opts.live ? `<p data-slug-locked></p><button type="button" data-slug-unlock>Change</button>` : "",
       `<button type="button" data-slug-regen ${id ? "" : "hidden"}>Regenerate</button>`,
       `</form>`,
@@ -43,6 +47,27 @@ function type(el: HTMLInputElement, value: string) {
    el.value = value;
    el.dispatchEvent(new Event("input", { bubbles: true }));
 }
+
+/** The server's suggestion endpoint, answered without a network. */
+let suggestions: { body: Record<string, unknown> }[] = [];
+let reply: Record<string, unknown> = { slug: "religion-with-allah-is-islam", source: "translated" };
+/** When set, the endpoint answers only once this resolves (a slow server). */
+let gate: Promise<void> | null = null;
+beforeEach(() => {
+   suggestions = [];
+   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/admin/api/ai/slug")) {
+         suggestions.push({ body: JSON.parse(String(init?.body)) });
+         if (gate) await gate;
+         return new Response(JSON.stringify(reply), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("{}", { status: 404 });
+   });
+});
+afterEach(() => {
+   vi.unstubAllGlobals();
+   vi.useRealTimers();
+});
 
 describe("editor slug", () => {
    beforeEach(() => render());
@@ -101,5 +126,50 @@ describe("editor slug", () => {
       await tick();
       expect(slug.readOnly).toBe(false);
       expect($("[data-slug-unlock]").hidden).toBe(true);
+   });
+
+   it("replaces the transliteration with the server's English suggestion once typing pauses", async () => {
+      vi.useFakeTimers();
+      render();
+      const slug = $<HTMLInputElement>("#f-slug");
+      type($("#f-title"), "إن الدين");
+      type($("#f-title"), "إن الدين عند الله الإسلام");
+      expect(slug.value).toBe("inna-al-din-inda-allah-al-islam");
+      expect($("[data-slug-source]").textContent).toBe(t.content.slugSuggesting);
+      await vi.advanceTimersByTimeAsync(900);
+      vi.useRealTimers();
+      await tick();
+      await tick();
+      // One request for the last title only (debounced).
+      expect(suggestions.map((s) => s.body)).toEqual([{ kind: "posts", locale: "ar", title: "إن الدين عند الله الإسلام", id: null, fresh: false }]);
+      expect(slug.value).toBe("religion-with-allah-is-islam");
+      expect($("[data-slug-source]").textContent).toBe(t.content.slugTranslated);
+   });
+
+   it("drops a suggestion that arrives after the editor typed an address; Regenerate asks again, fresh", async () => {
+      render({ id: "5", slug: "kept" });
+      const slug = $<HTMLInputElement>("#f-slug");
+      type($("#f-title"), "إن الدين عند الله الإسلام");
+      expect(slug.value).toBe("kept");
+      $<HTMLButtonElement>("[data-slug-regen]").click();
+      await tick();
+      await tick();
+      await tick();
+      expect(suggestions.at(-1)?.body).toMatchObject({ id: "5", fresh: true });
+      expect(slug.value).toBe("religion-with-allah-is-islam");
+      reply = { slug: "late", source: "translated" };
+      let open!: () => void;
+      gate = new Promise<void>((r) => (open = r));
+      $<HTMLButtonElement>("[data-slug-regen]").click();
+      await tick();
+      expect(suggestions).toHaveLength(2);
+      type(slug, "typed-by-hand");
+      open();
+      await tick();
+      await tick();
+      await tick();
+      expect(slug.value).toBe("typed-by-hand");
+      gate = null;
+      reply = { slug: "religion-with-allah-is-islam", source: "translated" };
    });
 });

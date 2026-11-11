@@ -54,6 +54,14 @@ export function defaultReply(req: MockRequest): MockReply {
          },
       };
    }
+   // The address suggestion (src/lib/slug-suggest.ts): known titles get their English phrase, others a fixed one.
+   if (s.includes("You write web addresses")) {
+      const title = tag(req.user, "title");
+      const known: Record<string, string> = { "إن الدين عند الله الإسلام": "religion with Allah is Islam" };
+      const hit = Object.keys(known).find((k) => title.startsWith(k));
+      const rest = hit ? title.slice(hit.length).trim() : "";
+      return { kind: "json", data: { phrase: hit ? `${known[hit]} ${rest}`.trim() : "an english address", quran: hit ? "mostly" : "none" }, input: 260, output: 12 };
+   }
    // The admin's "Test connection" (src/admin/ai-api.ts)
    if (s.includes("connection test")) return { kind: "json", data: { reply: "ok" }, input: 40, output: 6 };
    return { kind: "error", code: 3003, status: 400, message: "unknown prompt" };

@@ -349,6 +349,9 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       slugChangeTitle: t.content.slugChangeTitle,
       slugChangeBody: t.content.slugChangeBody,
       slugChangeOk: t.content.slugChangeOk,
+      slugSuggesting: t.content.slugSuggesting,
+      slugTranslated: t.content.slugTranslated,
+      slugTransliterated: t.content.slugTransliterated,
       required: t.common.required,
       saved: t.common.saved,
       saving: t.common.saving,
@@ -432,6 +435,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                      <p class="help" id="f-slug-help">
                         {t.content.slugHelp}
                      </p>
+                     <p class="help" data-slug-source aria-live="polite" hidden />
                      <div style="display:flex;gap:8px;flex-wrap:wrap">
                         {wentLive ? (
                            <button type="button" class="btn sm" data-slug-unlock>
