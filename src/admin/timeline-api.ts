@@ -1,7 +1,8 @@
 /**
  * The Timeline screen's endpoints (staff session, same-origin; src/index.ts gates /admin/api/*).
  *
- *   GET    /admin/api/timeline/candidates?locale&q   posts not on the timeline (Add post)
+ *   GET    /admin/api/timeline/candidates?locale&q   posts not on the timeline (Add post), with the
+ *                                                     locale's published / switched-off post counts
  *   POST   /admin/api/timeline/videos                { kind, ref_id, locale, entry_date? }  (Add video)
  *   POST   /admin/api/timeline/posts/:id             { on }  a post on / off the timeline
  *   PATCH  /admin/api/timeline/entries/:key          { hidden?, pinned?, entry_date?, title_override?, locale? }
@@ -16,7 +17,7 @@
  */
 import { Hono, type Context } from "hono";
 import { feedStatus, requestFullRebuild, retryFeed } from "../lib/feed/jobs.ts";
-import { addVideo, logRebuild, offTimeline, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor } from "../lib/feed/admin.ts";
+import { addVideo, logRebuild, offTimeline, postCounts, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor } from "../lib/feed/admin.ts";
 import { withActor } from "../lib/revisions.ts";
 import { TrashError } from "../lib/trash.ts";
 import { putSnapshot } from "../lib/video-snapshots.ts";
@@ -51,7 +52,8 @@ export function timelineApi(deps: Deps): Hono<AppEnv> {
       const l = loc(c.req.query("locale"));
       if (!l) return c.json({ error: "bad_request" }, 400);
       const q = (c.req.query("q") ?? "").trim().slice(0, 100);
-      return c.json({ items: await offTimeline(c.env, l, q) });
+      const [items, counts] = await Promise.all([offTimeline(c.env, l, q), postCounts(c.env, l)]);
+      return c.json({ items, ...counts });
    });
 
    r.post("/videos", async (c) => {

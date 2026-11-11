@@ -127,6 +127,22 @@ export async function adminTimeline(env: Env, l: "en" | "ar", before: string | n
    return { pinned, items, next: sorted.length > size && last ? `${Date.parse(last.date)}-${last.key}` : null };
 }
 
+/**
+ * How many live or scheduled main-site posts a locale has, and how many of them are switched off
+ * the timeline. The screen and the "Add post" chooser word their empty states from these, so
+ * "nothing on the timeline" and "nothing to add" never read as a contradiction (no posts at all is
+ * not the same as every post already being on it).
+ */
+export async function postCounts(env: Env, l: "en" | "ar"): Promise<{ published: number; off: number }> {
+   const r = await env.DB.prepare(
+      `SELECT count(*) AS published, coalesce(sum(coalesce(show_on_timeline, 1) IN (0, '0', 'false')), 0) AS off FROM posts
+       WHERE locale = ?1 AND status = 'published' AND ${MAIN_SITE_SQL}`,
+   )
+      .bind(l)
+      .first<{ published: number; off: number }>();
+   return { published: Number(r?.published ?? 0), off: Number(r?.off ?? 0) };
+}
+
 /** Live or scheduled posts of a locale that are NOT on the timeline (the "Add post" chooser). */
 export async function offTimeline(env: Env, l: "en" | "ar", q: string, limit = 20): Promise<{ id: number; title: string; date: string; kind: string }[]> {
    const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
