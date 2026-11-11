@@ -1,5 +1,6 @@
 /** Page/post editor: save, publish, slug rules, conflict check, markdown, tags, cover, translations, delete. */
 import { $, $$, api, ApiError, takeReason, toast, strings } from "./dom.ts";
+import { runSaveHooks } from "./save-hooks.ts";
 import { addLeaveGuard, askConfirm, askLink } from "./dialogs.ts";
 import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
@@ -499,6 +500,7 @@ export function initEditor(): void {
             rowId = String(created.data.id);
          }
          dirty = false;
+         await runSaveHooks(String(rowId));
          const done =
             action === "schedule" ? "scheduled" : !id ? "created" : action === "published" ? "published" : state === "published" ? "unpublished" : state === "scheduled" ? "unscheduled" : "draft";
          location.assign(`/${kind}/${rowId}?done=${done}`);

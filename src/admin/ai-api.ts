@@ -33,7 +33,9 @@ import {
    type Job,
    type NewJob,
    recordUsage,
+   sha256,
 } from "../lib/ai/jobs.ts";
+import { glossaryVersion } from "../lib/translation-flags/glossary.ts";
 import { postAuthor, subOfUser } from "../lib/scholars/ownership.ts";
 import { FEATURES, type Feature, type Locale } from "../lib/ai/prompts.ts";
 import { fallbackBase, freeSlug } from "../lib/slug.ts";
@@ -99,7 +101,8 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
       const userId = Number(user.id);
       const now = Date.now();
       const j: NewJob = { ...parsed.job, userId };
-      const key = await dedupeKey(j);
+      // A glossary edit means a fresh translation (the prompt includes the glossary).
+      const key = j.feature === "translate" ? await sha256(`${await dedupeKey(j)}:${await glossaryVersion(c.env.DB, j.locale)}`) : await dedupeKey(j);
       const existing = await findDuplicate(c.env.DB, key, now);
       if (existing) return c.json({ job: publicJob(await failIfStale(c.env.DB, existing, now)), deduped: true }, 200);
       const { settings } = await loadSettings(c.env.DB);

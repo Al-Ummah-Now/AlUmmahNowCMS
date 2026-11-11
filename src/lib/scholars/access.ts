@@ -12,6 +12,8 @@ const WRITER_PATHS: RegExp[] = [
    /^\/admin\/api\/scholars\/me(\/.*)?$/,
    /^\/admin\/api\/suggest\/?$/,
    /^\/admin\/api\/ai(\/.*)?$/,
+   // Translation flags on their own posts (create and list; the routes refuse resolving to writers).
+   /^\/admin\/api\/translation-flags(\/.*)?$/,
    /^\/admin\/api\/revisions\/\d{1,12}\/restore\/?$/,
    /^\/admin\/api\/media\/\d{1,12}\/alt\/?$/,
    /^\/picker\/api\/.+$/,

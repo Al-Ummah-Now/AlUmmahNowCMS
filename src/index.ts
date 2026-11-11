@@ -14,6 +14,7 @@
  *   /api/*                   bknd API (guard on; same-origin check on mutations)
  *   /data/*, /media, /bknd   bknd's retired admin UI → redirects to the staff screens
  */
+import { purgeGlossary } from "./lib/translation-flags/glossary.ts";
 import { Hono } from "hono";
 import { appIconRoutes } from "./lib/app-icons.ts";
 import { getBkndApp, MediaExistsError } from "./app.ts";
@@ -367,6 +368,8 @@ export default {
       // Soft-deleted items: purge those deleted 30+ days ago or queued by an admin (docs/SOFT_DELETE.md).
       // The only hard delete there is; bounded per run, failures retried on the next run.
       ctx.waitUntil(purgeDue(env).catch((error) => log.error("trash purge failed", { error: errText(error) })));
+      // Glossary terms deleted 30+ days ago are removed for good (docs/TRANSLATION_FLAGS.md §4).
+      ctx.waitUntil(purgeGlossary(env.DB, Date.now()).catch((error) => log.error("glossary purge failed", { error: errText(error) })));
       // AI job rows hold draft text: 30-day retention (docs/AI_ASSIST_SPEC.md §3).
       ctx.waitUntil(pruneJobs(env.DB, Date.now()).catch((error) => console.error("ai job prune failed", String(error))));
    },

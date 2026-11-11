@@ -25,6 +25,8 @@ import { mediaAltRoute } from "./api.ts";
 import { timelineApi } from "./timeline-api.ts";
 import { libraryApi, listsApi } from "./lists-api.ts";
 import { trashApi } from "./trash-api.ts";
+import { glossaryApi, translationFlagsApi } from "./translation-flags-api.ts";
+import { glossaryScreen } from "./screens/glossary.tsx";
 import { trashScreen } from "./screens/trash.tsx";
 import { isTrashKind } from "../lib/trash.ts";
 import { suggestApi } from "./suggest-api.ts";
@@ -40,7 +42,7 @@ import { curatedPage } from "../lib/page-entries.ts";
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
-export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted", "/ai-settings", "/scholars", "/featuring"];
+export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted", "/ai-settings", "/scholars", "/featuring", "/glossary"];
 export const isStaffScreen = (p: string) => p === "/" || ADMIN_SCREENS.some((x) => p === x || p.startsWith(`${x}/`));
 
 export async function buildView(c: Ctx, deps: Deps): Promise<View> {
@@ -94,7 +96,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    for (const kind of ["pages", "posts"] as ContentKind[]) {
       r.get(`/${kind}`, async (c) => {
          const v = await buildView(c, deps);
-         return render(c, v, v.t.entities[kind].many, await contentList(v, new Data(c, deps), kind, parseListParams(new URL(c.req.url))));
+         return render(c, v, v.t.entities[kind].many, await contentList(v, new Data(c, deps), kind, parseListParams(new URL(c.req.url)), c.env.DB));
       });
       r.get(`/${kind}/new`, async (c) => {
          const v = await buildView(c, deps);
@@ -125,6 +127,8 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    r.route("/admin/api/suggest", suggestApi(deps));
    r.route("/admin/api/ai", aiRoutes(deps));
    r.route("/admin/api/trash", trashApi());
+   r.route("/admin/api/translation-flags", translationFlagsApi(deps));
+   r.route("/admin/api/glossary", glossaryApi());
    r.route("/admin/api", mediaAltRoute(deps));
 
    const loc = (v: string | undefined, fallback: "en" | "ar") => (v === "en" || v === "ar" ? v : fallback);
@@ -179,6 +183,13 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       const kind = c.req.query("kind");
       const page = Math.min(Math.max(Number.parseInt(c.req.query("page") ?? "1", 10) || 1, 1), 10_000);
       return render(c, v, v.t.trash.title, await trashScreen(v, c.env.DB, isTrashKind(kind) ? kind : null, page));
+   });
+
+   r.get("/glossary", async (c) => {
+      const v = await buildView(c, deps);
+      if (v.user.role === "writer") return render(c, v, v.t.common.notFound, <p class="notice">{v.t.common.notFound}</p>, 404);
+      const deleted = c.req.query("deleted") === "1" && v.user.role === "admin";
+      return render(c, v, v.t.glossary.title, await glossaryScreen(v, c.env.DB, (c.req.query("q") ?? "").trim().slice(0, 100), deleted));
    });
 
    r.get("/ai-settings", async (c) => {
