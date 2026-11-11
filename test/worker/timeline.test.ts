@@ -101,6 +101,71 @@ describe("Timeline screen and API", () => {
       expect(((await (await call("GET", "/admin/api/timeline/candidates?locale=en&q=")).json()) as { items: unknown[] }).items).toEqual([]);
    });
 
+   // Owner report 2026-11-11: production's English timeline showed "Nothing is on the timeline yet" next to
+   // "Every live post is already on the timeline". Both were true (prod had no English posts at all), but they
+   // read as a contradiction. Each empty state now says which case it is, from the same counts.
+   type Cands = { items: { id: number }[]; published: number; off: number };
+   /** The "On the timeline" section only (the strings script and the change log name items too). */
+   const listPart = (html: string) => html.slice(html.indexOf('id="tl-items-h"'), html.indexOf("<aside"));
+   const candidates = async (call: ReturnType<typeof client>["call"], l: string, q = "") => (await (await call("GET", `/admin/api/timeline/candidates?locale=${l}&q=${encodeURIComponent(q)}`)).json()) as Cands;
+
+   it("a language with no published posts: the list and the chooser both say so (no 'already on the timeline')", async () => {
+      const cookie = await session(["Admin"], "tl-empty");
+      const { f, call } = client(cookie);
+      await insertPost({ date: "2026-11-01T10:00:00.000Z", title: "منشور", locale: "ar" });
+      await insertPost({ date: "2026-11-02T10:00:00.000Z", title: "Draft only", status: "draft" });
+      const html = await (await f("/timeline?locale=en", { headers: { cookie } })).text();
+      expect(html).toContain("Nothing is on the English timeline yet.");
+      expect(html).toContain("There are no published English posts yet. Publish one, or add a video.");
+      expect(listPart(html)).not.toContain("already on the timeline");
+      expect(await candidates(call, "en")).toEqual({ items: [], published: 0, off: 0 });
+      // The chooser's message for that case is the "no posts" one, in the screen's strings.
+      expect(html).toContain("There are no published English posts yet. A post joins the timeline when it goes live.");
+      // Arabic has its post: listed, and the chooser says it is already on.
+      const ar = await (await f("/timeline?locale=ar&lang=ar", { headers: { cookie } })).text();
+      expect(ar).toContain("منشور");
+      expect(ar).not.toContain("لا شيء في الخط");
+      expect(await candidates(call, "ar")).toEqual({ items: [], published: 1, off: 0 });
+   });
+
+   it("every published post on the timeline: the list shows them and the chooser counts them; switched-off posts are offered", async () => {
+      const cookie = await session(["Admin"], "tl-full");
+      const { f, call } = client(cookie);
+      const a = await insertPost({ date: "2026-11-01T10:00:00.000Z", title: "On one" });
+      await insertPost({ date: "2026-11-02T10:00:00.000Z", title: "On two" });
+      let html = await (await f("/timeline?locale=en", { headers: { cookie } })).text();
+      expect(html).toContain("On one");
+      expect(html).toContain("On two");
+      expect(html).not.toContain("Nothing is on the English timeline yet.");
+      expect(html).toContain("All {0} published posts are already on the timeline.");
+      expect(await candidates(call, "en")).toEqual({ items: [], published: 2, off: 0 });
+      // Switch one off: the chooser offers exactly it; a search that misses it is a "no match", not "all on".
+      expect((await call("POST", `/admin/api/timeline/posts/${a}`, { on: false })).status).toBe(200);
+      const off = await candidates(call, "en");
+      expect(off.items.map((x) => x.id)).toEqual([a]);
+      expect(off).toMatchObject({ published: 2, off: 1 });
+      expect(await candidates(call, "en", "nothing like this")).toEqual({ items: [], published: 2, off: 1 });
+      html = await (await f("/timeline?locale=en", { headers: { cookie } })).text();
+      expect(listPart(html)).not.toContain("On one");
+      expect(listPart(html)).toContain("On two");
+      expect(html).toContain("No post off the timeline matches that search.");
+   });
+
+   it("an empty dated list explains itself: everything pinned, or every post switched off", async () => {
+      const cookie = await session(["Admin"], "tl-pinned");
+      const { f, call } = client(cookie);
+      const a = await insertPost({ date: "2026-11-01T10:00:00.000Z", title: "Only pinned" });
+      expect((await call("PATCH", `/admin/api/timeline/entries/p${a}`, { pinned: true })).status).toBe(200);
+      let html = await (await f("/timeline?locale=en", { headers: { cookie } })).text();
+      expect(html).toContain("Everything on the timeline is pinned (above).");
+      expect(html).not.toContain("Nothing is on the English timeline yet.");
+      expect((await call("PATCH", `/admin/api/timeline/entries/p${a}`, { pinned: false })).status).toBe(200);
+      expect((await call("POST", `/admin/api/timeline/posts/${a}`, { on: false })).status).toBe(200);
+      html = await (await f("/timeline?locale=en", { headers: { cookie } })).text();
+      expect(html).toContain("Nothing is on the English timeline yet.");
+      expect(html).toContain("1 published post is switched off the timeline. Use Add a post to put it back.");
+   });
+
    it("rejects bad input, cross-origin writes and non-staff; Rebuild is admin-only", async () => {
       const ed = await session(["Moderator"], "tl-ed2");
       const { f, call } = client(ed);

@@ -17,7 +17,10 @@ interface S {
    removePost: string;
    removeVideo: string;
    moved: string;
-   candidatesEmpty: string;
+   candidatesNone: string;
+   candidatesAllOn: string;
+   candidatesAllOnOne: string;
+   candidatesNoMatch: string;
    add: string;
    rebuildQueued: string;
    retried: string;
@@ -27,6 +30,16 @@ interface S {
 const fmt = (s: string, ...a: (string | number)[]) => a.reduce<string>((out, v, i) => out.split(`{${i}}`).join(String(v)), s);
 
 const reload = () => location.reload();
+
+/**
+ * Why the "Add a post" chooser is empty: no published posts in this language at all, a search that
+ * matches none of the switched-off posts, or every published post already on the timeline.
+ */
+export function emptyCandidates(T: Pick<S, "candidatesNone" | "candidatesAllOn" | "candidatesAllOnOne" | "candidatesNoMatch">, q: string, published: number, off: number): string {
+   if (!published) return T.candidatesNone;
+   if (q && off > 0) return T.candidatesNoMatch;
+   return published === 1 ? T.candidatesAllOnOne : fmt(T.candidatesAllOn, published);
+}
 
 export function initTimeline(): void {
    const root = $("[data-timeline]");
@@ -184,12 +197,13 @@ export function initTimeline(): void {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const search = async () => {
          try {
-            const { items } = await api<{ items: { id: number; title: string; date: string; kind: string }[] }>(
+            const typed = q.value.trim();
+            const { items, published, off } = await api<{ items: { id: number; title: string; date: string; kind: string }[]; published: number; off: number }>(
                "GET",
-               `/admin/api/timeline/candidates?locale=${locale}&q=${encodeURIComponent(q.value.trim())}`,
+               `/admin/api/timeline/candidates?locale=${locale}&q=${encodeURIComponent(typed)}`,
             );
             list.replaceChildren();
-            status.textContent = items.length ? String(items.length) : T.candidatesEmpty;
+            status.textContent = items.length ? String(items.length) : emptyCandidates(T, typed, published, off);
             for (const it of items) {
                const li = el("li");
                li.append(el("span", { class: "ph", "aria-hidden": "true" }));

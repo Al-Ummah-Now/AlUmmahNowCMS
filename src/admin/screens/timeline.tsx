@@ -4,7 +4,7 @@
  * with hidden and scheduled items marked; add a post or a video, pin, reorder pins, hide, remove;
  * recent changes (who, when); the KV publishing state. Behaviour: src/admin/client/timeline.ts.
  */
-import { adminTimeline, recentChanges, type AdminEntry, type Change } from "../../lib/feed/admin.ts";
+import { adminTimeline, postCounts, recentChanges, type AdminEntry, type Change } from "../../lib/feed/admin.ts";
 import { feedStatus, type FeedStatus } from "../../lib/feed/jobs.ts";
 import { relative } from "../format.ts";
 import { Icon, type IconName } from "../ui/icons.tsx";
@@ -188,7 +188,11 @@ function Changes(props: { v: View; items: Change[] }) {
 
 export async function timelineScreen(v: View, env: Parameters<typeof adminTimeline>[0], locale: "en" | "ar", before: string | null, videosWebUrl: string) {
    const t = v.t.timeline;
-   const [list, status, changes] = await Promise.all([adminTimeline(env, locale, before), feedStatus(env.DB), recentChanges(env, 12)]);
+   const [list, status, changes, counts] = await Promise.all([adminTimeline(env, locale, before), feedStatus(env.DB), recentChanges(env, 12), postCounts(env, locale)]);
+   const lang = v.t.locales[locale];
+   // The empty list says why it is empty, in the same terms as the "Add a post" chooser.
+   const emptyTitle = list.pinned.length ? t.itemsAllPinned : t.itemsEmpty(lang);
+   const emptyBody = list.pinned.length ? undefined : counts.published === 0 ? t.itemsNoPosts(lang) : counts.off > 0 ? t.itemsOff(counts.off) : undefined;
    const q = (extra = "") => `/timeline?locale=${locale}${extra}`;
    return (
       <>
@@ -203,7 +207,10 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                removePost: t.removePost,
                removeVideo: t.removeVideo,
                moved: t.moved(-1, -2).replace("-1", "{0}").replace("-2", "{1}"),
-               candidatesEmpty: t.candidatesEmpty,
+               candidatesNone: t.candidatesNone(lang),
+               candidatesAllOn: t.candidatesAllOn(-1).replace("-1", "{0}"),
+               candidatesAllOnOne: t.candidatesAllOn(1),
+               candidatesNoMatch: t.candidatesNoMatch,
                add: t.add,
                rebuildQueued: t.rebuildQueued,
                retried: v.t.overview.feedRetried,
@@ -265,7 +272,7 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                         ))}
                      </ol>
                   ) : (
-                     <Empty icon="timeline" title={t.itemsEmpty} />
+                     <Empty icon="timeline" title={emptyTitle} body={emptyBody} />
                   )}
                   {before || list.next ? (
                      <nav class="pager" aria-label={t.items}>
