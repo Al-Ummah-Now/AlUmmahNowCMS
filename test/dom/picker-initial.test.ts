@@ -6,7 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initPicker, openPicker } from "../../src/admin/client/picker.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
-import { PickerDialog } from "../../src/admin/ui/picker.tsx";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const flush = async () => {
@@ -20,7 +19,7 @@ function render(lang: "en" | "ar" = "en", kinds?: ("video" | "playlist" | "chann
    const t = ADMIN_STRINGS[lang];
    document.documentElement.lang = lang;
    document.body.innerHTML = [
-      PickerDialog({ v: { t } as never, kinds }),
+      pickerMarkup(t.picker, kinds ?? ["video"]),
       '<div id="toasts"></div>',
       `<script type="application/json" id="i18n">${JSON.stringify({ picker: t.picker })}</script>`,
       '<button id="opener">Add</button>',
@@ -35,6 +34,17 @@ function render(lang: "en" | "ar" = "en", kinds?: ("video" | "playlist" | "chann
       this.removeAttribute("open");
       this.dispatchEvent(new Event("close"));
    };
+}
+
+/** The dialog as ui/picker.tsx renders it (that file is server JSX, outside the client type-check). */
+function pickerMarkup(p: (typeof ADMIN_STRINGS)["en"]["picker"], kinds: string[]): string {
+   const kindField =
+      kinds.length > 1
+         ? `<div class="seg" role="radiogroup">${kinds.map((k, i) => `<label><input type="radio" name="kind" value="${k}"${i === 0 ? " checked" : ""}>${p.kinds[k as "video"]}</label>`).join("")}</div>`
+         : `<input type="hidden" name="kind" value="${kinds[0]}">`;
+   return `<dialog class="dlg picker" id="picker"><div class="dlg-h"><button type="button" data-picker-close></button></div><div class="dlg-b stack">
+      <form class="picker-form" data-picker-form role="search" novalidate>${kindField}<div class="search"><label for="picker-q">${p.query}</label><input id="picker-q" name="q" type="search"><button type="submit"></button></div></form>
+      <p data-picker-status role="status" aria-live="polite"></p><ul class="picker-results" data-picker-results></ul></div></dialog>`;
 }
 
 type Answer = { items: Item[]; next_cursor?: string | null } | Error;
