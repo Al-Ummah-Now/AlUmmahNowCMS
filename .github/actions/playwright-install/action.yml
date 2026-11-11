@@ -1,0 +1,71 @@
+name: Install Playwright browsers (cached, retried)
+description: >-
+  Installs Playwright browsers and their OS packages without letting one bad apt
+  mirror fail the job (2026-11-11: three attempts of Admin E2E failed in
+  "playwright install --with-deps" with apt exit 100 before any test ran).
+  Browser downloads are cached per Playwright version and browser list; apt gets
+  Acquire::Retries for the whole job, and both steps retry with backoff.
+
+inputs:
+  browsers:
+    description: 'Space-separated browsers (chromium, chrome, firefox, webkit)'
+    required: true
+  working-directory:
+    description: 'Where the project with @playwright/test is'
+    required: false
+    default: '.'
+  runner:
+    description: 'How to run the playwright CLI there (pnpm exec, npx)'
+    required: false
+    default: 'pnpm exec'
+
+runs:
+  using: composite
+  steps:
+    # Every later apt call in the job retries too (ffmpeg, fonts)
+    - name: apt retries and timeouts
+      shell: bash
+      run: |
+        printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAPT::Get::Assume-Yes "true";\n' \
+          | sudo tee /etc/apt/apt.conf.d/80-ci-retries > /dev/null
+
+    - name: Playwright version
+      id: version
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        v=$(${{ inputs.runner }} playwright --version | awk '{print $NF}')
+        echo "version=$v" >> "$GITHUB_OUTPUT"
+        echo "browsers-key=$(echo '${{ inputs.browsers }}' | tr ' ' '\n' | sort | tr '\n' '-')" >> "$GITHUB_OUTPUT"
+
+    - name: Cache browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ms-playwright-${{ runner.os }}-${{ steps.version.outputs.version }}-${{ steps.version.outputs.browsers-key }}
+
+    # Downloads (from the cache when it hit); Google Chrome (`chrome`) installs through apt here
+    - name: Browsers
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        for attempt in 1 2 3; do
+          ${{ inputs.runner }} playwright install ${{ inputs.browsers }} && exit 0
+          echo "::warning::playwright install failed (attempt $attempt), retrying"
+          sleep $((attempt * 20))
+          sudo apt-get update -q || true
+        done
+        exit 1
+
+    # The browsers' OS packages: always apt (not cacheable), so retried with a fresh index
+    - name: OS dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        for attempt in 1 2 3 4; do
+          sudo apt-get update -q || true
+          ${{ inputs.runner }} playwright install-deps ${{ inputs.browsers }} && exit 0
+          echo "::warning::playwright install-deps failed (attempt $attempt), retrying"
+          sleep $((attempt * 20))
+        done
+        exit 1

@@ -74,8 +74,10 @@ jobs:
       - run: npm ci
 
       - name: Install Playwright
-        run: npx playwright install --with-deps chromium
-
+        uses: ./.github/actions/playwright-install
+        with:
+          runner: npx
+          browsers: chromium
       - name: E2E (desktop + phone, en/ar, light/dark, axe)
         run: npx playwright test -c playwright.local.config.ts
 
