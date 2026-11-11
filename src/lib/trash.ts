@@ -18,7 +18,7 @@ import { noteCommunityChange } from "./scholars/community.ts";
 import { errText, log } from "./log.ts";
 import { deleteVariants } from "./variants/jobs.ts";
 
-export const TRASH_KINDS = ["posts", "pages", "nav_items", "curated_videos", "site_settings", "media", "timeline_entries", "scholars"] as const;
+export const TRASH_KINDS = ["posts", "pages", "nav_items", "curated_videos", "site_settings", "media", "timeline_entries", "scholars", "cms_videos", "page_entries"] as const;
 export type TrashKind = (typeof TRASH_KINDS)[number];
 export const isTrashKind = (v: unknown): v is TrashKind => typeof v === "string" && (TRASH_KINDS as readonly string[]).includes(v);
 
@@ -99,6 +99,10 @@ function labelOf(kind: TrashKind, row: Row): string {
          return pick("title_override", "ref_id");
       case "scholars":
          return pick("name_en", "name_ar", "slug");
+      case "cms_videos":
+      case "page_entries":
+         // Replaced by the snapshot's title in softDelete when there is one.
+         return pick("title_override", "ref_id") || (row.post_id ? `#${row.post_id}` : "");
    }
 }
 
@@ -133,7 +137,15 @@ export async function softDelete(env: Env, kind: TrashKind, id: number, actor: T
    const row = await env.DB.prepare(`SELECT * FROM "${kind}" WHERE id = ?1`).bind(id).first<Row>();
    // A post's timeline row only holds overrides (pin, hidden): not an item of its own.
    if (!row || (kind === "timeline_entries" && row.kind !== "video")) throw new TrashError(404, "not_found");
-   const label = labelOf(kind, row) || null;
+   let label = labelOf(kind, row) || null;
+   if ((kind === "cms_videos" || kind === "page_entries") && !row.title_override && row.ref_id) {
+      const k = kind === "cms_videos" ? row.kind : row.video_kind;
+      const s = await env.DB.prepare("SELECT snapshot FROM video_snapshots WHERE kind = ?1 AND ref_id = ?2").bind(k, row.ref_id).first<{ snapshot: string | null }>();
+      label = snapshotTitle(s?.snapshot) || label;
+   } else if (kind === "page_entries" && row.kind === "post") {
+      const p = await env.DB.prepare("SELECT title FROM posts WHERE id = ?1").bind(row.post_id).first<{ title: string | null }>();
+      label = p?.title || label;
+   }
    const ref = kind === "media" ? (typeof row.path === "string" ? row.path : null) : kind === "timeline_entries" ? `v${id}` : null;
    const locale = typeof row.locale === "string" ? row.locale : null;
    const why = cleanReason(reason);
@@ -324,14 +336,17 @@ async function purgeExternal(env: Env, t: TrashRow): Promise<void> {
             if (m.path) await dropObject(env, m.path);
          }
          await env.DB.prepare("DELETE FROM content_revisions WHERE entity = ?1 AND entity_id = ?2").bind(t.kind, t.item_id).run();
+         // A curated page's entries go with it (they stayed while it was restorable).
+         if (t.kind === "pages") await env.DB.prepare("DELETE FROM page_entries WHERE page_id = ?1").bind(t.item_id).run();
          if (t.kind === "posts") {
             await env.DB.prepare("DELETE FROM timeline_entries WHERE kind = 'post' AND post_id = ?1").bind(t.item_id).run();
+            await env.DB.prepare("DELETE FROM page_entries WHERE kind = 'post' AND post_id = ?1").bind(t.item_id).run();
             await markDirty(env, [`p${t.item_id}`], "post purged");
          }
          return;
       }
       default:
-         return; // nav_items, curated_videos, site_settings, timeline_entries: the D1 row is all there is
+         return; // nav_items, curated_videos, site_settings, timeline_entries, cms_videos, page_entries: the D1 row is all there is
    }
 }
 

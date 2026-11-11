@@ -33,6 +33,7 @@ import { CONTENT_ENTITIES } from "../schema.ts";
 import { timeOf } from "./schedule.ts";
 import { applyOwnership } from "./scholars/ownership.ts";
 import { BlockError, blocksToMarkdown, normalizeBlocks, normalizeSlides, slidesToMarkdown } from "./blocks.ts";
+import { ListError, normalizeFilter } from "./list-filter.ts";
 import { freeSlug, slugify } from "./slug.ts";
 
 const CONTENT = new Set<string>(CONTENT_ENTITIES);
@@ -202,6 +203,22 @@ export function applyRules(entity: string, data: Row, mode: "create" | "update",
    }
    if (entity === "pages" && typeof data.slug === "string" && data.slug.trim().toLowerCase() === "home") {
       throw new ContentRuleError('The page slug "home" is reserved');
+   }
+   // docs/specs/WWW-PAGES.md: a page's kind and a filter page's filter (src/lib/lists.ts).
+   if (entity === "pages" && "list_kind" in data) {
+      if (data.list_kind === "" || data.list_kind === undefined) data.list_kind = null;
+      if (data.list_kind !== null && data.list_kind !== "curated" && data.list_kind !== "filter") throw new ContentRuleError('pages.list_kind must be empty, "curated" or "filter"');
+   }
+   if (entity === "pages" && "list_filter" in data && data.list_filter !== null) {
+      try {
+         data.list_filter = normalizeFilter(data.list_filter);
+      } catch (error) {
+         if (error instanceof ListError) throw new ContentRuleError(`pages.list_filter: ${error.message}`);
+         throw error;
+      }
+   }
+   if (entity === "pages" && data.list_kind === "filter" && !("list_filter" in data) && !current?.list_filter) {
+      throw new ContentRuleError("A filter page needs its filter (pages.list_filter)");
    }
    if (entity === "pages" && "blocks" in data) {
       let blocks;

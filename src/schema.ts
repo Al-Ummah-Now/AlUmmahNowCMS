@@ -44,6 +44,10 @@ export const schema = em(
             // Ordered blocks (src/lib/blocks.ts). `body` stays: it is derived from the blocks on save
             // (content-rules) for readers of the v1 contract that predate blocks.
             blocks: json<unknown[]>({ description: "Ordered page blocks (src/lib/blocks.ts)." }),
+            // docs/specs/WWW-PAGES.md: NULL = content page (blocks); "curated" = its own list (page_entries);
+            // "filter" = everything published of list_filter's kinds (src/lib/lists.ts).
+            list_kind: text({ description: "NULL (content page) | curated | filter" }),
+            list_filter: json<unknown>({ description: "Filter pages: {kinds, tag} (src/lib/lists.ts)." }),
             ...timestamps(),
          },
          { primary_format: "integer" },

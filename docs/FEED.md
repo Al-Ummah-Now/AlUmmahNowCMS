@@ -9,8 +9,9 @@ the CMS while it serves the home page.
 - **Posts:** every live post of the locale (`status = 'published'` and `publish_at` empty or
   passed) whose **Show on home timeline** is on. It is on by default, and the post editor has the
   switch. Card posts are included. A scheduled post joins when it goes live.
-- **Videos:** entries added on the Timeline screen from the video picker (videos and
-  playlists), for `en`, `ar` or both (`all`). Their snapshot is in `video_snapshots`, refreshed
+- **Videos:** entries added on the Timeline screen from the video picker (videos, playlists and,
+  since FEED_FORMAT 2, channels with their 3 latest videos), for `en`, `ar` or both (`all`). Each one
+  also joins the CMS video library (`cms_videos`, docs/specs/WWW-PAGES.md), which www's `/videos` lists. Their snapshot is in `video_snapshots`, refreshed
   by the cron. A video that is no longer public is left out.
 - **Overrides:** an editor can hide any item (it stays listed for staff) or pin it. Pinned
   items come first, in pin order, and appear only there. Everything else is sorted by date: a

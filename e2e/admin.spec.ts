@@ -533,48 +533,36 @@ test.describe("navigation (E17–E22, A8)", () => {
    });
 });
 
-test.describe("videos (E23–E30, X1)", () => {
-   test("add through the picker dialog, set language and title, show it, change the video, remove", async ({ context, page }) => {
-      await sessionPage(context, page, ACCOUNTS.admin, "/videos?placement=videos");
+test.describe("videos library (docs/specs/WWW-PAGES.md)", () => {
+   test("add through the picker dialog, set the language, it lists on /videos, delete (soft)", async ({ context, page }) => {
+      await sessionPage(context, page, ACCOUNTS.admin, "/videos");
       await expectNoAxeViolations(page);
-      await page.getByRole("button", { name: "Add a video" }).first().click();
+      const add = page.getByRole("button", { name: "Add a video" }).first();
+      // Only results not already in the library (the picker also marks them "Already added").
+      const inLibrary = new Set(((await add.getAttribute("data-picker-added")) ?? "").split(" ").filter(Boolean));
+      await add.click();
       const dialog = page.getByRole("dialog", { name: "Choose a video" });
       await dialog.getByLabel("Search the videos platform").fill("qa");
       await dialog.getByLabel("Search the videos platform").press("Enter");
       await expect(dialog.locator("[data-picker-status]")).not.toHaveText(/Searching/, { timeout: 20_000 });
-      // Only results not already on this shelf: adding is idempotent per video/placement/locale (CMS-4).
-      const onShelf = new Set(await page.locator("li[data-ref]").evaluateAll((els) => els.map((e) => e.getAttribute("data-ref"))));
-      const fresh = (await dialog.locator("li[data-pick-id]").evaluateAll((els) => els.map((e) => e.getAttribute("data-pick-id")))).filter((id) => id && !onShelf.has(id)) as string[];
-      test.skip(fresh.length < 2, "fewer than two public QA videos that aren't already on the shelf match the query");
+      const fresh = (await dialog.locator("li[data-pick-id]").evaluateAll((els) => els.map((e) => e.getAttribute("data-pick-id")))).filter((id) => id && !inLibrary.has(`video:${id}`)) as string[];
+      test.skip(fresh.length < 1, "every public QA video matching the query is already in the library");
       await dialog.locator(`li[data-pick-id="${fresh[0]}"]`).getByRole("button", { name: /^Choose:/ }).click();
-      const row = page.locator(`li[data-ref="${fresh[0]}"]`);
+      await page.waitForLoadState("load");
+      const row = page.locator("li[data-id]").filter({ has: page.locator(`a[href$="/watch/${fresh[0]}"]`) });
       await expect(row).toHaveCount(1, { timeout: 20_000 });
-      const rowId = Number(await row.getAttribute("data-id"));
-      created.push({ entity: "curated_videos", id: rowId });
       await row.getByLabel("Show for", { exact: true }).selectOption("ar");
       await expect(page.getByText("Saved").first()).toBeVisible();
-      await row.getByLabel("Title on the site", { exact: true }).fill(`T ${STAMP}`);
-      await row.getByLabel("Title on the site", { exact: true }).blur();
-      await row.getByRole("checkbox").check();
-      await expect(row.locator(".vis-label")).toHaveText("Published");
-      // Each field saves on its own request: wait for both to land.
       await expect
-         .poll(async () => ((await publicApi("/videos?locale=ar&placement=videos")).body.items as { title_override: string | null }[]).map((x) => x.title_override), { timeout: 20_000 })
-         .toContain(`T ${STAMP}`);
+         .poll(async () => ((await publicApi("/lists/videos?locale=ar")).body.items as { video?: { ref_id: string } }[]).map((x) => x.video?.ref_id), { timeout: 20_000 })
+         .toContain(fresh[0]);
       await shot(page, "admin-videos");
-
-      await row.getByRole("button", { name: "Change video" }).click();
-      await dialog.getByLabel("Search the videos platform").fill("qa");
-      await dialog.getByLabel("Search the videos platform").press("Enter");
-      const other = dialog.locator(`li[data-pick-id="${fresh[1]}"]`);
-      await expect(other).toBeVisible({ timeout: 20_000 });
-      await other.getByRole("button", { name: /^Choose:/ }).click();
-      await expect(page.locator(`li[data-id="${rowId}"]`)).toHaveAttribute("data-ref", fresh[1], { timeout: 20_000 });
-
-      await page.locator(`li[data-id="${rowId}"]`).getByRole("button", { name: /^Delete:/ }).click();
-      // Soft delete (docs/SOFT_DELETE.md): the confirm dialog is "Delete this?" and the row moves to Recently deleted.
-      await page.getByRole("dialog", { name: ADMIN_STRINGS.en.common.confirmDelete }).getByRole("button", { name: ADMIN_STRINGS.en.common.delete }).click();
-      await expect(page.locator(`li[data-id="${rowId}"]`)).toHaveCount(0);
+      await row.getByRole("button", { name: /^Delete:/ }).click();
+      await page.getByRole("dialog", { name: ADMIN_STRINGS.en.library2.deleteTitle }).getByRole("button", { name: ADMIN_STRINGS.en.library2.delete }).click();
+      await expect(row).toHaveCount(0);
+      await expect
+         .poll(async () => ((await publicApi("/lists/videos?locale=ar")).body.items as { video?: { ref_id: string } }[]).map((x) => x.video?.ref_id), { timeout: 20_000 })
+         .not.toContain(fresh[0]);
    });
 });
 

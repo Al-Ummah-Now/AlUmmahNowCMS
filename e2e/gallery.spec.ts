@@ -116,7 +116,7 @@ test("gallery", async ({ context, page }, info) => {
       ["card-post-editor", `/posts/${cardsId}`],
       ["new-page", "/pages/new?locale=en"],
       ["navigation", "/navigation?menu=header&locale=en"],
-      ["videos", "/videos?placement=home"],
+      ["videos", "/videos"],
       ["site", "/site?locale=en"],
       ["library", "/library"],
       ["people", "/people"],

@@ -13,7 +13,31 @@
  * a refresh never overwrite a newer write (the loser is picked up on the next run).
  */
 import { snapshotOf, type Snapshot } from "./snapshots.ts";
-import { lookupItem, VideosApiError, type ItemDetail, type VideoKind } from "./videos.ts";
+import { channelVideos, lookupItem, VideosApiError, type ItemDetail, type VideoKind } from "./videos.ts";
+
+/** A channel's newest public videos, as its snapshot keeps them (docs/specs/WWW-PAGES.md D7). */
+export interface LatestVideo {
+   id: string;
+   title: string;
+   thumbnail_url: string | null;
+   duration_seconds: number | null;
+}
+export const CHANNEL_LATEST = 3;
+
+/**
+ * lookupItem, plus a channel's `latest` videos. The latest list is best effort: when it fails the
+ * channel is still snapshotted (without `latest`), so a slow listing never makes a channel look gone.
+ */
+export async function lookupForSnapshot(apiUrl: string, kind: VideoKind, id: string, fetchImpl: typeof fetch = fetch): Promise<(ItemDetail & { latest?: LatestVideo[] }) | null> {
+   const item = await lookupItem(apiUrl, kind, id, fetchImpl);
+   if (!item || kind !== "channel") return item;
+   try {
+      const { items } = await channelVideos(apiUrl, id, { limit: CHANNEL_LATEST }, fetchImpl);
+      return { ...item, latest: items.slice(0, CHANNEL_LATEST).map((v) => ({ id: v.id, title: v.title, thumbnail_url: v.thumbnail_url, duration_seconds: v.duration_seconds })) };
+   } catch {
+      return item;
+   }
+}
 
 export const MAX_ATTEMPTS = 8;
 export const BASE_BACKOFF_MS = 5 * 60_000;
@@ -113,6 +137,9 @@ export async function runSnapshotQueue(
                          WHERE json_valid(p.blocks) AND j.key = 'ref_id' AND j.value = vs.ref_id)
                  -- the home timeline: video entries, and ::video lines in posts on it (src/lib/feed)
                  OR EXISTS (SELECT 1 FROM timeline_entries te WHERE te.kind = 'video' AND te.video_kind = vs.kind AND te.ref_id = vs.ref_id)
+                 -- the CMS video library and curated pages (src/lib/library.ts, src/lib/lists.ts)
+                 OR EXISTS (SELECT 1 FROM cms_videos cv WHERE cv.kind = vs.kind AND cv.ref_id = vs.ref_id)
+                 OR EXISTS (SELECT 1 FROM page_entries pe WHERE pe.kind = 'video' AND pe.video_kind = vs.kind AND pe.ref_id = vs.ref_id)
                  OR (vs.kind = 'video' AND EXISTS (SELECT 1 FROM posts po WHERE po.body LIKE '%::video[' || vs.ref_id || ']%')))
           ORDER BY coalesce(vs.next_attempt_at, ''), vs.ref_id
           LIMIT ?2`,
@@ -133,7 +160,7 @@ export async function runSnapshotQueue(
          const row = results[next++];
          let item: ItemDetail | null;
          try {
-            item = await lookupItem(videosApiUrl, row.kind, row.ref_id, fetchImpl);
+            item = await lookupForSnapshot(videosApiUrl, row.kind, row.ref_id, fetchImpl);
          } catch (error) {
             const attempts = row.attempts + 1;
             const code = error instanceof VideosApiError ? error.message.slice(0, 120) : error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network error";

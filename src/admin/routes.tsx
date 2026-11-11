@@ -23,6 +23,7 @@ import { contentEditor, contentList, parseListParams, type ContentKind } from ".
 import { historyScreen } from "./screens/history.tsx";
 import { mediaAltRoute } from "./api.ts";
 import { timelineApi } from "./timeline-api.ts";
+import { libraryApi, listsApi } from "./lists-api.ts";
 import { trashApi } from "./trash-api.ts";
 import { trashScreen } from "./screens/trash.tsx";
 import { isTrashKind } from "../lib/trash.ts";
@@ -33,7 +34,9 @@ import { aiRoutes } from "./ai-api.ts";
 import { aiSettingsScreen } from "./screens/ai-settings.tsx";
 import { aiReady } from "../lib/ai/router.ts";
 import { flaggedFailures } from "../lib/ai/jobs.ts";
-import { libraryScreen, navigationScreen, siteScreen, videosScreen } from "./screens/site.tsx";
+import { libraryScreen, navigationScreen, siteScreen } from "./screens/site.tsx";
+import { libraryVideosScreen } from "./screens/videos-library.tsx";
+import { curatedPage } from "../lib/page-entries.ts";
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
@@ -115,6 +118,8 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    }
 
    r.route("/admin/api/timeline", timelineApi(deps));
+   r.route("/admin/api/lists", listsApi(deps));
+   r.route("/admin/api/library", libraryApi(deps));
    r.route("/admin/api/scholars", scholarsApi(deps));
    r.route("/admin/api/featuring", featuringApi());
    r.route("/admin/api/suggest", suggestApi(deps));
@@ -130,10 +135,25 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       return render(c, v, v.t.menus.title, await navigationScreen(v, new Data(c, deps), menu, loc(c.req.query("locale"), v.prefs.lang)));
    });
 
+   // The CMS video library (docs/specs/WWW-PAGES.md): replaces the old curated home / videos-page lists.
    r.get("/videos", async (c) => {
       const v = await buildView(c, deps);
-      const placement = c.req.query("placement") === "videos" ? "videos" : "home";
-      return render(c, v, v.t.videos.title, await videosScreen(v, new Data(c, deps), placement, c.get("cfg").videosWebUrl, c.req.query("add") === "1"));
+      const kind = c.req.query("kind");
+      const page = Math.min(Math.max(Number.parseInt(c.req.query("page") ?? "1", 10) || 1, 1), 10_000);
+      return render(
+         c,
+         v,
+         v.t.library2.title,
+         await libraryVideosScreen(v, c.env, { q: (c.req.query("q") ?? "").slice(0, 100), kind: kind === "video" || kind === "playlist" || kind === "channel" ? kind : null, page }, c.get("cfg").videosWebUrl),
+      );
+   });
+
+   // A curated page's list: the Timeline screen, scoped to the page.
+   r.get("/pages/:id{[0-9]+}/list", async (c) => {
+      const v = await buildView(c, deps);
+      const page = await curatedPage(c.env, Number(c.req.param("id"))).catch(() => null);
+      if (!page || v.user.role === "writer") return render(c, v, v.t.common.notFound, <p class="notice">{v.t.common.notFound}</p>, 404);
+      return render(c, v, v.t.timeline.listTitle(page.title), await timelineScreen(v, c.env, page.locale, null, c.get("cfg").videosWebUrl, page));
    });
 
    r.get("/timeline", async (c) => {

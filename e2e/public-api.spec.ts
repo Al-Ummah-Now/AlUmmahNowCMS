@@ -107,6 +107,19 @@ test.describe("public API as www reads it", () => {
          await read(request, "cards", wwwPaths.cards(locale, 1, 12, "e2e-no-such-tag"));
       });
 
+      test(`${locale}: /videos and /articles are filter list pages (docs/specs/WWW-PAGES.md)`, async ({ request }) => {
+         for (const slug of ["videos", "articles"]) {
+            const res = await request.get(`${API}/lists/${slug}?locale=${locale}`);
+            expect(res.status(), slug).toBe(200);
+            const body = await res.json();
+            expect(body.page).toMatchObject({ slug, locale, list_kind: "filter" });
+            expect(Object.keys(body).sort()).toEqual(["items", "limit", "page", "page_number", "pages", "pinned", "total"]);
+            expect(body.page_number).toBe(1);
+            for (const i of body.items) expect(slug === "videos" ? i.type : i.post?.kind ?? "article").toMatch(slug === "videos" ? /^video$/ : /^(article|cards)$/);
+         }
+         expect((await request.get(`${API}/lists/e2e-no-such-list?locale=${locale}`)).status()).toBe(404);
+      });
+
       test(`${locale}: unknown page and post slugs are 404 (www caches them as not found)`, async ({ request }) => {
          for (const path of [wwwPaths.page(locale, "e2e-no-such-page"), wwwPaths.post(locale, "e2e-no-such-post")]) {
             expect((await request.get(`${API}${path}`)).status(), path).toBe(404);

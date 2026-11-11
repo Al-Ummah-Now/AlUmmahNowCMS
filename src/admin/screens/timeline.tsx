@@ -5,6 +5,7 @@
  * recent changes (who, when); the KV publishing state. Behaviour: src/admin/client/timeline.ts.
  */
 import { adminTimeline, postCounts, recentChanges, type AdminEntry, type Change } from "../../lib/feed/admin.ts";
+import { pageCounts, pageList, type ListPageRow } from "../../lib/page-entries.ts";
 import { feedStatus, type FeedStatus } from "../../lib/feed/jobs.ts";
 import { relative } from "../format.ts";
 import { Icon, type IconName } from "../ui/icons.tsx";
@@ -12,21 +13,21 @@ import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { ConfirmDialog, I18nScript, LocalTime } from "../ui/parts.tsx";
 import { PickerDialog } from "../ui/picker.tsx";
 
-const KIND_ICON: Record<string, IconName> = { article: "newspaper", cards: "images", video: "film", playlist: "playlist" };
+const KIND_ICON: Record<string, IconName> = { article: "newspaper", cards: "images", video: "film", playlist: "playlist", channel: "users" };
 
 function kindLabel(v: View, e: AdminEntry): string {
    const t = v.t.timeline;
-   return e.type === "post" ? (e.kind === "cards" ? t.kindCards : t.kindPost) : e.kind === "playlist" ? t.kindPlaylist : t.kindVideo;
+   return e.type === "post" ? (e.kind === "cards" ? t.kindCards : t.kindPost) : e.kind === "playlist" ? t.kindPlaylist : e.kind === "channel" ? t.kindChannel : t.kindVideo;
 }
 
 /** Date input value (YYYY-MM-DD, UTC) of an ISO date. */
 const dateInput = (iso: string) => iso.slice(0, 10);
 
-function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: string; index: number }) {
+function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: string; index: number; home: boolean }) {
    const { v, e, pinned } = props;
    const t = v.t.timeline;
    const label = e.title || e.refId || e.key;
-   const href = e.type === "post" ? `/posts/${e.id}` : `${props.videosWebUrl}/${e.kind === "playlist" ? "playlist" : "watch"}/${encodeURIComponent(e.refId ?? "")}`;
+   const href = e.type === "post" ? `/posts/${e.id}` : `${props.videosWebUrl}/${e.kind === "playlist" ? "playlist" : e.kind === "channel" ? "channel" : "watch"}/${encodeURIComponent(e.refId ?? "")}`;
    const unavailable = e.unavailable;
    return (
       <li class={`row vrow card tl-row${e.hidden ? " is-hidden" : ""}`} data-key={e.key} data-title={label} draggable={pinned ? "true" : undefined}>
@@ -52,7 +53,7 @@ function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: s
                <div class="li-meta">
                   <LocalTime iso={e.date} lang={v.prefs.lang} />
                   {e.type === "video" && e.channel ? <span dir="auto">{e.channel}</span> : null}
-                  {e.type === "video" ? <span class="badge loc">{v.t.locales[(e.locale as "en" | "ar" | "all") ?? "all"]}</span> : null}
+                  {e.type === "video" && props.home ? <span class="badge loc">{v.t.locales[(e.locale as "en" | "ar" | "all") ?? "all"]}</span> : null}
                   {e.hidden ? (
                      <span class="badge draft" data-hidden-badge>
                         {t.hidden}
@@ -75,6 +76,7 @@ function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: s
                         {t.dateHelp}
                      </p>
                   </div>
+                  {props.home ? (
                   <div class="field">
                      <label for={`tl-${e.key}`}>{t.showFor}</label>
                      <select id={`tl-${e.key}`} class="select" data-entry-field="locale">
@@ -85,6 +87,7 @@ function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: s
                         ))}
                      </select>
                   </div>
+                  ) : null}
                   <div class="field" style="grid-column:1/-1">
                      <label for={`to-${e.key}`}>{t.override}</label>
                      <input id={`to-${e.key}`} spellcheck={true} class="input" data-entry-field="title_override" value={e.titleOverride ?? ""} maxlength={200} dir="auto" />
@@ -186,13 +189,30 @@ function Changes(props: { v: View; items: Change[] }) {
    );
 }
 
-export async function timelineScreen(v: View, env: Parameters<typeof adminTimeline>[0], locale: "en" | "ar", before: string | null, videosWebUrl: string) {
+/**
+ * Home's timeline, or (page set) a curated page's list: the same editor and client
+ * (docs/specs/WWW-PAGES.md). A page has one language, no KV publishing state and no paging.
+ */
+export async function timelineScreen(v: View, env: Parameters<typeof adminTimeline>[0], locale: "en" | "ar", before: string | null, videosWebUrl: string, page: ListPageRow | null = null) {
    const t = v.t.timeline;
-   const [list, status, changes, counts] = await Promise.all([adminTimeline(env, locale, before), feedStatus(env.DB), recentChanges(env, 12), postCounts(env, locale)]);
+   if (page) {
+      locale = page.locale;
+      before = null;
+   }
+   const [list, status, changes, counts] = await Promise.all([
+      page ? pageList(env, page).then((l) => ({ ...l, next: null as string | null })) : adminTimeline(env, locale, before),
+      feedStatus(env.DB),
+      recentChanges(env, 12, page?.id ?? null),
+      page ? pageCounts(env, page) : postCounts(env, locale),
+   ]);
+   const home = !page;
+   const apiBase = page ? `/admin/api/lists/${page.id}` : "/admin/api/timeline";
+   // The picker marks what is already on this list ("kind:ref_id").
+   const added = [...list.pinned, ...list.items].filter((e) => e.type === "video" && e.refId).map((e) => `${e.kind}:${e.refId}`).join(" ");
    const lang = v.t.locales[locale];
    // The empty list says why it is empty, in the same terms as the "Add a post" chooser.
-   const emptyTitle = list.pinned.length ? t.itemsAllPinned : t.itemsEmpty(lang);
-   const emptyBody = list.pinned.length ? undefined : counts.published === 0 ? t.itemsNoPosts(lang) : counts.off > 0 ? t.itemsOff(counts.off) : undefined;
+   const emptyTitle = list.pinned.length ? t.itemsAllPinned : page ? t.listEmpty : t.itemsEmpty(lang);
+   const emptyBody = list.pinned.length || page ? undefined : counts.published === 0 ? t.itemsNoPosts(lang) : counts.off > 0 ? t.itemsOff(counts.off) : undefined;
    const q = (extra = "") => `/timeline?locale=${locale}${extra}`;
    return (
       <>
@@ -204,13 +224,13 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                added: t.added,
                already: t.already,
                conflict: t.conflict,
-               removePost: t.removePost,
-               removeVideo: t.removeVideo,
+               removePost: page ? t.listRemovePost : t.removePost,
+               removeVideo: page ? t.listRemoveVideo : t.removeVideo,
                moved: t.moved(-1, -2).replace("-1", "{0}").replace("-2", "{1}"),
                candidatesNone: t.candidatesNone(lang),
-               candidatesAllOn: t.candidatesAllOn(-1).replace("-1", "{0}"),
-               candidatesAllOnOne: t.candidatesAllOn(1),
-               candidatesNoMatch: t.candidatesNoMatch,
+               candidatesAllOn: (page ? t.listAllOn : t.candidatesAllOn)(-1).replace("-1", "{0}"),
+               candidatesAllOnOne: (page ? t.listAllOn : t.candidatesAllOn)(1),
+               candidatesNoMatch: page ? t.listNoMatch : t.candidatesNoMatch,
                add: t.add,
                rebuildQueued: t.rebuildQueued,
                retried: v.t.overview.feedRetried,
@@ -218,15 +238,16 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                picker: v.t.picker,
             }}
          />
-         <PageHead title={t.title} intro={t.intro}>
+         <PageHead title={page ? t.listTitle(page.title) : t.title} intro={page ? t.listIntro : t.intro} back={page ? { href: `/pages/${page.id}`, label: page.title } : undefined}>
             <button class="btn" type="button" data-tl-add-post aria-haspopup="dialog">
                <Icon name="newspaper" size={18} /> {t.addPost}
             </button>
-            <button class="btn primary" type="button" data-tl-add-video aria-haspopup="dialog">
+            <button class="btn primary" type="button" data-tl-add-video aria-haspopup="dialog" data-picker-added={added}>
                <Icon name="film" size={18} /> {t.addVideo}
             </button>
          </PageHead>
          <div class="toolbar">
+            {home ? (
             <div class="seg" role="group" aria-label={v.t.common.language}>
                {(["en", "ar"] as const).map((l) => (
                   <a href={`/timeline?locale=${l}`} aria-current={l === locale ? "true" : undefined}>
@@ -234,11 +255,12 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                   </a>
                ))}
             </div>
-            <a class="btn ghost sm" href={`${v.wwwUrl}/${locale}/`} target="_blank" rel="noopener">
-               <Icon name="external" size={16} class="flip" /> {t.openSite}
+            ) : null}
+            <a class="btn ghost sm" href={page ? `${v.wwwUrl}/${locale}/${page.slug}/` : `${v.wwwUrl}/${locale}/`} target="_blank" rel="noopener">
+               <Icon name="external" size={16} class="flip" /> {page ? t.openPage : t.openSite}
             </a>
          </div>
-         <div class="tl-layout" data-timeline data-locale={locale}>
+         <div class="tl-layout" data-timeline data-locale={locale} data-api={apiBase}>
             <div class="stack">
                {!before ? (
                   <section class="stack" aria-labelledby="tl-pinned-h">
@@ -253,7 +275,7 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                      {list.pinned.length ? (
                         <ol class="rows vrows" data-pins aria-describedby="tl-pinned-help">
                            {list.pinned.map((e, i) => (
-                              <Entry v={v} e={e} pinned={true} videosWebUrl={videosWebUrl} index={i} />
+                              <Entry v={v} e={e} pinned={true} videosWebUrl={videosWebUrl} index={i} home={home} />
                            ))}
                         </ol>
                      ) : (
@@ -268,7 +290,7 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                   {list.items.length ? (
                      <ol class="rows vrows tl-list" data-entries>
                         {list.items.map((e, i) => (
-                           <Entry v={v} e={e} pinned={false} videosWebUrl={videosWebUrl} index={i + list.pinned.length} />
+                           <Entry v={v} e={e} pinned={false} videosWebUrl={videosWebUrl} index={i + list.pinned.length} home={home} />
                         ))}
                      </ol>
                   ) : (
@@ -291,13 +313,13 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                </section>
             </div>
             <aside class="stack sticky">
-               <Status v={v} s={status} />
+               {home ? <Status v={v} s={status} /> : null}
                <Changes v={v} items={changes} />
             </aside>
          </div>
          <dialog class="dlg" id="tl-posts" aria-labelledby="tl-posts-h">
             <div class="dlg-h">
-               <h2 id="tl-posts-h">{t.candidates}</h2>
+               <h2 id="tl-posts-h">{page ? t.listCandidates : t.candidates}</h2>
                <button class="ic" type="button" data-dlg-close aria-label={v.t.picker.close} style="color:inherit">
                   <Icon name="x" />
                </button>
@@ -316,7 +338,7 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                <ul class="picker-results" data-tl-candidates />
             </div>
          </dialog>
-         <PickerDialog v={v} kinds={["video", "playlist"]} />
+         <PickerDialog v={v} kinds={["video", "playlist", "channel"]} />
          <ConfirmDialog v={v} title={t.remove} body="" ok={t.remove} okIcon="x" />
          <p class="vh" aria-live="polite" data-tl-live />
       </>

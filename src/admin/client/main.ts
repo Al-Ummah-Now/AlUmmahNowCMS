@@ -18,6 +18,8 @@ import { initFeedFlag, initTimeline } from "./timeline.ts";
 import { initTimes } from "./time.ts";
 import { initTrash } from "./trash.ts";
 import { initScholars } from "./scholars.ts";
+import { initLibrary } from "./library.ts";
+import { initPageType } from "./page-type.ts";
 
 initShell();
 initAutocomplete();
@@ -34,6 +36,8 @@ initFeedFlag();
 initTrash();
 initAiSettings();
 initScholars();
+initLibrary();
+initPageType();
 
 // Overview: requeue block videos the snapshot queue gave up on.
 for (const b of $$<HTMLButtonElement>("[data-retry-videos]")) {

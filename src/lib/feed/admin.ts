@@ -10,6 +10,7 @@ import { compareSort, isOlder, parseCursor } from "./model.ts";
 import { markDirty } from "./jobs.ts";
 import { softDelete } from "../trash.ts";
 import { MAIN_SITE_SQL, mainSiteSql } from "../scholars/main-site.ts";
+import { addToLibrary } from "../library.ts";
 
 type Row = Record<string, unknown>;
 
@@ -48,7 +49,7 @@ const VIDEOS = `FROM timeline_entries te LEFT JOIN video_snapshots vs ON vs.kind
 const PDATE = "coalesce(p.published_at, p.created_at)";
 const VDATE = "coalesce(te.entry_date, te.created_at)";
 
-const coverPath = (path: unknown) => (typeof path === "string" && path ? `/api/public/v1/media/${path.split("/").map(encodeURIComponent).join("/")}` : null);
+export const coverPath = (path: unknown) => (typeof path === "string" && path ? `/api/public/v1/media/${path.split("/").map(encodeURIComponent).join("/")}` : null);
 
 function snap(v: unknown): Row {
    try {
@@ -58,7 +59,7 @@ function snap(v: unknown): Row {
    }
 }
 
-function postEntry(r: Row, now: number): AdminEntry {
+export function postEntry(r: Row, now: number): AdminEntry {
    const publishAt = toIso(r.publish_at);
    return {
       key: `p${r.id}`,
@@ -78,7 +79,7 @@ function postEntry(r: Row, now: number): AdminEntry {
    };
 }
 
-function videoEntry(r: Row): AdminEntry {
+export function videoEntry(r: Row): AdminEntry {
    const s = snap(r.snapshot);
    return {
       key: `v${r.id}`,
@@ -89,7 +90,7 @@ function videoEntry(r: Row): AdminEntry {
       hidden: Number(r.hidden ?? 0) === 1,
       unavailable: s.public === false || !r.snapshot,
       pinRank: r.pin_rank === null || r.pin_rank === undefined ? null : Number(r.pin_rank),
-      kind: r.video_kind === "playlist" ? "playlist" : "video",
+      kind: r.video_kind === "playlist" ? "playlist" : r.video_kind === "channel" ? "channel" : "video",
       scheduled: false,
       publishAt: null,
       thumb: typeof s.thumbnail_url === "string" ? s.thumbnail_url : null,
@@ -185,13 +186,19 @@ export interface Change {
    title: string | null;
 }
 
-export async function recentChanges(env: Env, limit = 20): Promise<Change[]> {
+/**
+ * Recent changes of home (pageId null) or of a curated page (docs/specs/WWW-PAGES.md: the same log,
+ * with detail.page_id; a page's entries carry their title in detail.title).
+ */
+export async function recentChanges(env: Env, limit = 20, pageId: number | null = null): Promise<Change[]> {
+   const scope = pageId === null ? "json_extract(c.detail, '$.page_id') IS NULL" : "json_extract(c.detail, '$.page_id') = ?2";
    const { results } = await env.DB.prepare(
-      `SELECT c.*, CASE WHEN c.entry_kind = 'feed' THEN NULL WHEN c.entry_kind = 'post' THEN (SELECT title FROM posts WHERE id = CAST(substr(c.entry_ref, 2) AS INTEGER))
+      `SELECT c.*, CASE WHEN c.entry_kind = 'feed' THEN NULL WHEN json_extract(c.detail, '$.page_id') IS NOT NULL THEN json_extract(c.detail, '$.title')
+         WHEN c.entry_kind = 'post' THEN (SELECT title FROM posts WHERE id = CAST(substr(c.entry_ref, 2) AS INTEGER))
          ELSE (SELECT coalesce(te.title_override, json_extract(vs.snapshot, '$.title')) FROM timeline_entries te LEFT JOIN video_snapshots vs ON vs.kind = te.video_kind AND vs.ref_id = te.ref_id WHERE te.id = CAST(substr(c.entry_ref, 2) AS INTEGER)) END AS title
-       FROM timeline_changes c ORDER BY c.id DESC LIMIT ?1`,
+       FROM timeline_changes c WHERE json_valid(coalesce(c.detail, 'null')) AND ${scope} ORDER BY c.id DESC LIMIT ?1`,
    )
-      .bind(limit)
+      .bind(limit, ...(pageId === null ? [] : [pageId]))
       .all<Row>();
    return results.map((r) => ({
       id: Number(r.id),
@@ -329,7 +336,7 @@ export async function setVideoFields(env: Env, key: string, fields: { entry_date
 }
 
 /** A video picked in the CMS picker (its snapshot is already in video_snapshots). */
-export async function addVideo(env: Env, v: { kind: "video" | "playlist"; ref_id: string; locale: string; entry_date: string | null }, actor: Actor): Promise<{ key: string; existing: boolean }> {
+export async function addVideo(env: Env, v: { kind: "video" | "playlist" | "channel"; ref_id: string; locale: string; entry_date: string | null }, actor: Actor): Promise<{ key: string; existing: boolean }> {
    if (!["en", "ar", "all"].includes(v.locale)) throw new TimelineError(400, "bad_locale");
    const s = await env.DB.prepare("SELECT snapshot FROM video_snapshots WHERE kind = ?1 AND ref_id = ?2").bind(v.kind, v.ref_id).first<{ snapshot: string | null }>();
    if (!s) throw new TimelineError(404, "not_found");
@@ -348,6 +355,8 @@ export async function addVideo(env: Env, v: { kind: "video" | "playlist"; ref_id
       return { key: `v${existing?.id ?? 0}`, existing: true };
    }
    const key = `v${row.id}`;
+   // Everything added on home is in the CMS video library (/videos), and stays there when taken off home.
+   await addToLibrary(env, { kind: v.kind, ref_id: v.ref_id, locale: v.locale }, "home", actor);
    await logChange(env, actor, "add", key, v.locale, { kind: v.kind, ref_id: v.ref_id, entry_date: date });
    await markDirty(env, [key], "video added");
    return { key, existing: false };

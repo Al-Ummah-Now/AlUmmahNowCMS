@@ -28,6 +28,11 @@ function attach(root: HTMLElement, T: Strings): void {
    if (!input || !list || !live) return;
    const kind = root.dataset.ac ?? "content";
    const locale = root.dataset.acLocale ?? "";
+   // data-ac-fill: choosing an option fills the input (a form field) instead of opening the item.
+   // data-ac-initial: the list opens with content on focus, before two letters are typed.
+   const fill = root.dataset.acFill === "1";
+   const initial = root.dataset.acInitial === "1";
+   let showingInitial = false;
    let state: State = initialState(input.value);
    let timer: ReturnType<typeof setTimeout> | undefined;
    let controller: AbortController | undefined;
@@ -77,6 +82,12 @@ function attach(root: HTMLElement, T: Strings): void {
 
    const choose = (o: Option) => {
       set(closed(state));
+      if (fill) {
+         input.value = o.type === "searchAll" ? o.query : o.suggestion.label;
+         set(initialState(input.value));
+         input.dispatchEvent(new Event("change", { bubbles: true }));
+         return;
+      }
       if (o.type === "searchAll") {
          input.value = o.query;
          input.form?.requestSubmit();
@@ -103,9 +114,34 @@ function attach(root: HTMLElement, T: Strings): void {
       }, DEBOUNCE_MS);
    };
 
+   const askInitial = () => {
+      controller?.abort();
+      const mine = new AbortController();
+      controller = mine;
+      const params = new URLSearchParams({ kind, q: "" });
+      if (locale) params.set("locale", locale);
+      const q = input.value;
+      set({ ...state, query: q, open: true, status: "loading", options: [] });
+      void fetch(`/admin/api/suggest?${params}`, { credentials: "same-origin", headers: { accept: "application/json" }, signal: mine.signal })
+         .then(async (res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const { items } = (await res.json()) as { items: Suggestion[] };
+            showingInitial = true;
+            // No "Search everything" row: nothing was typed yet.
+            set({ ...state, options: items.map((suggestion) => ({ type: "suggestion" as const, suggestion })), status: "ready", active: -1, open: true });
+         })
+         .catch(() => {
+            if (!mine.signal.aborted) set(failed(state, q));
+         });
+   };
+
    input.addEventListener("input", () => {
-      set(typed(state, input.value));
-      ask(input.value);
+      // Typing past the first letter replaces the opening list: a stale option must never stay clickable.
+      const next = typed(showingInitial ? { ...state, options: [] } : state, input.value);
+      showingInitial = false;
+      set(next);
+      if (initial && input.value.trim().length < MIN_QUERY) askInitial();
+      else ask(input.value);
    });
    input.addEventListener("keydown", (e) => {
       if (e.isComposing) return;
@@ -118,6 +154,7 @@ function attach(root: HTMLElement, T: Strings): void {
    input.addEventListener("blur", () => set(closed(state)));
    input.addEventListener("focus", () => {
       if (state.options.length > 0 && state.query.trim().length >= MIN_QUERY) set({ ...state, open: true });
+      else if (initial && input.value.trim().length < MIN_QUERY) askInitial();
    });
 }
 

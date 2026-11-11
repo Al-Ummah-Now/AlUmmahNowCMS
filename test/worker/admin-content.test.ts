@@ -19,6 +19,8 @@ describe("pages and posts screens", () => {
    it("lists with search, status and locale filters, sort and paging links", async () => {
       const cookie = await session(["Admin"], "list-admin");
       const f = makeWorker();
+      // Only this test's pages (migration 0016 seeds the /videos and /articles filter pages).
+      await env.DB.prepare("DELETE FROM pages").run();
       await create(f, cookie, "pages", { slug: "about", locale: "en", title: "About us", status: "published" });
       await create(f, cookie, "pages", { slug: "about", locale: "ar", title: "من نحن", status: "draft" });
       await create(f, cookie, "pages", { slug: "contact", locale: "en", title: "Contact", status: "draft" });

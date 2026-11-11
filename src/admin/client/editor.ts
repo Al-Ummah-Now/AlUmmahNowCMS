@@ -4,6 +4,7 @@ import { addLeaveGuard, askConfirm, askLink } from "./dialogs.ts";
 import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
 import { readBlocks, readSlides, showReadError } from "./blocks.ts";
+import { readPageType } from "./page-type.ts";
 import { toLocalInput } from "./time.ts";
 import { fallbackBase, firstFree, hasArabic, isJunkSlug, SLUG_RE, slugCandidates, slugify } from "../../lib/slug.ts";
 
@@ -415,6 +416,9 @@ export function initEditor(): void {
          }
       }
       const blocks = blocksRead?.ok ? blocksRead.value : undefined;
+      // Pages: the page type and a filter page's filter (src/admin/client/page-type.ts).
+      const pageType = readPageType(form);
+      if (pageType && !pageType.ok) return;
       const slides = slidesRead?.ok ? slidesRead.value : undefined;
       submitting = true;
       // Unpublish / Unschedule take it off the site (or off the schedule): ask first.
@@ -475,6 +479,7 @@ export function initEditor(): void {
          const kindInput = $<HTMLInputElement>("input[data-post-kind]:checked", form);
          if (kindInput) data.kind = kindInput.value;
          if (kind === "pages") {
+            if (pageType?.ok) Object.assign(data, pageType.value);
             data.summary = val("summary");
             data.show_in_sitemap = (form.elements.namedItem("show_in_sitemap") as HTMLInputElement).checked;
          } else {
@@ -534,6 +539,11 @@ export function initEditor(): void {
             ...(readBlocks(form)?.ok ? { blocks: (readBlocks(form) as { value: unknown }).value } : {}),
             ...(readSlides(form)?.ok ? { slides: (readSlides(form) as { value: unknown }).value } : {}),
             ...($<HTMLInputElement>("input[data-post-kind]:checked", form) ? { kind: $<HTMLInputElement>("input[data-post-kind]:checked", form)!.value } : {}),
+            // Same page type and filter (a curated page's translation starts with an empty list).
+            ...(() => {
+               const pt = readPageType(form);
+               return pt?.ok ? pt.value : {};
+            })(),
          });
          dirty = false;
          location.assign(`/${kind}/${created.data.id}?done=created`);

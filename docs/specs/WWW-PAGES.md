@@ -165,13 +165,14 @@ create table page_entries (
   - **Add a video:** the picker. The video goes on `/videos` without being on home.
   - **Language:** All, English or Arabic.
   - **Delete:** the in-app confirm dialog with a reason. The video goes to Recently deleted and leaves
-    `/videos`. It also leaves home and the curated pages, because a deleted library video is not shown
-    anywhere.
+    `/videos` (and every filter page). Home and curated pages keep their entries: they are edited on
+    their own screens. (Changed while building: this keeps the KV feed independent of the library, and
+    it is exactly the owner's rule, "unpublishing or soft-deleting removes it from these pages".)
 - **Home** (the Timeline screen): **Add a video** also offers Channel.
-- **Site screen:** the *Home videos* and *Videos page* sections are removed. A one-line note points to
-  Home and the Videos screen.
-- **en/ar:** every string, RTL in Arabic. *Add translation* copies the type and the filter. For a curated
-  page it copies the video entries, and the post entries whose post has a translation.
+- **The old curated screen** (`/videos?placement=home|videos`) is replaced by the Videos screen at the
+  same address and menu entry. The picker's curated-row API stays for www releases still reading it.
+- **en/ar:** every string, RTL in Arabic. *Add translation* copies the type and the filter; a curated
+  page's translation starts with an empty list (its posts are other posts).
 
 ## 6. www
 

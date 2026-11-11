@@ -10,6 +10,7 @@ import { PickerDialog } from "../ui/picker.tsx";
 import { Autocomplete, comboboxProps } from "../ui/autocomplete.tsx";
 import { blockMediaIds, blockPostIds, blockVideoRefs, bodyAsBlocks, storedBlocks, storedSlides, type Block, type Slide } from "../../lib/blocks.ts";
 import { getSnapshots } from "../../lib/video-snapshots.ts";
+import { PageTypeField, PageTypePanels, pageTypeOf } from "./page-type.tsx";
 import { BlocksEditor, emptyRefs, MediaDialog, mediaInfoOf, PostsDialog, SlidesEditor, type Refs } from "./blocks.tsx";
 import { ConfirmDialog, I18nScript, LocalTime, StateBadge } from "../ui/parts.tsx";
 import { historyCard } from "./history.tsx";
@@ -111,7 +112,7 @@ const qs = (p: ListParams, over: Partial<ListParams>) => {
 
 export async function contentList(v: View, data: Data, kind: ContentKind, p: ListParams) {
    const { t } = v;
-   const select = ["id", "title", "slug", "locale", "status", "updated_at", "published_at", "publish_at", ...(kind === "posts" ? ["author_name", "author_sub", "featured_at"] : [])];
+   const select = ["id", "title", "slug", "locale", "status", "updated_at", "published_at", "publish_at", ...(kind === "posts" ? ["author_name", "author_sub", "featured_at"] : ["list_kind"])];
    // A writer lists only their own posts (docs/SCHOLARS.md §2); data.list reads bknd directly.
    const writer = isWriter(v);
    if (writer && (kind !== "posts" || !v.user.sub)) return <Empty icon="pen" title={t.common.notFound} />;
@@ -181,6 +182,7 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
                         </a>
                         <div class="li-meta">
                            <span class="badge loc">{String(r.locale).toUpperCase()}</span>
+                           {kind === "pages" && (r.list_kind === "curated" || r.list_kind === "filter") ? <span class="badge loc">{r.list_kind === "curated" ? t.pageList.badgeCurated : t.pageList.badgeFilter}</span> : null}
                            <span dir="ltr">/{kind === "posts" ? `${WWW_POSTS}/` : ""}{String(r.slug)}</span>
                            {r.author_name ? <span>{String(r.author_name)}</span> : null}
                            {r.author_sub && !writer ? <span class="badge loc">{t.scholars.badge}</span> : null}
@@ -315,6 +317,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    const blocks: Block[] = kind === "pages" ? (row ? (storedBlocks(row.blocks).length ? storedBlocks(row.blocks) : bodyAsBlocks(row.body)) : []) : [];
    const slides: Slide[] = kind === "posts" ? storedSlides(row?.slides) : [];
    const postKind = kind === "posts" && row?.kind === "cards" ? "cards" : "article";
+   const pageType = kind === "pages" ? pageTypeOf(row?.list_kind) : "";
    const refs = await loadRefs(data, db, blocks, slides);
    const s = (k: string) => (row && row[k] != null ? String(row[k]) : "");
    const state = publishState(row);
@@ -381,6 +384,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       coverRemoveTitle: t.common.coverRemoveTitle,
       coverRemoveBody: t.common.coverRemoveBody,
       picker: t.picker,
+      pageList: { ...t.pageList, previewCount: t.pageList.previewCount(-1).replace("-1", "{0}"), previewCount1: t.pageList.previewCount(1), tagCount: undefined },
       ai: v.ai ? aiClientStrings(v) : undefined,
    };
    return (
@@ -410,6 +414,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
             data-publish-at={publishAt}
             data-ai={v.ai ? "1" : undefined}
             data-ui-lang={v.prefs.lang}
+            data-page-type={kind === "pages" ? pageType : undefined}
             novalidate
          >
             <div class="stack">
@@ -457,6 +462,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         {kind === "pages" ? t.content.summaryHelp : t.content.excerptHelp}
                      </p>
                   </div>
+                  {kind === "pages" ? <PageTypeField v={v} type={pageType} /> : null}
                   {kind === "posts" ? (
                      <div class="field">
                         <span class="label" id="f-kind-l">
@@ -562,7 +568,9 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                   ) : null}
                </section>
 
-               {kind === "pages" ? <BlocksEditor v={v} locale={locale} blocks={blocks} refs={refs} /> : null}
+               {kind === "pages" ? (
+                  <PageTypePanels v={v} type={pageType} id={id} locale={locale} filter={row?.list_filter ?? null} blocks={<BlocksEditor v={v} locale={locale} blocks={blocks} refs={refs} />} />
+               ) : null}
                {kind === "posts" ? <SlidesEditor v={v} locale={locale} slides={slides} refs={refs} hidden={postKind !== "cards"} /> : null}
 
                <section class="card stack" aria-labelledby="seo-h">

@@ -18,15 +18,17 @@
 import type { FeedItem, HeadDoc, WeekDoc, WeekTombstone, YearDoc } from "./model.ts";
 import type { postSummaries, snapshotOf } from "../../routes/public-api.ts";
 
-export const FEED_FORMAT = 1;
+export const FEED_FORMAT = 2;
 
 /**
  * Format → fingerprint of the FeedShapeRoots type it was released with. APPEND-ONLY: never edit or
  * remove an entry; bump FEED_FORMAT and add one.
  *   1: PostSummary with `slides` (CMS #58), first stamped format.
+ *   2: channel items on the timeline; channel snapshots carry `latest` (docs/specs/WWW-PAGES.md D7).
  */
 export const FEED_FORMAT_HISTORY: Readonly<Record<number, string>> = {
    1: "afcfa9ffd2ba7bdb",
+   2: "e41e47060af0efcb",
 };
 
 /** Everything whose shape is part of the stored feed (the test fingerprints this type). */
