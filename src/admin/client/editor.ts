@@ -5,11 +5,16 @@ import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker } from "./picker.ts";
 import { readBlocks, readSlides, showReadError } from "./blocks.ts";
 import { toLocalInput } from "./time.ts";
+import { fallbackBase, firstFree, isJunkSlug, SLUG_RE, slugCandidates, slugify } from "../../lib/slug.ts";
 
 interface S {
    slugBad: string;
    slugHome: string;
    slugTaken: string;
+   slugNumeric: string;
+   slugChangeTitle: string;
+   slugChangeBody: string;
+   slugChangeOk: string;
    required: string;
    saving: string;
    failed: string;
@@ -35,20 +40,8 @@ interface S {
    coverRemoveBody: string;
 }
 
-export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 const MAX_BYTES = 10 * 1024 * 1024;
-
-export function slugify(s: string): string {
-   return s
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80)
-      .replace(/-+$/g, "");
-}
 
 function fieldError(input: HTMLElement, errId: string, msg: string | null) {
    const err = document.getElementById(errId);
@@ -102,18 +95,55 @@ export function initEditor(): void {
       $<HTMLButtonElement>('button[type=submit][data-action="draft"]', form)?.focus();
    });
 
-   // Slug: derived from the title until edited by hand.
+   // Slug (src/lib/slug.ts): made from the title as it is typed until the editor types in it; from then
+   // on it is theirs, with "Regenerate from title" to go back. A generated slug that is taken gets
+   // -2, -3, … on save; a typed one that is taken is an error.
+   // A live row's address is locked: changing it breaks shared links (www keeps no redirects), so it
+   // takes "Change address" and a confirmation first.
+   const regen = $<HTMLButtonElement>("[data-slug-regen]", form);
+   const unlock = $<HTMLButtonElement>("[data-slug-unlock]", form);
+   let slugAuto = !slugTouched;
+   let liveLocked = slug.dataset.slugLive === "1";
+   const showRegen = () => {
+      if (regen) regen.hidden = !slugTouched;
+   };
+   async function unlockLive(): Promise<boolean> {
+      if (!liveLocked) return true;
+      const yes = await askConfirm({ title: T.slugChangeTitle, body: T.slugChangeBody, ok: T.slugChangeOk, noIcon: true });
+      if (!yes) return false;
+      liveLocked = false;
+      slug.readOnly = false;
+      if (unlock) unlock.hidden = true;
+      $("[data-slug-locked]")?.setAttribute("hidden", "");
+      return true;
+   }
+   unlock?.addEventListener("click", async () => {
+      if (await unlockLive()) slug.focus();
+   });
+   regen?.addEventListener("click", async () => {
+      if (!(await unlockLive())) return;
+      slugTouched = false;
+      slugAuto = true;
+      slug.value = slugify(title.value);
+      fieldError(slug, "f-slug-err", null);
+      showRegen();
+      markDirty();
+      updateSerp();
+   });
    slug.addEventListener("input", () => {
       slugTouched = true;
+      slugAuto = false;
+      showRegen();
       updateSerp();
    });
    title.addEventListener("input", () => {
       if (!slugTouched) {
-         const auto = slugify(title.value);
-         if (auto) slug.value = auto;
+         slug.value = slugify(title.value);
+         fieldError(slug, "f-slug-err", null);
       }
       updateSerp();
    });
+   showRegen();
 
    // Counters and the search preview.
    const counters = $$("[data-counter]", form);
@@ -279,8 +309,19 @@ export function initEditor(): void {
       const pressed = ((ev as SubmitEvent).submitter as HTMLElement | null)?.dataset.action;
       const action = pressed === "published" || pressed === "schedule" ? pressed : "draft";
       fieldError(title, "f-title-err", title.value.trim() ? null : T.required);
-      const s = slug.value.trim();
-      let slugErr: string | null = !s ? T.required : !SLUG.test(s) ? T.slugBad : kind === "pages" && s === "home" ? T.slugHome : null;
+      // A generated slug can be empty (a title of emoji): "post" / "page", numbered on save.
+      if (slugAuto && !slug.value.trim() && title.value.trim()) slug.value = fallbackBase(kind);
+      let s = slug.value.trim();
+      // Only digits says nothing about the content (the old form's "1"): a typed one is refused.
+      let slugErr: string | null = !s
+         ? T.required
+         : !SLUG_RE.test(s)
+           ? T.slugBad
+           : kind === "pages" && s === "home"
+             ? T.slugHome
+             : !slugAuto && isJunkSlug(s) && s !== form.dataset.slug
+               ? T.slugNumeric
+               : null;
       fieldError(slug, "f-slug-err", slugErr);
       if (!title.value.trim() || slugErr) {
          (title.value.trim() ? slug : title).focus();
@@ -328,9 +369,20 @@ export function initEditor(): void {
       const buttons = $$<HTMLButtonElement>("button[type=submit]", form);
       buttons.forEach((b) => b.setAttribute("disabled", ""));
       try {
-         const where = encodeURIComponent(JSON.stringify({ slug: s, locale }));
-         const taken = await api<{ data: { id: number }[] }>("GET", `/api/data/entity/${kind}?where=${where}&select=id&limit=1`);
-         if (taken.data.some((r) => String(r.id) !== id)) {
+         // A generated slug moves to the first free -2, -3, …; a typed one that is taken is the editor's call.
+         const candidates = slugAuto ? slugCandidates(s) : [s];
+         const where = encodeURIComponent(JSON.stringify({ slug: { $in: candidates }, locale }));
+         const taken = await api<{ data: { id: number; slug: string }[] }>("GET", `/api/data/entity/${kind}?where=${where}&select=id,slug&limit=${candidates.length}`);
+         const free = firstFree(
+            candidates,
+            taken.data.filter((r) => String(r.id) !== id).map((r) => r.slug),
+         );
+         if (slugAuto && free && free !== s) {
+            s = free;
+            slug.value = free;
+            updateSerp();
+         }
+         if (!free) {
             slugErr = T.slugTaken;
             fieldError(slug, "f-slug-err", slugErr);
             slug.focus();

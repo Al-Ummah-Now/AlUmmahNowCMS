@@ -4,6 +4,8 @@
  * editable by the scholar and by admins and editors. Deleting one is a soft delete (src/lib/trash.ts,
  * kind "scholars"): restorable for 30 days.
  */
+import { slugify as titleSlug } from "../slug.ts";
+
 export interface Scholar {
    id: number;
    sso_sub: string;
@@ -65,17 +67,9 @@ export function scholarBio(s: Pick<Scholar, "bio_en" | "bio_ar">, locale: "en" |
    return locale === "ar" ? (s.bio_ar ?? s.bio_en) : (s.bio_en ?? s.bio_ar);
 }
 
-/** A url slug from a name or an email's local part ("Dr. Aisha Al-Amin" → "dr-aisha-al-amin"). */
+/** A url slug from a name or an email's local part ("Dr. Aisha Al-Amin" → "dr-aisha-al-amin"; Arabic is transliterated). */
 export function slugify(input: string): string {
-   const out = input
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/@.*$/, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, SLUG_MAX)
-      .replace(/-+$/g, "");
+   const out = titleSlug(input.replace(/@.*$/, ""), SLUG_MAX);
    return out && !RESERVED.has(out) ? out : "scholar";
 }
 

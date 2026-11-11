@@ -13,6 +13,8 @@
  *   written, pages.body is derived from them (the v1 contract's markdown fallback).
  * - posts.kind is "article" (default) or "cards"; posts.slides is a valid slide list, and a card
  *   post's body is derived from its slides.
+ * - pages / posts: a create without a slug gets one from the title (src/lib/slug.ts: Arabic is
+ *   transliterated; the translation's slug is used when the row joins one), made unique with -2, -3.
  * - pages / posts: (slug, locale) is unique (migrations/0001). A write onto a taken pair is refused
  *   with 409 and a message naming the slug and language, before D1's UNIQUE index would turn it into
  *   an opaque 500 (issue #50). src/index.ts maps a race past this check to the same 409.
@@ -31,6 +33,7 @@ import { CONTENT_ENTITIES } from "../schema.ts";
 import { timeOf } from "./schedule.ts";
 import { applyOwnership } from "./scholars/ownership.ts";
 import { BlockError, blocksToMarkdown, normalizeBlocks, normalizeSlides, slidesToMarkdown } from "./blocks.ts";
+import { freeSlug, slugify } from "./slug.ts";
 
 const CONTENT = new Set<string>(CONTENT_ENTITIES);
 const PUBLISHABLE = new Set(["pages", "posts"]);
@@ -112,6 +115,25 @@ export async function slugConflictOf(db: D1Database, method: string, path: strin
       if (error instanceof SlugTakenError) return error;
       throw error;
    }
+}
+
+/**
+ * The slug for a page or post created without one: the slug of its translation in the other
+ * language when it joins one (the English address), else from its own title; free in its locale.
+ */
+export async function generateSlug(db: D1Database, entity: "pages" | "posts", data: Row): Promise<string> {
+   const locale = typeof data.locale === "string" ? data.locale : "en";
+   let base = "";
+   if (typeof data.translation_key === "string" && data.translation_key) {
+      const other = await db
+         .prepare(`SELECT slug FROM "${entity}" WHERE translation_key = ?1 AND locale <> ?2 ORDER BY id LIMIT 1`)
+         .bind(data.translation_key, locale)
+         .first<{ slug: string }>();
+      if (other?.slug) base = other.slug;
+   }
+   if (!base && typeof data.title === "string") base = slugify(data.title);
+   if (entity === "pages" && base === "home") base = "home-page";
+   return freeSlug(db, entity, locale, base);
 }
 
 /** The stored forms the client's `updated_at` may match (as sent, and as bknd's ISO string). */
@@ -280,6 +302,9 @@ export function contentRulesPlugin(db?: D1Database): AppPlugin {
             async (event) => {
                const { entity, data } = event.params as { entity: { name: string }; data: Row };
                await applyOwnership(db, entity.name, data, "create");
+               if (db && SLUGGED.has(entity.name) && (data.slug === undefined || data.slug === null || (typeof data.slug === "string" && data.slug.trim() === ""))) {
+                  data.slug = await generateSlug(db, entity.name as "pages" | "posts", data);
+               }
                applyRules(entity.name, data, "create");
                const target = db ? slugTarget(entity.name, data) : null;
                if (target) await assertSlugFree(db!, entity.name, target);

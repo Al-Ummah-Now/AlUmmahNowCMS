@@ -53,7 +53,8 @@ describe("profiles", () => {
       expect(slugify("Dr. Aisha Al-Amin")).toBe("dr-aisha-al-amin");
       expect(slugify("yusuf.ali@example.com")).toBe("yusuf-ali");
       expect(slugify("Émile Zola")).toBe("emile-zola");
-      expect(slugify("عالم")).toBe("scholar");
+      expect(slugify("محمد بن صالح")).toBe("muhammad-bn-salh");
+      expect(slugify("🌙")).toBe("scholar");
       expect(slugify("rss")).toBe("scholar");
    });
    it("scholarName falls back to the other language, then the slug", () => {
