@@ -43,8 +43,10 @@ jobs:
       - run: npm ci
 
       - name: Install Playwright
-        run: npx playwright install --with-deps ${{ inputs.browsers == 'all' && 'chromium firefox webkit' || 'chromium' }}
-
+        uses: ./.github/actions/playwright-install
+        with:
+          runner: npx
+          browsers: ${{ inputs.browsers == 'all' && 'chromium firefox webkit' || 'chromium' }}
       - name: E2E
         env:
           CMS_URL: https://cms.qa.alummahnow.net
