@@ -153,6 +153,8 @@ const LETTERS: Record<string, string> = {
 const HARAKAT: Record<string, string> = { "\u064E": "a", "\u064F": "u", "\u0650": "i", "\u064B": "an", "\u064C": "un", "\u064D": "in", "\u0670": "a", "\u0652": "" };
 const SHADDA = "\u0651";
 const MARKS = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g;
+/** Arabic script anywhere in the text. */
+export const hasArabic = (s: string) => ARABIC.test(s);
 const ARABIC = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 
 const isVowel = (c: string | undefined) => !!c && "aeiou".includes(c);

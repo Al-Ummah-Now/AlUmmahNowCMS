@@ -38,17 +38,19 @@ const idOf = (page: Page) => Number(new URL(page.url()).pathname.split("/").pop(
 for (const lang of ["en", "ar"] as const) {
    const T = ADMIN_STRINGS[lang];
 
-   test(`${lang} UI: create post → address filled from the Arabic title, override, regenerate, -2, live lock`, async ({ page }) => {
+   test(`${lang} UI: create post → English address from the Arabic title (mocked AI), override, regenerate, -2, live lock`, async ({ page }) => {
       await signIn(page, `${stamp()}-${lang}`);
       const tag = `${stamp()}${lang}`;
       const title = `إن الدين عند الله الإسلام ${tag}`;
-      const auto = `inna-al-din-inda-allah-al-islam-${tag}`;
+      // The mock model (test/support/workers-ai-mock.ts) translates the title; nothing real is called.
+      const auto = `religion-with-allah-is-islam-${tag}`;
       const titleBox = page.locator("#f-title");
       const address = page.locator("#f-slug");
       await page.goto(`/posts/new?locale=ar&lang=${lang}`);
       await expect(address).toHaveValue("");
       await titleBox.fill(title);
       await expect(address).toHaveValue(auto);
+      await expect(page.locator("[data-slug-source]")).toHaveText(T.content.slugTranslated);
 
       // Typed by hand: the title no longer drives it, until "Regenerate from title".
       await address.fill(`mine-${tag}`);
@@ -62,10 +64,11 @@ for (const lang of ["en", "ar"] as const) {
       const first = idOf(page);
       expect(await slugOf(page, "posts", first)).toBe(auto);
 
-      // The same title again: the generated address saves as -2 instead of failing.
+      // The same title again: the generated address is -2 instead of failing.
       await page.goto(`/posts/new?locale=ar&lang=${lang}`);
       await titleBox.fill(title);
-      await expect(address).toHaveValue(auto);
+      // The suggestion is already the free address.
+      await expect(address).toHaveValue(`${auto}-2`);
       await page.getByRole("button", { name: T.common.saveDraft }).first().click();
       await expect(page).toHaveURL(/\/posts\/\d+/);
       expect(await slugOf(page, "posts", idOf(page))).toBe(`${auto}-2`);
@@ -93,3 +96,16 @@ for (const lang of ["en", "ar"] as const) {
       await expect(address).not.toHaveAttribute("readonly", "");
    });
 }
+
+test("without an AI provider, an Arabic title gets the transliterated address", async ({ page }) => {
+   const OFF = `http://localhost:${process.env.CMS_OFF_PORT ?? 8596}`;
+   native = [];
+   const as = { id: `e2e-admin-${stamp()}-off`, email: `e2e-admin+${stamp()}-off@example.test`, roles: ["Admin"] };
+   await fetch(`${MOCK}/__as`, { method: "POST", body: JSON.stringify(as) });
+   await page.goto(`${OFF}/sso/login?return=%2F`);
+   await expect(page).toHaveURL(`${OFF}/`);
+   await page.goto(`${OFF}/posts/new?locale=ar`);
+   await page.locator("#f-title").fill(`كتاب التوحيد ${stamp()}`);
+   await expect(page.locator("[data-slug-source]")).toHaveText(ADMIN_STRINGS.en.content.slugTransliterated);
+   await expect(page.locator("#f-slug")).toHaveValue(`ktab-al-tuhid-${stamp()}`);
+});

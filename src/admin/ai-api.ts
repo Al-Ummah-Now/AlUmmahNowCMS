@@ -10,6 +10,7 @@
  *   GET  /settings                 admin: providers, routes, budget, bound AI_KEY_* names, recent audit
  *   PUT  /settings                 admin: { settings, version } → validated, versioned, audit-logged
  *   POST /settings/test            admin: { provider, model } → a tiny prompt through that (unsaved) config
+ *   POST /slug                     { kind, locale, title, id?, fresh? } → { slug, base, source } (src/lib/slug-suggest.ts)
  */
 import { Hono } from "hono";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
@@ -35,6 +36,8 @@ import {
 } from "../lib/ai/jobs.ts";
 import { postAuthor, subOfUser } from "../lib/scholars/ownership.ts";
 import { FEATURES, type Feature, type Locale } from "../lib/ai/prompts.ts";
+import { fallbackBase, freeSlug } from "../lib/slug.ts";
+import { suggestSlug } from "../lib/slug-suggest.ts";
 
 // Writers (auth "Scholar") use AI assist on their own posts, under the same per-user budget.
 const isStaff = (role?: string) => role === "admin" || role === "editor" || role === "writer";
@@ -111,6 +114,39 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
          return c.json({ error: "unavailable" }, 503);
       }
       return c.json({ job: publicJob(job) }, 202);
+   });
+
+   // The editor's address suggestion: English title → English translation of the Arabic title →
+   // transliteration, made free in its table and language. Works with AI off (no queue needed).
+   r.post("/slug", async (c) => {
+      const b = (await c.req.json().catch(() => null)) as { kind?: unknown; locale?: unknown; title?: unknown; id?: unknown; fresh?: unknown } | null;
+      const kind = b?.kind;
+      const locale = b?.locale;
+      const title = typeof b?.title === "string" ? b.title.trim() : "";
+      const id = b?.id == null || b.id === "" ? null : Number(b.id);
+      if ((kind !== "pages" && kind !== "posts") || (locale !== "en" && locale !== "ar") || title.length > 200 || (id !== null && (!Number.isInteger(id) || id <= 0))) {
+         return c.json({ error: "bad_request" }, 400);
+      }
+      const user = c.get("user");
+      if (user.role === "writer") {
+         if (kind !== "posts") return c.json({ error: "forbidden" }, 403);
+         if (id !== null && (await postAuthor(c.env.DB, id)) !== (await subOfUser(c.env.DB, user.id))) return c.json({ error: "not_found" }, 404);
+      }
+      // The English title: this row's when it is English, else its linked English version's.
+      let englishTitle: string | null = locale === "en" ? title : null;
+      if (!englishTitle && id !== null) {
+         const en = await c.env.DB.prepare(
+            `SELECT o.title FROM "${kind}" t JOIN "${kind}" o ON o.translation_key = t.translation_key AND o.locale = 'en' WHERE t.id = ?1 AND t.translation_key IS NOT NULL LIMIT 1`,
+         )
+            .bind(id)
+            .first<{ title: string }>();
+         englishTitle = en?.title ?? null;
+      }
+      const s = await suggestSlug(c.env, { title, englishTitle, fresh: b?.fresh === true, user: { id: user.id, email: user.email } });
+      let base = s.base || fallbackBase(kind);
+      if (kind === "pages" && base === "home") base = "home-page";
+      const slug = await freeSlug(c.env.DB, kind, locale, base, id);
+      return c.json({ slug, base, source: s.source, reason: s.reason ?? null }, 200, { "Cache-Control": "no-store" });
    });
 
    r.get("/jobs/:id", async (c) => {

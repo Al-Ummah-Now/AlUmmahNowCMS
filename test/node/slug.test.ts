@@ -93,6 +93,13 @@ describe("junk slug fix (scripts/ops/fix-junk-slugs.ts)", () => {
          [3, "from-english"],
       ]);
       expect(slugify("إن الحكم إلا لله")).toBe("inna-al-hkm-illa-lillah");
+      // An English suggestion wins over transliteration; a linked English version's slug over both.
+      const en = planFixes(
+         [row(5, "5", "إن الدين عند الله الإسلام"), row(6, "6", "x", { translation_slug: "from-english" })],
+         new Map(),
+         new Map([["posts:5", "religion-with-allah-is-islam"], ["posts:6", "ignored"]]),
+      );
+      expect(en.map((f) => f.to)).toEqual(["religion-with-allah-is-islam", "from-english"]);
    });
 
    it("writes guarded updates and marks posts dirty for the timeline", () => {
@@ -100,5 +107,26 @@ describe("junk slug fix (scripts/ops/fix-junk-slugs.ts)", () => {
       expect(sql).toContain("UPDATE posts SET slug = 'it''s', updated_at = '2026-11-11T00:00:00.000Z' WHERE id = 7 AND slug = '1';");
       expect(sql).toContain("INSERT INTO feed_dirty (item, created_at) VALUES ('p7', '2026-11-11T00:00:00.000Z');");
       expect(fixSql([{ ...row(8, "2", "t", { table: "pages" }), to: "p" }])).not.toContain("feed_dirty");
+   });
+});
+
+describe("English address suggestion helpers (src/lib/slug-suggest.ts)", async () => {
+   const { isTestAccount, phraseSlug } = await import("../../src/lib/slug-suggest.ts");
+   it("accepts a short English phrase and caps it at 8 words", () => {
+      expect(phraseSlug({ phrase: "Religion with Allah is Islam", quran: "mostly" })).toBe("religion-with-allah-is-islam");
+      expect(phraseSlug({ phrase: "one two three four five six seven eight nine ten", quran: "none" })).toBe("one-two-three-four-five-six-seven-eight");
+   });
+   it("refuses what is not a phrase", () => {
+      for (const v of [null, "text", { phrase: 3 }, { phrase: "" }, { phrase: "religion" }, { phrase: "الدين الإسلام" }, { phrase: "12 34" }, { phrase: "w ".repeat(13) }, { phrase: "x".repeat(201) }]) {
+         expect(phraseSlug(v), JSON.stringify(v)).toBeNull();
+      }
+   });
+   it("knows the automated test accounts", () => {
+      expect(isTestAccount("delivered+cms-e2e-admin@resend.dev")).toBe(true);
+      expect(isTestAccount("qa-admin@e2e.alummahnow.net")).toBe(true);
+      expect(isTestAccount("e2e+1-1-x@e2e.alummahnow.net")).toBe(true);
+      expect(isTestAccount("editor@alummahnow.net")).toBe(false);
+      expect(isTestAccount("mahmoud@example.com")).toBe(false);
+      expect(isTestAccount(null)).toBe(false);
    });
 });

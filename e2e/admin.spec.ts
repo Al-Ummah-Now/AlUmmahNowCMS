@@ -244,6 +244,8 @@ test.describe("pages and posts (E1–E16)", () => {
       await shot(page, "admin-posts-list");
    });
 
+   // E2E accounts never reach the AI provider (src/lib/slug-suggest.ts isTestAccount): on QA an Arabic
+   // title gets the transliterated address. The English suggestion is covered by e2e/local/slug.local.spec.ts (mocked AI).
    test("address from the title: Arabic transliterated live, manual override, regenerate, -2 when taken, live address locked", async ({ context, page }) => {
       const title = `إن الدين عند الله الإسلام ${STAMP}`;
       const auto = `inna-al-din-inda-allah-al-islam-${STAMP}`;
@@ -252,6 +254,7 @@ test.describe("pages and posts (E1–E16)", () => {
       await expect(address).toHaveValue("");
       await page.getByLabel("Title", { exact: true }).fill(title);
       await expect(address).toHaveValue(auto);
+      await expect(page.locator("[data-slug-source]")).toHaveText(ADMIN_STRINGS.en.content.slugTransliterated);
       // Typed by hand: the title no longer drives it, until "Regenerate from title".
       await address.fill(`mine-${STAMP}`);
       await page.getByLabel("Title", { exact: true }).fill(`${title} x`);
@@ -268,7 +271,7 @@ test.describe("pages and posts (E1–E16)", () => {
       // Same title again: the generated address moves to -2 instead of failing.
       await page.goto("/posts/new?locale=ar");
       await page.getByLabel("Title", { exact: true }).fill(title);
-      await expect(address).toHaveValue(auto);
+      await expect(address).toHaveValue(`${auto}-2`);
       await page.getByRole("button", { name: "Save draft" }).first().click();
       await expect(page).toHaveURL(/\/posts\/\d+/);
       const second = idFromUrl(page);

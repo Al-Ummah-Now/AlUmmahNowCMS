@@ -222,7 +222,7 @@ export async function dismissFailure(db: D1Database, id: string): Promise<boolea
 }
 
 /** `job.id` is null for an admin's "Test connection" call (feature "test"); it still counts toward the budget. */
-export async function recordUsage(db: D1Database, p: { env: string; job: { id: string | null; user_id: number | null; feature: Feature | "test" }; result: CompletionResult; now: number }): Promise<void> {
+export async function recordUsage(db: D1Database, p: { env: string; job: { id: string | null; user_id: number | null; feature: Feature | "test" | "slug" }; result: CompletionResult; now: number }): Promise<void> {
    const r = p.result;
    const u = r.usage ?? { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
    const day = new Date(p.now).toISOString().slice(0, 10);
