@@ -140,6 +140,32 @@ export async function searchVideos(
    return results.map(fromSearchResult).filter((x): x is PickerItem => x !== null && x.kind === kind);
 }
 
+/**
+ * A picker's page before anything is typed (owner rule 2026-11-11: pickers open with content):
+ * the unified search with no query, public items only. Videos and playlists newest first,
+ * channels most viewed first; `cursor` is the search's nextCursor (null after the last page).
+ */
+export async function browseVideos(
+   apiUrl: string,
+   kind: VideoKind,
+   cursor: string | null,
+   fetchImpl: typeof fetch = fetch,
+): Promise<{ items: PickerItem[]; nextCursor: string | null }> {
+   const url = new URL(`${apiUrl}/api/search`);
+   url.searchParams.set("type", kind);
+   url.searchParams.set("sort", kind === "channel" ? "popular" : "date");
+   url.searchParams.set("limit", "20");
+   if (cursor) url.searchParams.set("cursor", cursor);
+   const res = await fetchImpl(url.toString(), { headers: { accept: "application/json" } });
+   if (!res.ok) throw new VideosApiError(`videos browse answered ${res.status}`);
+   const body = (await res.json().catch(() => null)) as { results?: unknown; nextCursor?: unknown } | null;
+   const results = Array.isArray(body?.results) ? (body.results as Obj[]) : [];
+   return {
+      items: results.map(fromSearchResult).filter((x): x is PickerItem => x !== null && x.kind === kind),
+      nextCursor: typeof body?.nextCursor === "string" && body.nextCursor ? body.nextCursor : null,
+   };
+}
+
 const DETAIL_PATH: Record<VideoKind, string> = { video: "videos", playlist: "playlists", channel: "channels" };
 
 /**

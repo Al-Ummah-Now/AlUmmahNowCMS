@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromSearchResult, imageUrl, isPublicItem, lookupItem, searchVideos, toItem } from "../../src/lib/videos.ts";
+import { browseVideos, fromSearchResult, imageUrl, isPublicItem, lookupItem, searchVideos, toItem } from "../../src/lib/videos.ts";
 import { applyRules } from "../../src/lib/content-rules.ts";
 import { embedUrl, watchUrl } from "../../src/lib/embeds.ts";
 
@@ -68,6 +68,21 @@ describe("searchVideos / lookupItem (proxy)", () => {
       expect(u.pathname).toBe("/api/search");
       expect(u.searchParams.get("type")).toBe("video");
       expect(u.searchParams.get("q")).toBe("taf");
+   });
+   it("browseVideos asks for a page with no query: newest videos/playlists, most viewed channels", async () => {
+      const urls: URL[] = [];
+      const fake = (async (url: string) => {
+         urls.push(new URL(url));
+         return Response.json({ results: [video(), video({ isPublic: false, id: "v2" })], nextCursor: "20" });
+      }) as unknown as typeof fetch;
+      const page = await browseVideos("https://videos.api.test", "video", null, fake);
+      expect(page.items.map((i) => i.id)).toEqual(["v1"]);
+      expect(page.nextCursor).toBe("20");
+      expect(urls[0].searchParams.get("q")).toBeNull();
+      expect(urls[0].searchParams.get("sort")).toBe("date");
+      await browseVideos("https://videos.api.test", "channel", "20", fake);
+      expect(urls[1].searchParams.get("sort")).toBe("popular");
+      expect(urls[1].searchParams.get("cursor")).toBe("20");
    });
    it("throws on upstream errors", async () => {
       const fake = (async () => new Response("x", { status: 500 })) as unknown as typeof fetch;

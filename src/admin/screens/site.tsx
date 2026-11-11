@@ -160,13 +160,15 @@ export async function videosScreen(v: View, data: Data, placement: "home" | "vid
    const { t } = v;
    const rows = await data.list("curated_videos", { limit: 200, sort: "sort", where: { placement } });
    const maxSort = rows.data.reduce((m, r) => Math.max(m, Number(r.sort ?? 0)), 0);
+   // The picker marks what this placement already has (opens with content: owner rule 2026-11-11)
+   const pickerAdded = rows.data.map((r) => `${r.kind}:${r.ref_id}`).join(" ");
    const kindLabel = (k: string) => (k === "playlist" ? t.videos.kindPlaylist : k === "channel" ? t.videos.kindChannel : t.videos.kindVideo);
    const watch = (k: string, id: string) => `${videosWebUrl}/${k === "video" ? "watch" : k}/${encodeURIComponent(id)}`;
    return (
       <>
          <I18nScript nonce={v.nonce} strings={rowStrings(v, { added: t.videos.added, already: t.videos.already })} />
          <PageHead title={t.videos.title} intro={t.videos.intro}>
-            <button class="btn primary" type="button" data-videos-add={placement} data-sort={String(maxSort + 10)} data-auto-open={autoAdd ? "1" : undefined}>
+            <button class="btn primary" type="button" data-videos-add={placement} data-picker-added={pickerAdded} data-sort={String(maxSort + 10)} data-auto-open={autoAdd ? "1" : undefined}>
                <Icon name="film" size={18} /> {t.videos.add}
             </button>
          </PageHead>
@@ -239,7 +241,7 @@ export async function videosScreen(v: View, data: Data, placement: "home" | "vid
             </ol>
          ) : (
             <Empty icon="play" title={t.videos.empty}>
-               <button class="btn primary" type="button" data-videos-add={placement} data-sort="10">
+               <button class="btn primary" type="button" data-videos-add={placement} data-picker-added={pickerAdded} data-sort="10">
                   <Icon name="film" size={18} /> {t.videos.add}
                </button>
             </Empty>
