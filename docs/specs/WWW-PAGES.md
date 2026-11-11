@@ -189,7 +189,7 @@ create table page_entries (
 
 ## 7. Migration
 
-Migration 0016 runs in one batch, per env:
+Migration 0017 runs in one batch, per env:
 
 1. **Dead curated rows → Recently deleted.**
    - Which rows: every `curated_videos` row whose snapshot says `public: false`. These are QA's 5. Prod

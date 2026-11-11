@@ -557,5 +557,37 @@ html.seq-dragging,html.seq-dragging *{cursor:grabbing!important;user-select:none
 .combo-list li{padding:8px 10px;border-radius:var(--r-sm, 6px);cursor:pointer;direction:ltr;text-align:start;overflow-wrap:anywhere}
 .combo-list li[aria-selected=true]{background:color-mix(in srgb,var(--fanous-color-primary) 18%,transparent)}
 .combo-list li.combo-empty{cursor:default;color:var(--fanous-color-text-muted)}
+/* Translation flags (docs/TRANSLATION_FLAGS.md): the highlight layer over a field, the popover, the panel.
+   Flagged text is tinted AND underlined (a dashed line, thicker when it is the current flag): never colour alone. */
+.trf-wrap{position:relative;display:block}
+.trf-mirror{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden;color:transparent;background:transparent;border-color:transparent!important;box-shadow:none!important}
+.trf-mirror mark{color:transparent;background:color-mix(in srgb,var(--fanous-color-accent) 26%,transparent);border-radius:2px;text-decoration:underline dashed var(--fanous-color-error-text);text-decoration-thickness:2px;text-underline-offset:.25em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.trf-mirror mark.cur{background:color-mix(in srgb,var(--fanous-color-accent) 45%,transparent);text-decoration-style:solid;text-decoration-thickness:3px}
+.trf-mirror mark.pend{background:transparent;text-decoration-style:dotted}
+.trf-pop{position:absolute;z-index:30;padding:4px;border-radius:var(--r-md);background:var(--fanous-c-dialog-bg);box-shadow:0 0 0 1px var(--fanous-c-dialog-border),var(--fanous-elevation-high)}
+.trf-list{gap:8px}
+.trf-list>li{display:grid;gap:6px;padding:10px 12px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--fanous-c-form-section-border)}
+.trf-list>li[data-current]{box-shadow:inset 0 0 0 2px var(--fanous-color-primary)}
+.trf-list .trf-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--fanous-color-text-secondary)}
+.trf-list .trf-acts{display:flex;flex-wrap:wrap;gap:6px}
+.trf-list .ai-quote{font-size:14px}
+.trf-list .trf-sugg{font-size:14px;margin:0}
+.trf-list .trf-lost{font-size:13px;color:var(--fanous-color-error-text);margin:0}
+.trf-quote{color:var(--fanous-color-text-primary);font-weight:600}
+.trf-reasons{border:0;margin:0;padding:0;min-width:0;display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.trf-reasons legend{padding:0;margin-block-end:8px}
+.trf-alts{border:0;margin:0;padding:0;min-width:0;display:grid;gap:8px}
+.check{display:flex;align-items:center;gap:8px;min-height:32px;cursor:pointer}
+.check input{width:18px;height:18px;margin:0;accent-color:var(--fanous-color-primary);flex:none}
+.trf-alts .check{align-items:flex-start;padding:10px 12px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--fanous-c-form-section-border)}
+.trf-alts .check:has(input:checked){box-shadow:inset 0 0 0 2px var(--fanous-color-primary)}
+.trf-edit-list{margin:0;padding-inline-start:18px;display:grid;gap:4px}
+.trf-history summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}
+.trf-history[open] summary{margin-block-end:8px}
+.badge.trf{background:color-mix(in srgb,var(--fanous-color-accent) 22%,transparent);color:var(--fanous-color-text-primary)}
+.badge.trf::before{display:none}
+.gl-list>li{grid-template-columns:minmax(0,1fr) auto}
+.gl-terms{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-weight:600}
+.gl-form{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 `;

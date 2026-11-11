@@ -20,6 +20,8 @@ import { initTrash } from "./trash.ts";
 import { initScholars } from "./scholars.ts";
 import { initLibrary } from "./library.ts";
 import { initPageType } from "./page-type.ts";
+import { initTranslationFlags } from "./translation-flags.ts";
+import { initGlossary } from "./glossary.ts";
 
 initShell();
 initAutocomplete();
@@ -38,6 +40,8 @@ initAiSettings();
 initScholars();
 initLibrary();
 initPageType();
+initTranslationFlags();
+initGlossary();
 
 // Overview: requeue block videos the snapshot queue gave up on.
 for (const b of $$<HTMLButtonElement>("[data-retry-videos]")) {

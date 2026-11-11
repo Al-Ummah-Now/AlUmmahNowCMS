@@ -58,6 +58,7 @@ const SITE: NavItem[] = [
    { href: "/scholars", label: "scholars", icon: "users" },
    { href: "/people", label: "people", icon: "users", admin: true },
    { href: "/deleted", label: "deleted", icon: "trash", admin: true },
+   { href: "/glossary", label: "glossary", icon: "book" },
    { href: "/ai-settings", label: "aiSettings", icon: "sparkle", admin: true },
 ];
 

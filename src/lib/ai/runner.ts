@@ -17,6 +17,7 @@ import { loadSettings, type AiSettings } from "./settings.ts";
 import { errText, log } from "../log.ts";
 import { claimJob, completeJob, failJob, getJob, recordUsage, releaseJob, savePartial, type Job } from "./jobs.ts";
 import { chunkMarkdown, invariantWarnings } from "./markdown.ts";
+import { entriesFor, glossaryPrompt } from "../translation-flags/glossary.ts";
 import {
    checkSystem,
    documentBlock,
@@ -80,7 +81,8 @@ async function translate(x: Ctx) {
    const { input } = job;
    const to = job.target_locale ?? (job.locale === "en" ? "ar" : "en");
    const cfg = MODELS.translate;
-   const system = translateSystem(job.locale, to);
+   const glossary = glossaryPrompt(await entriesFor(env.DB, job.locale, `${input.title}\n${input.summary}\n${input.body}`));
+   const system = translateSystem(job.locale, to, glossary);
    const chunks = chunkMarkdown(input.body);
    const partial = job.partial ?? { chunks: [] };
    const count = Math.max(1, chunks.length);

@@ -62,6 +62,12 @@ export function defaultReply(req: MockRequest): MockReply {
       const rest = hit ? title.slice(hit.length).trim() : "";
       return { kind: "json", data: { phrase: hit ? `${known[hit]} ${rest}`.trim() : "an english address", quran: hit ? "mostly" : "none" }, input: 260, output: 12 };
    }
+   // "Re-translate selection" (src/lib/translation-flags/retranslate.ts): alternatives for the marked span.
+   if (s.includes("alternative") && s.includes("between ⟦ and ⟧")) {
+      const span = req.user.match(/⟦([\s\S]*?)⟧/)?.[1] ?? "";
+      const ar = s.includes("alternative Modern Standard Arabic renderings");
+      return { kind: "json", data: { alternatives: ar ? [`بديل أ: ${span}`, `بديل ب: ${span}`] : [`Option A: ${span}`, `Option B: ${span}`, span] }, input: 300, output: 40 };
+   }
    // The admin's "Test connection" (src/admin/ai-api.ts)
    if (s.includes("connection test")) return { kind: "json", data: { reply: "ok" }, input: 40, output: 6 };
    return { kind: "error", code: 3003, status: 400, message: "unknown prompt" };

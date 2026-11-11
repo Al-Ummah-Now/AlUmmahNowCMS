@@ -1,6 +1,8 @@
 /** @jsxImportSource hono/jsx */
 /** Pages and posts: list (search, filters, sort, paging) and editor (docs/ADMIN_UI_SPEC.md E1–E16, A1–A12). */
 import { AiCard, AiCheckButton, AiDialogs, AiSeoButton, AiSeoPanel, aiClientStrings } from "../ui/ai.tsx";
+import { TrFlagsCard, TrFlagsDialogs, TrFlagsPopover, trFlagsClientStrings } from "../ui/translation-flags.tsx";
+import { openCounts } from "../../lib/translation-flags/store.ts";
 import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
 import { publishState, timeOf, type PublishState } from "../../lib/schedule.ts";
@@ -110,7 +112,7 @@ const qs = (p: ListParams, over: Partial<ListParams>) => {
    return out ? `?${out}` : "";
 };
 
-export async function contentList(v: View, data: Data, kind: ContentKind, p: ListParams) {
+export async function contentList(v: View, data: Data, kind: ContentKind, p: ListParams, db?: D1Database) {
    const { t } = v;
    const select = ["id", "title", "slug", "locale", "status", "updated_at", "published_at", "publish_at", ...(kind === "posts" ? ["author_name", "author_sub", "featured_at"] : ["list_kind"])];
    // A writer lists only their own posts (docs/SCHOLARS.md §2); data.list reads bknd directly.
@@ -119,6 +121,8 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
    const res = await searchList(data, kind, p, select, writer ? { author_sub: v.user.sub } : {});
    const pages = Math.max(1, Math.ceil(res.total / PAGE_SIZE));
    const base = `/${kind}`;
+   // Open translation flags per row (docs/TRANSLATION_FLAGS.md): a badge on the list.
+   const flagCounts = db ? await openCounts(db, kind, res.data.map((r: Row) => Number(r.id))).catch(() => new Map<number, number>()) : new Map<number, number>();
    const filtered = !!(p.q || p.status || p.locale);
    const seg = <K extends "status" | "locale">(key: K, values: ListParams[K][], label: (x: ListParams[K]) => string) => (
       <div class="seg" role="group" aria-label={key === "status" ? t.common.filters : t.common.language}>
@@ -187,6 +191,13 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
                            {r.author_name ? <span>{String(r.author_name)}</span> : null}
                            {r.author_sub && !writer ? <span class="badge loc">{t.scholars.badge}</span> : null}
                            {r.author_sub && r.featured_at ? <span class="badge published">{t.featuring.featured}</span> : null}
+                           {flagCounts.get(Number(r.id)) ? (
+                              <span class="badge trf" data-trf-badge>
+                                 <Icon name="flag" size={12} />
+                                 <span class="vh">{t.trFlags.card}: </span>
+                                 {t.trFlags.openCount.replace("{0}", String(flagCounts.get(Number(r.id))))}
+                              </span>
+                           ) : null}
                            {publishState(r) === "scheduled" ? (
                               <span class="when">
                                  <Icon name="clock" size={14} /> {t.content.goesLive} <LocalTime iso={r.publish_at} lang={v.prefs.lang} />
@@ -313,6 +324,9 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    ]);
    const cover = covers.data[0];
    const history = id ? await historyCard({ v, data, kind, id }) : null;
+   // Translation flags (docs/TRANSLATION_FLAGS.md): on a saved row with a version in the other language.
+   const flags = !!row && translations.data.length > 0;
+   const canResolveFlags = flags && !writer;
    // Blocks (pages) and slides (card posts), with what the editor shows for their references.
    const blocks: Block[] = kind === "pages" ? (row ? (storedBlocks(row.blocks).length ? storedBlocks(row.blocks) : bodyAsBlocks(row.body)) : []) : [];
    const slides: Slide[] = kind === "posts" ? storedSlides(row?.slides) : [];
@@ -386,6 +400,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       picker: t.picker,
       pageList: { ...t.pageList, previewCount: t.pageList.previewCount(-1).replace("-1", "{0}"), previewCount1: t.pageList.previewCount(1), tagCount: undefined },
       ai: v.ai ? aiClientStrings(v) : undefined,
+      trFlags: flags ? trFlagsClientStrings(v) : undefined,
    };
    return (
       <>
@@ -413,6 +428,8 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
             data-state={state}
             data-publish-at={publishAt}
             data-ai={v.ai ? "1" : undefined}
+            data-trf={flags ? "1" : undefined}
+            data-trf-resolve={canResolveFlags ? "1" : undefined}
             data-ui-lang={v.prefs.lang}
             data-page-type={kind === "pages" ? pageType : undefined}
             novalidate
@@ -817,6 +834,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                </section>
                {history}
                <AiCard v={v} locale={locale} other={other} saved={!!row} siblingId={translations.data[0] ? Number(translations.data[0].id) : null} />
+               {flags ? <TrFlagsCard v={v} canResolve={canResolveFlags} /> : null}
             </aside>
             <div class="actbar" role="group" aria-label={t.content.publishing}>
                <button class="btn primary" type="submit" data-action={scheduled ? "schedule" : "published"}>
@@ -831,6 +849,12 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
          <MediaDialog v={v} />
          {kind === "pages" ? <PostsDialog v={v} locale={locale} /> : null}
          <AiDialogs v={v} locale={locale} other={other} kind={kind} />
+         {flags ? (
+            <>
+               <TrFlagsDialogs v={v} locale={locale} other={other} />
+               <TrFlagsPopover v={v} />
+            </>
+         ) : null}
          <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} reason />
       </>
    );
