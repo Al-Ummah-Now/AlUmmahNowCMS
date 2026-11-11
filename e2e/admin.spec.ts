@@ -244,6 +244,52 @@ test.describe("pages and posts (E1–E16)", () => {
       await shot(page, "admin-posts-list");
    });
 
+   test("address from the title: Arabic transliterated live, manual override, regenerate, -2 when taken, live address locked", async ({ context, page }) => {
+      const title = `إن الدين عند الله الإسلام ${STAMP}`;
+      const auto = `inna-al-din-inda-allah-al-islam-${STAMP}`;
+      const address = page.getByLabel("Address", { exact: true });
+      await sessionPage(context, page, ACCOUNTS.moderator, "/posts/new?locale=ar");
+      await expect(address).toHaveValue("");
+      await page.getByLabel("Title", { exact: true }).fill(title);
+      await expect(address).toHaveValue(auto);
+      // Typed by hand: the title no longer drives it, until "Regenerate from title".
+      await address.fill(`mine-${STAMP}`);
+      await page.getByLabel("Title", { exact: true }).fill(`${title} x`);
+      await expect(address).toHaveValue(`mine-${STAMP}`);
+      await page.getByLabel("Title", { exact: true }).fill(title);
+      await page.getByRole("button", { name: "Regenerate from title" }).click();
+      await expect(address).toHaveValue(auto);
+      await page.getByRole("button", { name: "Save draft" }).first().click();
+      await expect(page).toHaveURL(/\/posts\/\d+/);
+      const first = idFromUrl(page);
+      created.push({ entity: "posts", id: first });
+      expect(((await adminApi("GET", `/api/data/entity/posts/${first}`)).json?.data as { slug: string }).slug).toBe(auto);
+
+      // Same title again: the generated address moves to -2 instead of failing.
+      await page.goto("/posts/new?locale=ar");
+      await page.getByLabel("Title", { exact: true }).fill(title);
+      await expect(address).toHaveValue(auto);
+      await page.getByRole("button", { name: "Save draft" }).first().click();
+      await expect(page).toHaveURL(/\/posts\/\d+/);
+      const second = idFromUrl(page);
+      created.push({ entity: "posts", id: second });
+      expect(((await adminApi("GET", `/api/data/entity/posts/${second}`)).json?.data as { slug: string }).slug).toBe(`${auto}-2`);
+
+      // Once live, the address is locked; changing it goes through the in-app warning.
+      expect((await adminApi("PATCH", `/api/data/entity/posts/${first}`, { status: "published" })).status).toBe(200);
+      await page.goto(`/posts/${first}`);
+      await expect(address).toHaveAttribute("readonly", "");
+      await page.getByRole("button", { name: "Change address" }).click();
+      const warn = page.getByRole("dialog", { name: "Change a live address?" });
+      await expect(warn).toBeVisible();
+      await warn.getByRole("button", { name: "Cancel" }).click();
+      await expect(address).toHaveAttribute("readonly", "");
+      await page.getByRole("button", { name: "Change address" }).click();
+      await warn.getByRole("button", { name: "Change address" }).click();
+      await expect(address).not.toHaveAttribute("readonly", "");
+      await expectNoAxeViolations(page);
+   });
+
    test("insert video: the picker inside the body editor writes ::video[ID] on its own line (X1)", async ({ context, page }) => {
       await sessionPage(context, page, ACCOUNTS.admin, "/posts/new?locale=en");
       await page.locator("#f-body").fill("Intro");

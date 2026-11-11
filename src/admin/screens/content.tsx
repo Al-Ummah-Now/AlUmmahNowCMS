@@ -345,6 +345,10 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       slugBad: t.content.slugBad,
       slugHome: t.content.slugHome,
       slugTaken: t.content.slugTaken,
+      slugNumeric: t.content.slugNumeric,
+      slugChangeTitle: t.content.slugChangeTitle,
+      slugChangeBody: t.content.slugChangeBody,
+      slugChangeOk: t.content.slugChangeOk,
       required: t.common.required,
       saved: t.common.saved,
       saving: t.common.saving,
@@ -396,6 +400,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
             data-editor={kind}
             data-id={id ? String(id) : ""}
             data-updated={s("updated_at")}
+            data-slug={s("slug")}
             data-locale={locale}
             data-translation-key={s("translation_key")}
             data-state={state}
@@ -417,11 +422,26 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         <span class="muted" style="display:flex;align-items:center;padding-inline-start:14px;white-space:nowrap">
                            /{locale}/{kind === "posts" ? `${WWW_POSTS}/` : ""}
                         </span>
-                        <input id="f-slug" name="slug" required maxlength={120} value={s("slug")} pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$" autocapitalize="off" autocorrect="off" spellcheck={false} aria-describedby="f-slug-help f-slug-err" style="padding-inline-start:2px;color:var(--fanous-c-form-input-text)" data-auto-slug={row ? undefined : "1"} />
+                        <input id="f-slug" name="slug" required maxlength={120} value={s("slug")} pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck={false} aria-describedby={wentLive ? "f-slug-locked f-slug-help f-slug-err" : "f-slug-help f-slug-err"} style="padding-inline-start:2px;color:var(--fanous-c-form-input-text)" data-auto-slug={row ? undefined : "1"} readonly={wentLive} data-slug-live={wentLive ? "1" : undefined} />
                      </div>
+                     {wentLive ? (
+                        <p class="help" id="f-slug-locked" data-slug-locked>
+                           {t.content.slugLocked}
+                        </p>
+                     ) : null}
                      <p class="help" id="f-slug-help">
                         {t.content.slugHelp}
                      </p>
+                     <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        {wentLive ? (
+                           <button type="button" class="btn sm" data-slug-unlock>
+                              {t.content.slugChange}
+                           </button>
+                        ) : null}
+                        <button type="button" class="btn sm" data-slug-regen hidden={!row}>
+                           {t.content.slugRegen}
+                        </button>
+                     </div>
                      <p class="err" id="f-slug-err" hidden />
                   </div>
                   <div class="field">
