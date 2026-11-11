@@ -4,6 +4,15 @@ import { describe, expect, it } from "vitest";
 import { CMS, cookiesOf, makeWorker, signIn } from "./helpers.ts";
 
 const videosApi = (url: URL) => {
+   if (url.pathname === "/api/search" && !url.searchParams.get("q")) {
+      // A picker opening: no query, newest first, paged
+      const second = url.searchParams.get("cursor") === "20";
+      return Response.json({
+         results: second ? [] : [{ type: "video", id: "v1", video: { id: "v1", title: "Public talk", isPublic: true } }, { type: "video", id: "v2", video: { id: "v2", title: "Private", isPublic: false } }],
+         nextCursor: second ? null : "20",
+         sort: url.searchParams.get("sort"),
+      });
+   }
    if (url.pathname === "/api/search") {
       return Response.json({
          results: [
@@ -43,6 +52,19 @@ describe("picker", () => {
       const { items } = (await res.json()) as { items: { id: string; embed_url: string }[] };
       expect(items.map((i) => i.id)).toEqual(["v1"]);
       expect(items[0].embed_url).toBe("https://videos.test/embed/v/v1");
+   });
+
+   it("an empty query lists the first page (public only) with a cursor for the next", async () => {
+      const cookie = await session();
+      const f = makeWorker(videosApi);
+      const res = await f("/picker/api/search?kind=video&q=", { headers: { cookie } });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { items: { id: string }[]; next_cursor: string | null };
+      expect(body.items.map((i) => i.id)).toEqual(["v1"]);
+      expect(body.next_cursor).toBe("20");
+      const next = (await (await f("/picker/api/search?kind=video&cursor=20", { headers: { cookie } })).json()) as { items: unknown[]; next_cursor: string | null };
+      expect(next.items).toEqual([]);
+      expect(next.next_cursor).toBeNull();
    });
 
    it("validates the query", async () => {

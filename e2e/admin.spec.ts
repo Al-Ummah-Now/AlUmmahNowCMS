@@ -310,6 +310,30 @@ test.describe("pages and posts (E1–E16)", () => {
       await expect(dialog).toBeHidden();
       await expect(page.locator("#f-body")).toHaveValue(/^Intro\n\n::video\[[A-Za-z0-9_-]+\]\n\n$/);
    });
+
+   // Owner rule 2026-11-11: pickers open with content before anything is typed
+   test("the picker opens with the newest public videos, pages on, and one letter filters them", async ({ context, page }) => {
+      await sessionPage(context, page, ACCOUNTS.admin, "/posts/new?locale=en");
+      await page.getByRole("button", { name: "Insert video" }).click();
+      const dialog = page.getByRole("dialog", { name: "Choose a video" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByLabel("Search the videos platform")).toHaveValue("");
+      // No typing: the first page arrives (or QA says it has nothing public)
+      await expect(dialog.locator("[data-picker-skeleton]")).toHaveCount(0, { timeout: 20_000 });
+      await expect(dialog.locator("[data-picker-status]")).toHaveText(/Newest public videos|Nothing public here yet/);
+      const first = await dialog.locator("li[data-pick-id]").count();
+      test.skip(first === 0, "QA has no public videos");
+      await expect(dialog.locator("[data-picker-results]")).toHaveAttribute("aria-busy", "false");
+      const more = dialog.locator("[data-picker-more]");
+      if (await more.count()) {
+         await more.click();
+         await expect.poll(() => dialog.locator("li[data-pick-id]").count(), { timeout: 20_000 }).toBeGreaterThan(first);
+      }
+      const title = ((await dialog.locator("li[data-pick-id] .t").first().textContent()) ?? "").trim();
+      await dialog.getByLabel("Search the videos platform").fill(title.slice(0, 1));
+      await expect(dialog.locator("li[data-pick-id]").first()).toBeVisible();
+      await expectNoAxeViolations(page);
+   });
 });
 
 test.describe("scheduled publishing (#7)", () => {

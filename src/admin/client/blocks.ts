@@ -935,12 +935,14 @@ export function initBlocks(): void {
             void (dlg as HTMLDialogElement & { search?: (q: string) => Promise<void> }).search?.("");
          } else if (btn.matches("[data-add-videos]") && li) {
             const list = $("ol[data-k=items]", li)!;
+            // Videos already in this block are marked in the picker
+            const have = $$<HTMLElement>(":scope > li", list).map((x) => `${$<HTMLInputElement>("[data-k=kind]", x)?.value ?? "video"}:${$<HTMLInputElement>("[data-k=ref_id]", x)?.value ?? ""}`);
             openPicker(async (item) => {
                const snap = await snapshot(item);
                if (!snap) return;
                appendFromTemplate(list, "videos", (s) => setVideoView(s, item, snap));
                announce(list, fmt(T.blocks.added, snap.title));
-            }, btn);
+            }, btn, { added: have });
          } else if (btn.matches("[data-choose-video]") && li) {
             const slot = btn.closest<HTMLElement>("[data-video-slot]")!;
             openPicker(async (item) => {

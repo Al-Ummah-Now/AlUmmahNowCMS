@@ -7,7 +7,7 @@ import { applyRules, ContentRuleError } from "../lib/content-rules.ts";
 import { embedUrl } from "../lib/embeds.ts";
 import { snapshotOf } from "../lib/snapshots.ts";
 import { putSnapshot } from "../lib/video-snapshots.ts";
-import { lookupItem, searchVideos, VIDEO_KINDS, type VideoKind } from "../lib/videos.ts";
+import { browseVideos, lookupItem, searchVideos, VIDEO_KINDS, type VideoKind } from "../lib/videos.ts";
 import type { AppEnv, Deps } from "../types.ts";
 
 const CURATED_COLS = "id, kind, ref_id, placement, locale, title_override, sort, status, snapshot, created_at, updated_at";
@@ -39,6 +39,17 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       const kind = (c.req.query("kind") ?? "video") as VideoKind;
       const q = (c.req.query("q") ?? "").trim();
       if (!VIDEO_KINDS.includes(kind)) return c.json({ error: "bad_request", message: "kind must be video, playlist or channel" }, 400);
+      // No query: the picker opening with its first page (or the page at `cursor`)
+      if (!q) {
+         const cursor = (c.req.query("cursor") ?? "").slice(0, 40) || null;
+         try {
+            const { items, nextCursor } = await browseVideos(cfg.videosApiUrl, kind, cursor, deps.fetch);
+            return c.json({ items: items.map((it) => ({ ...it, embed_url: embedUrl(cfg.videosWebUrl, it.kind, it.id) })), next_cursor: nextCursor });
+         } catch (error) {
+            console.warn("picker browse failed", (error as Error).message);
+            return c.json({ error: "upstream_error" }, 502);
+         }
+      }
       if (q.length < 2 || q.length > 100) return c.json({ error: "bad_request", message: "q must be 2–100 characters" }, 400);
       try {
          const items = await searchVideos(cfg.videosApiUrl, kind, q, deps.fetch);
