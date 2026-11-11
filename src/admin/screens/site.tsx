@@ -1,12 +1,11 @@
 /** @jsxImportSource hono/jsx */
-/** Navigation, Videos, Site settings and Library (docs/ADMIN_UI_SPEC.md E17–E36, A8, A11–A13, X1). */
+/** Navigation, Site settings and Library (Videos: screens/videos-library.tsx) (docs/ADMIN_UI_SPEC.md E17–E36, A8, A11–A13, X1). */
 import type { Data, Row } from "../data.ts";
 import { variantStatuses, type VariantRow } from "../../lib/variants/jobs.ts";
-import { bytes, relative } from "../format.ts";
-import { Icon, type IconName } from "../ui/icons.tsx";
+import { bytes } from "../format.ts";
+import { Icon } from "../ui/icons.tsx";
 import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { ConfirmDialog, I18nScript } from "../ui/parts.tsx";
-import { PickerDialog } from "../ui/picker.tsx";
 
 const parse = (v: unknown): unknown => {
    if (typeof v !== "string") return v;
@@ -141,115 +140,6 @@ export async function navigationScreen(v: View, data: Data, menu: "header" | "fo
                <p class="err" data-add-err hidden role="alert" style="grid-column:1/-1" />
             </form>
          </section>
-         <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} reason />
-      </>
-   );
-}
-
-/* Videos */
-
-interface Snap {
-   title?: string;
-   thumbnail_url?: string | null;
-   channel_name?: string | null;
-}
-
-const KIND_ICON: Record<string, IconName> = { video: "film", playlist: "playlist", channel: "channel" };
-
-export async function videosScreen(v: View, data: Data, placement: "home" | "videos", videosWebUrl: string, autoAdd: boolean) {
-   const { t } = v;
-   const rows = await data.list("curated_videos", { limit: 200, sort: "sort", where: { placement } });
-   const maxSort = rows.data.reduce((m, r) => Math.max(m, Number(r.sort ?? 0)), 0);
-   // The picker marks what this placement already has (opens with content: owner rule 2026-11-11)
-   const pickerAdded = rows.data.map((r) => `${r.kind}:${r.ref_id}`).join(" ");
-   const kindLabel = (k: string) => (k === "playlist" ? t.videos.kindPlaylist : k === "channel" ? t.videos.kindChannel : t.videos.kindVideo);
-   const watch = (k: string, id: string) => `${videosWebUrl}/${k === "video" ? "watch" : k}/${encodeURIComponent(id)}`;
-   return (
-      <>
-         <I18nScript nonce={v.nonce} strings={rowStrings(v, { added: t.videos.added, already: t.videos.already })} />
-         <PageHead title={t.videos.title} intro={t.videos.intro}>
-            <button class="btn primary" type="button" data-videos-add={placement} data-picker-added={pickerAdded} data-sort={String(maxSort + 10)} data-auto-open={autoAdd ? "1" : undefined}>
-               <Icon name="film" size={18} /> {t.videos.add}
-            </button>
-         </PageHead>
-         <div class="toolbar">
-            <Seg
-               label={t.videos.title}
-               items={(["home", "videos"] as const).map((p) => ({ href: `/videos?placement=${p}`, label: p === "home" ? t.videos.home : t.videos.videosPage, on: p === placement }))}
-            />
-         </div>
-         {rows.data.length ? (
-            <ol class="rows vrows" data-rows="curated_videos" aria-describedby="drag-hint">
-               {rows.data.map((r: Row) => {
-                  const snap = (parse(r.snapshot) ?? {}) as Snap;
-                  const title = String(r.title_override || snap.title || r.ref_id);
-                  const locale = String(r.locale ?? "all");
-                  return (
-                     <li class="row vrow card" data-id={String(r.id)} data-sort={String(r.sort ?? 0)} data-kind={String(r.kind)} data-ref={String(r.ref_id)} draggable="true">
-                        <span class="grip" aria-hidden="true">
-                           <Icon name="grip" size={18} />
-                        </span>
-                        <a class="vthumb" href={watch(String(r.kind), String(r.ref_id))} target="_blank" rel="noopener">
-                           <span class="vh">
-                              {t.videos.watch}: {title} ·{" "}
-                           </span>
-                           {snap.thumbnail_url ? <img src={snap.thumbnail_url} alt="" loading="lazy" /> : <Icon name={KIND_ICON[String(r.kind)] ?? "film"} size={28} />}
-                           <span class="vkind">
-                              <Icon name={KIND_ICON[String(r.kind)] ?? "film"} size={14} /> {kindLabel(String(r.kind))}
-                           </span>
-                        </a>
-                        <div class="vbody stack" style="gap:10px">
-                           <div>
-                              <div class="li-title" dir="auto">
-                                 {title}
-                              </div>
-                              <div class="li-meta">
-                                 {snap.channel_name ? <span dir="auto">{snap.channel_name}</span> : null}
-                                 <span dir="ltr">{String(r.ref_id)}</span>
-                                 <span>
-                                    {t.common.updated} {relative(r.updated_at, v.prefs.lang)}
-                                 </span>
-                              </div>
-                           </div>
-                           <div class="row2" style="gap:12px">
-                              <div class="field">
-                                 <label for={`vo-${r.id}`}>{t.videos.override}</label>
-                                 <input id={`vo-${r.id}`} spellcheck={true} class="input" data-field="title_override" data-nullable value={String(r.title_override ?? "")} placeholder={snap.title ?? ""} maxlength={200} dir="auto" />
-                              </div>
-                              <div class="field">
-                                 <label for={`vl-${r.id}`}>{t.videos.showFor}</label>
-                                 <select id={`vl-${r.id}`} class="select" data-field="locale">
-                                    {(["all", "en", "ar"] as const).map((l) => (
-                                       <option value={l} selected={locale === l}>
-                                          {t.locales[l]}
-                                       </option>
-                                    ))}
-                                 </select>
-                              </div>
-                           </div>
-                        </div>
-                        <div class="vend">
-                           <Visibility v={v} on={r.status === "published"} label={title} />
-                           <button type="button" class="btn sm" data-change-video={String(r.id)}>
-                              <Icon name="swap" size={16} /> {t.videos.change}
-                           </button>
-                           <RowTools v={v} label={title} />
-                        </div>
-                     </li>
-                  );
-               })}
-            </ol>
-         ) : (
-            <Empty icon="play" title={t.videos.empty}>
-               <button class="btn primary" type="button" data-videos-add={placement} data-picker-added={pickerAdded} data-sort="10">
-                  <Icon name="film" size={18} /> {t.videos.add}
-               </button>
-            </Empty>
-         )}
-         <p class="help" id="drag-hint">
-            {t.common.dragHint}
-         </p>
-         <PickerDialog v={v} kinds={["video", "playlist", "channel"]} />
          <ConfirmDialog v={v} title={t.common.confirmDelete} body={t.common.confirmDeleteBody} reason />
       </>
    );

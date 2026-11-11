@@ -46,9 +46,11 @@ export function initTimeline(): void {
    if (!root) return;
    const T = strings<S>();
    const locale = root.dataset.locale === "ar" ? "ar" : "en";
+   // Home ("/admin/api/timeline") or a curated page's list ("/admin/api/lists/<id>"): same routes.
+   const base = root.dataset.api || "/admin/api/timeline";
    const live = $("[data-tl-live]");
    const fail = (e: unknown) => toast(e instanceof ApiError && e.status === 409 ? T.conflict : T.failed, "bad");
-   const patch = (key: string, body: Record<string, unknown>) => api("PATCH", `/admin/api/timeline/entries/${key}`, body);
+   const patch = (key: string, body: Record<string, unknown>) => api("PATCH", `${base}/entries/${key}`, body);
 
    // Row actions.
    root.addEventListener("click", async (ev) => {
@@ -67,8 +69,8 @@ export function initTimeline(): void {
          } else if (btn.dataset.remove) {
             const isPost = btn.dataset.remove === "post";
             if (!(await askConfirm({ body: isPost ? T.removePost : T.removeVideo }))) return;
-            if (isPost) await api("POST", `/admin/api/timeline/posts/${key.slice(1)}`, { on: false });
-            else await api("DELETE", `/admin/api/timeline/entries/${key}`);
+            if (isPost) await api("POST", `${base}/posts/${key.slice(1)}`, { on: false });
+            else await api("DELETE", `${base}/entries/${key}`);
             reload();
          }
       } catch (e) {
@@ -112,7 +114,7 @@ export function initTimeline(): void {
       const items = () => $$<HTMLLIElement>(":scope > li[data-key]", pins);
       const save = async (moved: HTMLLIElement, focus?: HTMLElement | null) => {
          try {
-            await api("PUT", "/admin/api/timeline/pins", { locale, keys: items().map((li) => li.dataset.key) });
+            await api("PUT", `${base}/pins`, { locale, keys: items().map((li) => li.dataset.key) });
             const list = items();
             if (live) live.textContent = fmt(T.moved, list.indexOf(moved) + 1, list.length);
             toast(T.saved);
@@ -178,7 +180,7 @@ export function initTimeline(): void {
    addVideo?.addEventListener("click", () =>
       openPicker(async (item) => {
          try {
-            const res = await api<{ data: { existing: boolean } }>("POST", "/admin/api/timeline/videos", { kind: item.kind, ref_id: item.id, locale: "all" });
+            const res = await api<{ data: { existing: boolean } }>("POST", `${base}/videos`, { kind: item.kind, ref_id: item.id, locale: "all" });
             toast(res.data.existing ? T.already : T.added, res.data.existing ? "bad" : "ok");
             if (!res.data.existing) setTimeout(reload, 500);
          } catch (e) {
@@ -200,7 +202,7 @@ export function initTimeline(): void {
             const typed = q.value.trim();
             const { items, published, off } = await api<{ items: { id: number; title: string; date: string; kind: string }[]; published: number; off: number }>(
                "GET",
-               `/admin/api/timeline/candidates?locale=${locale}&q=${encodeURIComponent(typed)}`,
+               `${base}/candidates?locale=${locale}&q=${encodeURIComponent(typed)}`,
             );
             list.replaceChildren();
             status.textContent = items.length ? String(items.length) : emptyCandidates(T, typed, published, off);
@@ -212,7 +214,7 @@ export function initTimeline(): void {
                b.addEventListener("click", async () => {
                   b.setAttribute("disabled", "");
                   try {
-                     await api("POST", `/admin/api/timeline/posts/${it.id}`, { on: true });
+                     await api("POST", `${base}/posts/${it.id}`, { on: true });
                      toast(T.added);
                      setTimeout(reload, 400);
                   } catch (e) {

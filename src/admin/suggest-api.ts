@@ -9,6 +9,7 @@
  * AND-only branches as screens/content.tsx). A number matches that row's id first. Reads only: no
  * revision or log row.
  */
+import { listLibrary } from "../lib/library.ts";
 import { scopeWhere, subOfUser } from "../lib/scholars/ownership.ts";
 import { listScholars, scholarName } from "../lib/scholars/profiles.ts";
 import { articleCandidates } from "../lib/scholars/featuring.ts";
@@ -84,6 +85,45 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
                   imageUrl: null,
                   href: `/posts/${a.id}`,
                   lang: a.locale,
+               })),
+            },
+            200,
+            { "Cache-Control": "no-store" },
+         );
+      }
+      if (kind === "tags" || kind === "library") {
+         // The filter editor's Tag field (opens with the most used tags) and the Videos screen's search.
+         if (c.get("user")?.role === "writer") return c.json({ error: "forbidden" }, 403);
+         const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
+         const lang = getCookie(c, LANG_COOKIE) === "ar" ? "ar" : "en";
+         const t = ADMIN_STRINGS[lang];
+         if (kind === "tags") {
+            const l = c.req.query("locale") === "ar" ? "ar" : "en";
+            const { results } = await c.env.DB.prepare(
+               `SELECT j.value AS tag, count(*) AS n FROM posts p, json_each(CASE WHEN json_valid(p.tags) THEN p.tags ELSE '[]' END) j
+                WHERE p.locale = ?1 AND p.status = 'published' AND typeof(j.value) = 'text' AND (?2 = '' OR lower(j.value) LIKE '%' || lower(?2) || '%')
+                GROUP BY j.value ORDER BY n DESC, j.value LIMIT ?3`,
+            )
+               .bind(l, q, SUGGEST_LIMIT)
+               .all<{ tag: string; n: number }>();
+            return c.json(
+               { items: results.map((r) => ({ kind: "tags", id: r.tag, label: r.tag, secondary: t.pageList.tagCount(Number(r.n)), imageUrl: null, href: "", lang: l })) },
+               200,
+               { "Cache-Control": "no-store" },
+            );
+         }
+         if (!q) return c.json({ items: [] }, 200, { "Cache-Control": "no-store" });
+         const { items } = await listLibrary(c.env, { q });
+         return c.json(
+            {
+               items: items.slice(0, SUGGEST_LIMIT).map((x) => ({
+                  kind: "library",
+                  id: String(x.id),
+                  label: x.title,
+                  secondary: [t.timeline[x.kind === "playlist" ? "kindPlaylist" : x.kind === "channel" ? "kindChannel" : "kindVideo"], x.channel].filter(Boolean).join(" · "),
+                  imageUrl: x.thumb,
+                  href: `/videos?q=${encodeURIComponent(x.title)}`,
+                  lang: null,
                })),
             },
             200,

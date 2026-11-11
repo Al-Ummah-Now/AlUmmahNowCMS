@@ -151,14 +151,38 @@ interface TimelineItem {
   date: string;                 // ISO; what it sorts by
   pinned: boolean;
   post?: PostSummary & { videos: { kind: 'video'; ref_id: string; snapshot: CuratedSnapshot | null }[] };  // ::video lines of the body (≤ 4)
-  video?: { kind: 'video' | 'playlist'; ref_id: string; snapshot: CuratedSnapshot; title_override: string | null };
+  video?: { kind: 'video' | 'playlist' | 'channel'; ref_id: string; snapshot: CuratedSnapshot; title_override: string | null };
 }
+// A channel's snapshot also has latest: { id, title, thumbnail_url, duration_seconds }[] (≤ 3, newest first).
 ```
 
 On it: live posts with "Show on home timeline" on (the default), and video entries for the locale
 or both languages whose video is still public, minus hidden items. Pinned first (pin order). The
 rest go newest first, ties `v` before `p`, then id descending. `next` is a cursor (`<ms>-<key>`),
 so pages never shift when items are added.
+
+## List pages — `GET /lists/:slug?locale&page`
+
+docs/specs/WWW-PAGES.md. A page whose `list_kind` is `curated` (its own list) or `filter` (everything
+published of some kinds). `/pages/:slug` carries `list_kind` (`null` for a content page), so www knows
+which to call. Content pages and unknown slugs answer 404 here. Cached like the others (`s-maxage=60`).
+
+```ts
+interface ListPage {
+  page: { slug: string; locale: Locale; title: string; summary: string | null; seo_title: string | null; seo_description: string | null;
+          list_kind: 'curated' | 'filter'; list_filter: { kinds: ('article' | 'cards' | 'video' | 'playlist' | 'channel')[]; tag: string | null } | null;
+          alternates: { locale: Locale; slug: string }[] };
+  pinned: TimelineItem[];   // curated pages, page 1 only
+  items: TimelineItem[];    // 20 per page
+  page_number: number; pages: number; total: number; limit: number;
+}
+```
+
+- **Filter:** live main-site posts of the kinds (by `published_at`; `tag` matches posts only) and the CMS
+  video library's public videos, playlists and channels for the locale (by when first added), newest
+  first. Taking an item off home leaves it here; unpublishing or deleting it takes it away.
+- **Curated:** the page's entries, minus hidden ones and posts no longer live: pinned first (page 1),
+  then newest first.
 
 ## Search
 

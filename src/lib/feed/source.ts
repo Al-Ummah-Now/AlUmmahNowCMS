@@ -70,8 +70,12 @@ export function where(sel: Selection, date: string, type: "p" | "v", base: numbe
    return { sql: ` AND ${parts.join(" AND ")}`, binds };
 }
 
-/** Rows → feed items (covers, card faces, body videos and their snapshots), sorted. */
-async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<FeedItem[]> {
+/**
+ * Rows → feed items (covers, card faces, body videos and their snapshots), in row order (posts first).
+ * Video rows have timeline_entries' columns (id, video_kind, ref_id, entry_date, created_at, pin_rank,
+ * title_override) plus the snapshot; list pages (src/lib/lists.ts) map their own rows to that shape.
+ */
+export async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<FeedItem[]> {
    const summaries = await postSummaries(env, posts);
    const refs = new Set<string>();
    const bodyIds = posts.map((r) => bodyVideoIds(r.body));
@@ -104,7 +108,7 @@ async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<FeedItem[
          type: "video",
          date,
          pinned: r.pin_rank !== null && r.pin_rank !== undefined,
-         video: { kind: r.video_kind === "playlist" ? "playlist" : "video", ref_id: String(r.ref_id), snapshot, title_override: typeof r.title_override === "string" && r.title_override ? r.title_override : null },
+         video: { kind: r.video_kind === "playlist" ? "playlist" : r.video_kind === "channel" ? "channel" : "video", ref_id: String(r.ref_id), snapshot, title_override: typeof r.title_override === "string" && r.title_override ? r.title_override : null },
       });
    }
    return out;

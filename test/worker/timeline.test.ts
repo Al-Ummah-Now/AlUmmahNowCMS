@@ -171,7 +171,7 @@ describe("Timeline screen and API", () => {
       const { f, call } = client(ed);
       expect((await call("PATCH", "/admin/api/timeline/entries/x1", { hidden: true })).status).toBe(404);
       expect((await call("PATCH", "/admin/api/timeline/entries/p999999", { hidden: true })).status).toBe(404);
-      expect((await call("POST", "/admin/api/timeline/videos", { kind: "channel", ref_id: "c" })).status).toBe(400);
+      expect((await call("POST", "/admin/api/timeline/videos", { kind: "user", ref_id: "c" })).status).toBe(400);
       expect((await call("PUT", "/admin/api/timeline/pins", { locale: "fr", keys: [] })).status).toBe(400);
       expect((await call("POST", "/admin/api/timeline/rebuild")).status).toBe(403);
       const cross = await f("/admin/api/timeline/retry", { method: "POST", headers: { cookie: ed, origin: "https://evil.example" } });

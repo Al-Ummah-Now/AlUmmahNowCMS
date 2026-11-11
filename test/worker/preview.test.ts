@@ -105,7 +105,7 @@ describe("preview API (GET /api/preview/v1/:kind/:id)", () => {
       // Alternates stay published-only (the Arabic translation is published).
       expect(body.content.alternates).toEqual([{ locale: "ar", slug: "pv-ar" }]);
       expect(Object.keys(body.content).sort()).toEqual(
-         ["alternates", "blocks", "body", "cover", "images", "locale", "published_at", "seo_description", "seo_title", "slug", "summary", "title", "updated_at"].sort(),
+         ["alternates", "blocks", "body", "cover", "images", "list_kind", "locale", "published_at", "seo_description", "seo_title", "slug", "summary", "title", "updated_at"].sort(),
       );
       // The draft's blocks, exactly as the public Page serves them (a body-only row: one text block).
       expect(body.content.blocks).toEqual([{ id: "body", type: "markdown", text: "# Draft body" }]);

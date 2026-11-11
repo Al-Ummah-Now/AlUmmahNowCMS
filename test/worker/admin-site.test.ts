@@ -49,20 +49,15 @@ describe("navigation screen", () => {
    });
 });
 
-describe("videos screen and re-pick", () => {
-   it("shows shelves per placement with the picker, and changes a row's video with a fresh server snapshot", async () => {
+describe("curated videos re-pick API", () => {
+   it("changes a row's video with a fresh server snapshot", async () => {
       const ed = await session(["Moderator"], "vid-ed");
       const f = makeWorker(videosApi);
       const add = await f("/picker/api/items", { method: "POST", headers: json(ed), body: JSON.stringify({ kind: "video", ref_id: "v1", placement: "videos", locale: "all", status: "draft", sort: 10 }) });
       expect(add.status).toBe(201);
       const id = ((await add.json()) as { data: { id: number } }).data.id;
-      const html = await (await f("/videos?placement=videos", { headers: { cookie: ed } })).text();
-      expect(html).toContain("First talk");
-      expect(html).toContain(`data-change-video="${id}"`);
-      expect(html).toContain('id="picker"');
-      expect(html).toContain('value="playlist"');
-      expect(await (await f("/videos?placement=home", { headers: { cookie: ed } })).text()).not.toContain("First talk");
-
+      // The curated shelves' screen is gone (docs/specs/WWW-PAGES.md): /videos is the CMS video library
+      // now (test/worker/www-pages.test.ts). The picker's row API stays for www releases still reading it.
       const put = await f(`/picker/api/items/${id}`, { method: "PUT", headers: json(ed), body: JSON.stringify({ kind: "video", ref_id: "v2" }) });
       expect(put.status).toBe(200);
       const row = await env.DB.prepare("SELECT ref_id, snapshot FROM curated_videos WHERE id = ?1").bind(id).first<{ ref_id: string; snapshot: string }>();

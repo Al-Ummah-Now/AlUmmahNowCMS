@@ -69,4 +69,6 @@ deleted.
 | bknd API, no UI: bulk delete | `DELETE /api/data/entity/:entity` | Hard `deleteMany` | Refused (405) |
 | bknd API, no UI: users and other entities | `DELETE /api/data/entity/users/:id` | Hard delete | Refused (405) |
 | bknd API: config remove | `DELETE /api/system/config/remove/...` | Already blocked (`blockedApiPath`) | Unchanged |
+| Videos screen: delete a library video (docs/specs/WWW-PAGES.md) | `DELETE /admin/api/library/:id` | — (new) | Soft (`cms_videos`): leaves `/videos` and filter pages only |
+| Curated page list: remove a post or video | `POST /admin/api/lists/:id/posts/:post {on:false}`, `DELETE /admin/api/lists/:id/entries/:key` | — (new) | Soft (`page_entries`); a purged page takes its entries with it |
 | Automatic jobs (not admin deletes) | variant sweep, feed GC, AI job retention | — | Unchanged, except that the variant jobs skip trashed originals |

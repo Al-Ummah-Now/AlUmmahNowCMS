@@ -41,7 +41,8 @@ export const MAX_POST_VIDEOS = 4;
 export const FEED_VERSION = 1;
 
 export interface FeedVideo {
-   kind: "video" | "playlist";
+   /** A channel's snapshot also carries `latest` (its newest public videos, at most 3). */
+   kind: "video" | "playlist" | "channel";
    ref_id: string;
    /** The public CuratedSnapshot shape (docs/PUBLIC_API.md); null when not looked up yet. */
    snapshot: Record<string, unknown> | null;

@@ -16,9 +16,19 @@ export function comboboxProps(listId: string) {
    } as const;
 }
 
-export function Autocomplete(props: { kind: "content" | "pages" | "posts" | "scholars" | "scholar-posts"; listId: string; label: string; locale?: string; children: Child }) {
+export function Autocomplete(props: {
+   kind: "content" | "pages" | "posts" | "scholars" | "scholar-posts" | "library" | "tags";
+   listId: string;
+   label: string;
+   locale?: string;
+   /** Choosing fills the input (a form field) instead of opening the item. */
+   fill?: boolean;
+   /** Opens with content on focus, before anything is typed. */
+   initial?: boolean;
+   children: Child;
+}) {
    return (
-      <div class="ac" data-ac={props.kind} data-ac-locale={props.locale || undefined}>
+      <div class="ac" data-ac={props.kind} data-ac-locale={props.locale || undefined} data-ac-fill={props.fill ? "1" : undefined} data-ac-initial={props.initial ? "1" : undefined}>
          {props.children}
          <ul id={props.listId} class="ac-list" role="listbox" aria-label={props.label} hidden />
          <p class="vh" role="status" aria-live="polite" data-ac-status />

@@ -20,8 +20,7 @@ import { feedStatus, requestFullRebuild, retryFeed } from "../lib/feed/jobs.ts";
 import { addVideo, logRebuild, offTimeline, postCounts, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor } from "../lib/feed/admin.ts";
 import { withActor } from "../lib/revisions.ts";
 import { TrashError } from "../lib/trash.ts";
-import { putSnapshot } from "../lib/video-snapshots.ts";
-import { lookupItem } from "../lib/videos.ts";
+import { lookupForSnapshot, putSnapshot } from "../lib/video-snapshots.ts";
 import type { AppEnv, Deps } from "../types.ts";
 
 type C = Context<AppEnv>;
@@ -61,10 +60,10 @@ export function timelineApi(deps: Deps): Hono<AppEnv> {
       const kind = b?.kind;
       const refId = typeof b?.ref_id === "string" ? b.ref_id : "";
       const locale = typeof b?.locale === "string" ? b.locale : "all";
-      if ((kind !== "video" && kind !== "playlist") || !/^[A-Za-z0-9_-]{1,64}$/.test(refId)) return c.json({ error: "bad_request" }, 400);
+      if ((kind !== "video" && kind !== "playlist" && kind !== "channel") || !/^[A-Za-z0-9_-]{1,64}$/.test(refId)) return c.json({ error: "bad_request" }, 400);
       let item;
       try {
-         item = await lookupItem(c.get("cfg").videosApiUrl, kind, refId, deps.fetch);
+         item = await lookupForSnapshot(c.get("cfg").videosApiUrl, kind, refId, deps.fetch);
       } catch (error) {
          console.warn("timeline video lookup failed", String(error));
          return c.json({ error: "upstream_error" }, 502);

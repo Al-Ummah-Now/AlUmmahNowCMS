@@ -15,6 +15,7 @@ import { enqueueVariants } from "../lib/variants/jobs.ts";
 import { parseVariantQuery, VARIANT_TYPES, variantKey } from "../lib/variants/plan.ts";
 import { MEDIA_COLS, mediaRefOf, mediaUrl, mediaVariants, type MediaRef, type MediaRow, type MediaVariants } from "../lib/media-ref.ts";
 import { feedItems } from "../lib/feed/source.ts";
+import { curatedItems, filterItems, LIST_PAGE_SIZE, listKindOf, storedFilter } from "../lib/lists.ts";
 import { cursorOf, parseCursor } from "../lib/feed/model.ts";
 import { checkFeedFormat } from "../lib/feed/auto-rebuild.ts";
 import { parseQuery, rank } from "../lib/search/rank.ts";
@@ -188,6 +189,13 @@ export function snapshotOf(snap: Row | null) {
          video_count: positiveOrNull(snap.video_count),
       });
    }
+   // Channels: their newest public videos (docs/specs/WWW-PAGES.md D7), at most 3.
+   if (Array.isArray(snap.latest)) {
+      out.latest = (snap.latest as unknown[])
+         .filter((v): v is Row => !!v && typeof v === "object" && typeof (v as Row).id === "string" && typeof (v as Row).title === "string")
+         .slice(0, 3)
+         .map((v) => ({ id: String(v.id), title: String(v.title), thumbnail_url: isHttps(v.thumbnail_url) ? (v.thumbnail_url as string) : null, duration_seconds: positiveOrNull(v.duration_seconds) }));
+   }
    return out;
 }
 
@@ -338,6 +346,8 @@ export async function pageOf(env: Env, row: Row) {
       alternates: alts,
       images,
       blocks,
+      // docs/specs/WWW-PAGES.md: a list page's items come from GET /lists/:slug.
+      list_kind: listKindOf(row.list_kind),
    };
 }
 
@@ -512,6 +522,42 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          .first<Row>();
       if (!row) throw new HttpError(404);
       return json(c, await pageOf(c.env, row));
+   });
+
+   // A list page (docs/specs/WWW-PAGES.md): a curated list or a filter, by page number. Content pages
+   // (and filter pages whose stored filter is unreadable) answer 404 here and use /pages/:slug.
+   api.get("/lists/:slug", async (c) => {
+      const l = locale(c);
+      const page = intParam(c.req.query("page"), 1, 1, 100_000, "page");
+      const row = await c.env.DB.prepare(`SELECT * FROM pages WHERE slug = ?1 AND locale = ?2 AND ${LIVE_SQL} LIMIT 1`)
+         .bind(c.req.param("slug"), l)
+         .first<Row>();
+      const kind = row ? listKindOf(row.list_kind) : null;
+      const filter = row && kind === "filter" ? storedFilter(row.list_filter) : null;
+      if (!row || !kind || (kind === "filter" && !filter)) throw new HttpError(404);
+      const [alts, list] = await Promise.all([
+         alternates(c.env, "pages", row.translation_key, l),
+         kind === "filter" ? filterItems(c.env, l, filter!, page) : curatedItems(c.env, Number(row.id), page),
+      ]);
+      return json(c, {
+         page: {
+            slug: String(row.slug),
+            locale: l,
+            title: String(row.title ?? ""),
+            summary: strOrNull(row.summary),
+            seo_title: strOrNull(row.seo_title),
+            seo_description: strOrNull(row.seo_description),
+            list_kind: kind,
+            list_filter: filter,
+            alternates: alts,
+         },
+         pinned: list.pinned,
+         items: list.items,
+         page_number: page,
+         pages: Math.max(1, Math.ceil(list.total / LIST_PAGE_SIZE)),
+         total: list.total,
+         limit: LIST_PAGE_SIZE,
+      });
    });
 
    api.get("/posts", async (c) => {
