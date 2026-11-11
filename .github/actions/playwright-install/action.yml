@@ -3,8 +3,9 @@ description: >-
   Installs Playwright browsers and their OS packages without letting one bad apt
   mirror fail the job (2026-11-11: three attempts of Admin E2E failed in
   "playwright install --with-deps" with apt exit 100 before any test ran).
-  Browser downloads are cached per Playwright version and browser list; apt gets
-  Acquire::Retries for the whole job, and both steps retry with backoff.
+  Browser downloads are cached per Playwright version and browser list; apt uses
+  a mirror that answers (apt-install/apt-setup.sh switches away from a dead
+  default); every step is time-boxed and retried.
 
 inputs:
   browsers:
@@ -22,12 +23,10 @@ inputs:
 runs:
   using: composite
   steps:
-    # Every later apt call in the job retries too (ffmpeg, fonts)
-    - name: apt retries and timeouts
+    # A Ubuntu mirror that answers, for this and every later apt call in the job
+    - name: apt mirror
       shell: bash
-      run: |
-        printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAPT::Get::Assume-Yes "true";\n' \
-          | sudo tee /etc/apt/apt.conf.d/80-ci-retries > /dev/null
+      run: bash "${{ github.action_path }}/../apt-install/apt-setup.sh"
 
     - name: Playwright version
       id: version
@@ -50,10 +49,10 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         for attempt in 1 2 3; do
-          ${{ inputs.runner }} playwright install ${{ inputs.browsers }} && exit 0
+          timeout 600 ${{ inputs.runner }} playwright install ${{ inputs.browsers }} && exit 0
           echo "::warning::playwright install failed (attempt $attempt), retrying"
-          sleep $((attempt * 20))
-          sudo apt-get update -q || true
+          sleep $((attempt * 15))
+          bash "${{ github.action_path }}/../apt-install/apt-setup.sh" || true
         done
         exit 1
 
@@ -62,10 +61,10 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        for attempt in 1 2 3 4; do
-          sudo apt-get update -q || true
-          ${{ inputs.runner }} playwright install-deps ${{ inputs.browsers }} && exit 0
+        for attempt in 1 2 3; do
+          bash "${{ github.action_path }}/../apt-install/apt-setup.sh" \
+            && timeout 900 ${{ inputs.runner }} playwright install-deps ${{ inputs.browsers }} && exit 0
           echo "::warning::playwright install-deps failed (attempt $attempt), retrying"
-          sleep $((attempt * 20))
+          sleep $((attempt * 15))
         done
         exit 1
