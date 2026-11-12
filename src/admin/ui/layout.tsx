@@ -129,8 +129,10 @@ function AccountMenu(props: { v: View }) {
    // who · accounts · this app · Al Ummah Now apps · sign out
    return (
       <details class="pop" data-pop>
-         <summary class="who aun-acct-btn" aria-label={`${v.t.header.account}: ${label}`}>
+         {/* No aria-label: the visible name is the button's name (axe label-content-name-mismatch) */}
+         <summary class="who aun-acct-btn">
             <span class="aun-avatar" aria-hidden="true">{initial}</span>
+            <span class="vh">{v.t.header.account}: </span>
             <span class="aun-acct-name" dir="auto">{label}</span>
             <Icon name="chevronDown" size={14} class="aun-caret" />
          </summary>
