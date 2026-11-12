@@ -110,8 +110,10 @@ describe("a scholar signs in", () => {
       expect(page).toContain('aria-label="Account: Mahmoud Darwish"');
    });
 
-   it("an empty name field hints the account's first + last; no profile → the email in the menu", async () => {
+   it("an empty name field hints the account's first + last; no name → the email in the menu, never the handle", async () => {
       const v = fresh();
+      // A handle is not a user's name (handles belong to channels).
+      v.profiles = { "sch-hint": { id: "sch-hint", displayName: "", userName: "hinthandle" } };
       const cookie = await session(v, ["Scholar"], "sch-hint");
       const s = await env.DB.prepare("SELECT name_en, name_ar FROM scholars WHERE sso_sub = 'sch-hint'").first<Record<string, unknown>>();
       expect(s).toMatchObject({ name_en: null, name_ar: null });
@@ -120,6 +122,7 @@ describe("a scholar signs in", () => {
       expect(page).toContain('placeholder="Hint Person"');
       expect(page).toContain("Name on the account: Hint Person");
       expect(page).toContain(">sch-hint@example.com</strong>");
+      expect(page).not.toContain("@hinthandle");
       const ar = await (await client(v, cookie).f("/scholars/me?lang=ar", { headers: { cookie } })).text();
       expect(ar).toContain("الاسم في الحساب: Hint Person");
    });

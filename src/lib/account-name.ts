@@ -8,13 +8,13 @@
  * already the resolved name once api-videos ships it; the localized fields still win for the page
  * language. Never throws: a slow or failing videos API means "no name" (callers fall back to email).
  */
-import { resolveDisplayName, resolvePersonalName, type NameFields } from "./display-name.ts";
+import { resolveDisplayName, type NameFields } from "./display-name.ts";
 
 const TIMEOUT_MS = 3000;
 
 export type AccountProfile = NameFields & { resolvedDisplayName?: string | null };
 
-const NAME_KEYS = ["displayName", "displayNameLocalized", "firstName", "firstNameLocalized", "lastName", "lastNameLocalized", "userName", "handle", "resolvedDisplayName"] as const;
+const NAME_KEYS = ["displayName", "displayNameLocalized", "firstName", "firstNameLocalized", "lastName", "lastNameLocalized", "resolvedDisplayName"] as const;
 
 /** The name fields of an account's public profile; null when it has none or the API is unavailable. */
 export async function fetchAccountProfile(videosApiUrl: string, sub: string, fetchImpl: typeof fetch = fetch): Promise<AccountProfile | null> {
@@ -36,20 +36,13 @@ export async function fetchAccountProfile(videosApiUrl: string, sub: string, fet
    }
 }
 
-/** The name the account is shown by in `locale` ('' when none; never the email). */
+/**
+ * The name the account is shown by in `locale` ('' when none; never the email, never a handle:
+ * handles belong to channels). The API's `resolvedDisplayName` only when the fields give nothing.
+ */
 export function accountName(profile: AccountProfile | null | undefined, locale: string): string {
    if (!profile) return "";
    const r = resolveDisplayName(profile, locale);
    if (r) return r;
-   const api = typeof profile.resolvedDisplayName === "string" ? profile.resolvedDisplayName.replace(/\s+/g, " ").trim() : "";
-   return api;
-}
-
-/** A person's name (no @handle) in `locale`, for a new scholar profile and the name placeholders. */
-export function accountPersonalName(profile: AccountProfile | null | undefined, locale: string): string {
-   if (!profile) return "";
-   const r = resolvePersonalName(profile, locale);
-   if (r) return r.startsWith("@") ? "" : r;
-   const api = typeof profile.resolvedDisplayName === "string" ? profile.resolvedDisplayName.replace(/\s+/g, " ").trim() : "";
-   return api.startsWith("@") ? "" : api;
+   return typeof profile.resolvedDisplayName === "string" ? profile.resolvedDisplayName.replace(/\s+/g, " ").trim() : "";
 }

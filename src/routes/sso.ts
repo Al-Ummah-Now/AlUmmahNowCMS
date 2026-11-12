@@ -10,7 +10,7 @@ import { createPkce, randomToken } from "../lib/pkce.ts";
 import { safeReturnPath } from "../lib/return-path.ts";
 import { mapRoles } from "../lib/roles.ts";
 import { upsertSsoUser } from "../lib/users.ts";
-import { accountName, accountPersonalName, fetchAccountProfile } from "../lib/account-name.ts";
+import { accountName, fetchAccountProfile } from "../lib/account-name.ts";
 import { ensureScholar } from "../lib/scholars/profiles.ts";
 import { ownedChannels } from "../lib/scholars/videos-internal.ts";
 import { errText, log } from "../lib/log.ts";
@@ -204,7 +204,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
             log.warn("scholar channels unavailable at sign-in", { error: errText(error) });
             return [];
          });
-         const personal = { en: accountPersonalName(profile, "en"), ar: accountPersonalName(profile, "ar") };
+         const personal = { en: accountName(profile, "en"), ar: accountName(profile, "ar") };
          await ensureScholar(c.env.DB, { ...identity, names: personal }, owned.map((ch) => ch.id)).catch((error) => log.error("scholar profile not created", { error: errText(error) }));
       }
       const app = await deps.getApp(c);
