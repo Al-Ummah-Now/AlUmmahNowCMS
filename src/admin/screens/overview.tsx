@@ -124,7 +124,8 @@ export async function overviewScreen(v: View, data: Data, db?: D1Database, aiFai
       .then((r) => Number(r?.n ?? 0))
       .catch(() => 0);
    const theme = THEMES[v.prefs.theme];
-   const name = v.user.email.split("@")[0];
+   // The account's name (display name, else first + last); the email's local part only when it has none
+   const name = v.user.name || v.user.email.split("@")[0];
 
    return (
       <>

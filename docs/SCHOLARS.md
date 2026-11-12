@@ -58,12 +58,15 @@ language), with `author: { slug, name, avatar }` added. Staff posts keep the fre
 `channel_ids` (JSON, ≤ 5).
 
 - **Made at first sign-in** as a writer (`ensureScholar`, idempotent on `sso_sub`): name from the
-  token (Arabic script → `name_ar`), a free slug from the name or email, and every channel the user
+  token (Arabic script → `name_ar`), else the account's public profile on the videos API by the
+  platform rule (`src/lib/display-name.ts`: display name, else first + last; never the email), a free
+  slug from the name or email, and every channel the user
   owns on the videos platform. If the videos API is down the sign-in still works; channels are linked
   later on the profile screen. An admin invite (videos admin "Invite creator", Scholar ticked) gives the
   role before the first sign-in; the profile then appears at that sign-in.
 - **Edited** by the scholar (`/scholars/me`) and by admins and editors (`/scholars/:id`), with an
-  optimistic lock on `updated_at`. Channels are checkboxes of the channels the scholar owns (asked from
+  optimistic lock on `updated_at`. An empty name field shows the account's name (display name, else first +
+  last) as its placeholder and hint. Channels are checkboxes of the channels the scholar owns (asked from
   api-videos every time); a channel id that isn't theirs is refused (`not_your_channel`). No raw ids.
 - **Deleted** by an admin: a soft delete into the trash (kind `scholars`), restorable for 30 days. The
   page leaves www; the posts stay published (without a byline link).

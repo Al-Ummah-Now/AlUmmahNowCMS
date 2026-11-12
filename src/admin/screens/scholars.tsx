@@ -37,7 +37,19 @@ function clientStrings(v: View) {
 
 /* ── Profile (the scholar's own, or staff editing one) ─────────────────────────────────────────── */
 
-export function profileScreen(v: View, o: { scholar: Scholar; channels: OwnedChannel[] | null; avatarPath: string | null; endpoint: string; publicUrl: string; posts?: number }) {
+export function profileScreen(
+   v: View,
+   o: {
+      scholar: Scholar;
+      channels: OwnedChannel[] | null;
+      avatarPath: string | null;
+      endpoint: string;
+      publicUrl: string;
+      posts?: number;
+      /** The account's name per language (display name, else first + last): the hint on an empty name field. */
+      accountNames?: { en: string; ar: string };
+   },
+) {
    const { t } = v;
    const s = o.scholar;
    const tt = t.scholars;
@@ -45,6 +57,13 @@ export function profileScreen(v: View, o: { scholar: Scholar; channels: OwnedCha
    const avatar = o.avatarPath ? mediaUrl(o.publicUrl, o.avatarPath) : null;
    const linked = new Set(s.channel_ids);
    // Channels linked earlier that the videos API no longer lists as theirs stay visible (unchecked on save).
+   // An empty name field shows the account's name (display name, else first + last) as its hint.
+   const hintEn = !s.name_en?.trim() ? (o.accountNames?.en ?? "") : "";
+   const hintAr = !s.name_ar?.trim() ? (o.accountNames?.ar ?? "") : "";
+   const nameHint = (l: "en" | "ar") => {
+      const h = l === "en" ? hintEn : hintAr;
+      return h ? { placeholder: h, "aria-describedby": `sp-name-${l}-hint` } : {};
+   };
    const channels: OwnedChannel[] = o.channels ? [...o.channels, ...s.channel_ids.filter((id) => !o.channels!.some((c) => c.id === id)).map((id) => ({ id, name: tt.channelGone, handle: null, avatarUrl: null, isPublic: false }))] : [];
    return (
       <>
@@ -59,11 +78,21 @@ export function profileScreen(v: View, o: { scholar: Scholar; channels: OwnedCha
                <div class="row2">
                   <div class="field">
                      <label for="sp-name-en">{tt.nameEn}</label>
-                     <input id="sp-name-en" class="input" name="name_en" maxlength={NAME_MAX} value={s.name_en ?? ""} lang="en" dir="ltr" autocomplete="off" />
+                     <input id="sp-name-en" class="input" name="name_en" maxlength={NAME_MAX} value={s.name_en ?? ""} lang="en" dir="ltr" autocomplete="off" {...nameHint("en")} />
+                     {hintEn ? (
+                        <p class="help" id="sp-name-en-hint">
+                           {tt.accountName(hintEn)}
+                        </p>
+                     ) : null}
                   </div>
                   <div class="field">
                      <label for="sp-name-ar">{tt.nameAr}</label>
-                     <input id="sp-name-ar" class="input" name="name_ar" maxlength={NAME_MAX} value={s.name_ar ?? ""} lang="ar" dir="rtl" autocomplete="off" />
+                     <input id="sp-name-ar" class="input" name="name_ar" maxlength={NAME_MAX} value={s.name_ar ?? ""} lang="ar" dir="rtl" autocomplete="off" {...nameHint("ar")} />
+                     {hintAr ? (
+                        <p class="help" id="sp-name-ar-hint">
+                           {tt.accountName(hintAr)}
+                        </p>
+                     ) : null}
                   </div>
                </div>
                <div class="field">

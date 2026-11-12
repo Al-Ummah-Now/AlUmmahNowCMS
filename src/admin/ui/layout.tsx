@@ -17,7 +17,8 @@ export interface View {
    search: string;
    nonce: string;
    /** `sub` is the writer's auth user id (writers only: they see their own posts, docs/SCHOLARS.md). */
-   user: { email: string; role: "admin" | "editor" | "writer"; sub?: string | null };
+   /** `name` is the account's name in the admin language ('' when it has none: show the email). */
+   user: { email: string; name: string; role: "admin" | "editor" | "writer"; sub?: string | null };
    wwwUrl: string;
    adminWebUrl: string;
    assets: { css: string; theme: string; js: string };
@@ -104,18 +105,22 @@ function Prefs(props: { v: View }) {
    );
 }
 
+/** The name the account menu shows: the account's name, the email only when it has none. */
+export const userLabel = (v: View) => v.user.name || v.user.email;
+
 function AccountMenu(props: { v: View }) {
    const { v } = props;
+   const label = userLabel(v);
    const ret = encodeURIComponent(v.path + (v.search ? `?${v.search}` : ""));
    return (
       <details class="pop" data-pop>
-         <summary class="who ic" style="width:auto" aria-label={`${v.t.header.account}: ${v.user.email}`}>
-            <span class="avatar" aria-hidden="true">{(v.user.email[0] ?? "?").toUpperCase()}</span>
+         <summary class="who ic" style="width:auto" aria-label={`${v.t.header.account}: ${label}`}>
+            <span class="avatar" aria-hidden="true">{(label.replace(/^@/, "")[0] ?? "?").toUpperCase()}</span>
             <Icon name="chevronDown" size={16} />
          </summary>
          <div class="pop-panel" role="menu">
             <div class="pop-head">
-               <strong>{v.user.email}</strong>
+               <strong title={v.user.email}>{label}</strong>
                <span>{isAdmin(v) ? v.t.header.roleAdmin : isWriter(v) ? v.t.header.roleWriter : v.t.header.roleEditor}</span>
             </div>
             <a class="mi" role="menuitem" href={`/sso/accounts?return=${ret}`}>

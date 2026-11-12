@@ -11,6 +11,9 @@ export interface AuthUser {
    iat?: number;
    /** JWT expiry (epoch seconds). */
    exp?: number;
+   /** The account's name at sign-in, per admin language ('' or absent: none; show the email). */
+   name_en?: string;
+   name_ar?: string;
    /** This session's id (minted at sign-in), revoked by its single sign-out. */
    sid?: string;
 }
