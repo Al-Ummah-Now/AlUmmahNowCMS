@@ -1,6 +1,6 @@
 /** Content-hashed CSS/JS for the staff screens, served by the Worker at /admin-assets/*. */
 import { CLIENT_JS } from "./client.generated.ts";
-import { GRAPHIC_CSS, THEME_IDS, THEMES, type ThemeId } from "./theme/vendor.generated.ts";
+import { GRAPHIC_CSS, NAV_CSS, THEME_IDS, THEMES, type ThemeId } from "./theme/vendor.generated.ts";
 import { ADMIN_CSS } from "./ui/styles.ts";
 
 /** FNV-1a, 32-bit, hex: enough to bust caches, not a security hash. */
@@ -27,7 +27,8 @@ function add(name: string, ext: "css" | "js", body: string): string {
    return path;
 }
 
-urls.css = add("app", "css", ADMIN_CSS + GRAPHIC_CSS);
+// NAV_CSS last: the shared header account button and menus (AlUmmahNow docs/design/NAV.md)
+urls.css = add("app", "css", ADMIN_CSS + GRAPHIC_CSS + NAV_CSS);
 urls.js = add("app", "js", CLIENT_JS);
 for (const id of THEME_IDS) urls.theme[id] = add(`theme-${id}`, "css", THEMES[id].css);
 
