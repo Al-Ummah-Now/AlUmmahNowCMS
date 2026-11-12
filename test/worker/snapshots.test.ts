@@ -63,6 +63,9 @@ describe("curated snapshot refresh", () => {
             duration_seconds: 125,
             upload_date: "2026-01-02T03:04:05Z",
             video_count: null,
+            width: null,
+            height: null,
+            channel_names: {},
             public: true,
             refreshed_at: now.toISOString(),
          });

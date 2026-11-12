@@ -18,17 +18,20 @@
 import type { FeedItem, HeadDoc, WeekDoc, WeekTombstone, YearDoc } from "./model.ts";
 import type { postSummaries, snapshotOf } from "../../routes/public-api.ts";
 
-export const FEED_FORMAT = 2;
+export const FEED_FORMAT = 3;
 
 /**
  * Format → fingerprint of the FeedShapeRoots type it was released with. APPEND-ONLY: never edit or
  * remove an entry; bump FEED_FORMAT and add one.
  *   1: PostSummary with `slides` (CMS #58), first stamped format.
  *   2: channel items on the timeline; channel snapshots carry `latest` (docs/specs/WWW-PAGES.md D7).
+ *   3: video snapshots carry `width`/`height` and `channel_names` {en, ar} (www sizes the player to
+ *      the video and names the channel in the page language): FeedShapeRoots.videoSnapshot.
  */
 export const FEED_FORMAT_HISTORY: Readonly<Record<number, string>> = {
    1: "afcfa9ffd2ba7bdb",
    2: "e41e47060af0efcb",
+   3: "2556b53d1803e307",
 };
 
 /** Everything whose shape is part of the stored feed (the test fingerprints this type). */
@@ -36,6 +39,8 @@ export interface FeedShapeRoots {
    item: FeedItem;
    summary: Awaited<ReturnType<typeof postSummaries>>[number];
    snapshot: NonNullable<ReturnType<typeof snapshotOf>>;
+   /** Fields snapshotOf adds for videos (format 3); snapshotOf itself returns a loose record. */
+   videoSnapshot: { width: number | null; height: number | null; channel_names: Partial<Record<"en" | "ar", string>> };
    head: HeadDoc;
    week: WeekDoc;
    tombstone: WeekTombstone;

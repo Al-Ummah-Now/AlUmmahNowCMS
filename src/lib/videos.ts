@@ -86,6 +86,11 @@ export interface ItemDetail extends PickerItem {
    duration_seconds: number | null;
    upload_date: string | null;
    video_count: number | null;
+   /** Videos: the encoded size, so www sizes the player frame to the video (Shorts, square); null when unknown. */
+   width: number | null;
+   height: number | null;
+   /** Videos: their channel's name per language (the videos API puts only one name on the video). */
+   channel_names: Partial<Record<"en" | "ar", string>>;
 }
 
 const MAX_TEXT = 2000;
@@ -118,8 +123,41 @@ export function toDetail(kind: VideoKind, o: Obj): ItemDetail | null {
       duration_seconds: kind === "video" ? positive(o.duration) : null,
       upload_date: str(o.dateCreated),
       video_count: kind === "playlist" ? (positive(o.videosCount) ?? (Array.isArray(o.videos) ? o.videos.length : null)) : null,
+      width: kind === "video" ? positive(o.width) : null,
+      height: kind === "video" ? positive(o.height) : null,
+      channel_names: {},
    };
 }
+
+/**
+ * A channel's name per language (`GET /api/channels/:id` nameLocalized, else its plain name as
+ * English), cached per isolate for CHANNEL_NAMES_TTL_MS: one channel serves many videos, and a
+ * refresh run looks up many of them. {} on any failure (the video keeps its one channel_name).
+ */
+const CHANNEL_NAMES_TTL_MS = 30 * 60_000;
+const channelNamesCache = new Map<string, { at: number; names: Partial<Record<"en" | "ar", string>> }>();
+export async function channelNames(apiUrl: string, channelId: string, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<Partial<Record<"en" | "ar", string>>> {
+   if (!/^[A-Za-z0-9_-]{1,128}$/.test(channelId)) return {};
+   const key = `${apiUrl}|${channelId}`;
+   const hit = channelNamesCache.get(key);
+   if (hit && now - hit.at < CHANNEL_NAMES_TTL_MS) return hit.names;
+   try {
+      const res = await fetchImpl(`${apiUrl}/api/channels/${encodeURIComponent(channelId)}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(5_000) });
+      if (!res.ok) return {};
+      const body = (await res.json().catch(() => null)) as Obj | null;
+      const o = (body && typeof body.data === "object" && body.data ? body.data : body) as Obj | null;
+      if (!o || typeof o !== "object") return {};
+      const names = localized(o.nameLocalized);
+      if (!names.en && !names.ar && str(o.name)) names.en = text(o.name)!;
+      channelNamesCache.set(key, { at: now, names });
+      if (channelNamesCache.size > 500) channelNamesCache.delete(channelNamesCache.keys().next().value!);
+      return names;
+   } catch {
+      return {};
+   }
+}
+/** Tests only. */
+export const clearChannelNamesCache = () => channelNamesCache.clear();
 
 export class VideosApiError extends Error {}
 
@@ -189,7 +227,10 @@ export async function lookupItem(
    const body = (await res.json().catch(() => null)) as Obj | null;
    const o = (body && typeof body.data === "object" && body.data ? body.data : body) as Obj | null;
    if (!isPublicItem(kind, o)) return null;
-   return toDetail(kind, o as Obj);
+   const detail = toDetail(kind, o as Obj);
+   const channelId = kind === "video" ? str((o as Obj).channelId) : null;
+   if (detail && channelId) detail.channel_names = await channelNames(apiUrl, channelId, fetchImpl);
+   return detail;
 }
 
 /**
