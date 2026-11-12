@@ -109,7 +109,7 @@ describe("a scholar signs in", () => {
       // The account menu's name (shared nav contract): the name, the email under it
       expect(page).toContain('<span class="aun-menu-who-name" dir="auto" title="sch-named@example.com">Mahmoud Darwish</span>');
       expect(page).toContain('<span class="aun-acct-name" dir="auto">Mahmoud Darwish</span>');
-      expect(page).toContain('aria-label="Account: Mahmoud Darwish"');
+      expect(page).toContain('<span class="vh">Account: </span><span class="aun-acct-name" dir="auto">Mahmoud Darwish</span>');
    });
 
    it("an empty name field hints the account's first + last; no name → the email in the menu, never the handle", async () => {
