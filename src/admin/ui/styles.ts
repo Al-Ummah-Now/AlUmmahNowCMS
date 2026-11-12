@@ -37,7 +37,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .hd{position:sticky;inset-block-start:0;z-index:40;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,560px) minmax(0,1fr);align-items:center;gap:var(--gap);height:var(--hd);padding-inline:var(--fanous-spacing-md);background:var(--m-header);box-shadow:var(--m-header-edge);color:var(--fanous-c-nav-text);-webkit-backdrop-filter:var(--m-blur);backdrop-filter:var(--m-blur)}
 .hd-start,.hd-end{display:flex;align-items:center;gap:var(--fanous-spacing-sm);min-width:0}.hd-end{justify-content:flex-end}
 .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 4px 4px;border-radius:var(--r-md);color:var(--fanous-c-nav-text);text-decoration:none;white-space:nowrap}
-.brand-mark{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--m-primary);box-shadow:var(--m-primary-edge),0 0 0 1.5px var(--fanous-c-nav-indicator);color:var(--fanous-c-button-primary-text)}
+.brand-mark{width:36px;height:36px;border-radius:50%;flex:none;object-fit:cover}
 .brand-name{font-weight:700;font-size:17px;line-height:1.1}.brand-sub{display:block;font-size:12px;font-weight:500;color:var(--fanous-c-nav-icon);letter-spacing:.02em}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;border:0;border-radius:var(--r-pill);background:transparent;color:var(--fanous-c-nav-icon);cursor:pointer;text-decoration:none;transition:background-color var(--fanous-duration-fast),color var(--fanous-duration-fast)}
 @media(hover:hover){.ic:hover{background:var(--fanous-c-nav-hover);color:var(--fanous-c-nav-text)}}
@@ -47,21 +47,13 @@ button,input,select,textarea{font:inherit;color:inherit}
 .search input::placeholder{color:var(--fanous-c-nav-search-placeholder)}
 .search button{width:52px;display:grid;place-items:center;border:0;background:transparent;color:var(--fanous-c-nav-icon);cursor:pointer;border-inline-start:1px solid var(--fanous-c-nav-search-border)}
 @media(hover:hover){.search button:hover{background:var(--fanous-c-nav-hover)}}
-.who{display:flex;align-items:center;gap:8px;min-height:44px;padding-inline:6px 10px;border-radius:var(--r-pill)}
 .avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--fanous-color-surface-raised);color:var(--fanous-color-text-primary);font-weight:700;font-size:14px;box-shadow:0 0 0 1.5px var(--fanous-c-nav-indicator)}
 @media(max-width:900px){.hd{grid-template-columns:auto 1fr auto}.hd .search,.hd .ac{display:none}.brand-sub{display:none}}
 @media(max-width:480px){.hd .brand-name{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.hd summary.btn span{display:none}.hd summary.btn{width:44px;padding:0}}
 
-/* Menus (details/summary popovers) */
+/* Menus (details/summary popovers); the panels are the shared .aun-menu (NAV_CSS) */
 .pop{position:relative}
 .pop>summary{list-style:none;cursor:pointer}.pop>summary::-webkit-details-marker{display:none}
-.pop-panel{position:absolute;inset-block-start:calc(100% + 8px);inset-inline-end:0;z-index:60;min-width:240px;padding:6px;border-radius:var(--r-lg);background:var(--fanous-c-menu-bg);color:var(--fanous-c-menu-text);box-shadow:0 0 0 1px var(--fanous-c-menu-border),var(--fanous-elevation-high)}
-.pop-panel.start{inset-inline-end:auto;inset-inline-start:0}
-.pop-head{padding:10px 12px 8px;border-block-end:1px solid var(--fanous-c-divider-line);margin-block-end:6px}
-.pop-head strong{display:block;overflow-wrap:anywhere}.pop-head span{font-size:13px;color:var(--fanous-c-menu-muted)}
-.mi{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 12px;border:0;border-radius:var(--r-md);background:transparent;color:inherit;text-decoration:none;text-align:start;cursor:pointer}
-@media(hover:hover){.mi:hover{background:var(--fanous-c-menu-hover)}}
-.mi.danger{color:var(--fanous-color-error-text)}
 
 /* Rail (wide), drawer and bottom bar (phone) */
 .layout{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);min-height:calc(100dvh - var(--hd))}

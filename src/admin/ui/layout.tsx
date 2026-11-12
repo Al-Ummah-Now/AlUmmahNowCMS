@@ -9,6 +9,7 @@ import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "./icons.tsx";
 import { Autocomplete, comboboxProps } from "./autocomplete.tsx";
 import { LeaveDialog, LinkDialog } from "./dialogs.tsx";
+import { appLinks, type AppLinkId } from "../../lib/app-links.ts";
 
 export interface View {
    prefs: Prefs;
@@ -21,6 +22,9 @@ export interface View {
    user: { email: string; name: string; role: "admin" | "editor" | "writer"; sub?: string | null };
    wwwUrl: string;
    adminWebUrl: string;
+   /** For the account menu's "Al Ummah Now apps" links (src/lib/app-links.ts). */
+   videosWebUrl?: string;
+   issuer?: string;
    assets: { css: string; theme: string; js: string };
    /** Tab icons for this environment (src/lib/app-icons.ts). */
    tabIcons: IconLink[];
@@ -111,26 +115,54 @@ export const userLabel = (v: View) => v.user.name || v.user.email;
 function AccountMenu(props: { v: View }) {
    const { v } = props;
    const label = userLabel(v);
+   const initial = (Array.from(label.trim())[0] ?? "?").toUpperCase();
    const ret = encodeURIComponent(v.path + (v.search ? `?${v.search}` : ""));
+   const apps = appLinks(v.user.role, v.prefs.lang, { www: v.wwwUrl, videos: v.videosWebUrl ?? "", admin: v.adminWebUrl, issuer: v.issuer ?? "" });
+   const appLabel: Record<AppLinkId, string> = {
+      www: v.t.header.appWww,
+      videos: v.t.header.appVideos,
+      profile: v.t.header.appProfile,
+      admin: v.t.header.appAdmin,
+      "auth-admin": v.t.header.appAuthAdmin,
+   };
+   // The shared nav contract (AlUmmahNow docs/design/NAV.md): avatar + name, then
+   // who · accounts · this app · Al Ummah Now apps · sign out
    return (
       <details class="pop" data-pop>
-         <summary class="who ic" style="width:auto" aria-label={`${v.t.header.account}: ${label}`}>
-            <span class="avatar" aria-hidden="true">{(label[0] ?? "?").toUpperCase()}</span>
-            <Icon name="chevronDown" size={16} />
+         <summary class="who aun-acct-btn" aria-label={`${v.t.header.account}: ${label}`}>
+            <span class="aun-avatar" aria-hidden="true">{initial}</span>
+            <span class="aun-acct-name" dir="auto">{label}</span>
+            <Icon name="chevronDown" size={14} class="aun-caret" />
          </summary>
-         <div class="pop-panel" role="menu">
-            <div class="pop-head">
-               <strong title={v.user.email}>{label}</strong>
-               <span>{isAdmin(v) ? v.t.header.roleAdmin : isWriter(v) ? v.t.header.roleWriter : v.t.header.roleEditor}</span>
+         <div class="aun-menu" role="menu">
+            <div class="aun-menu-who">
+               <span class="aun-avatar aun-avatar--lg" aria-hidden="true">{initial}</span>
+               <span class="aun-menu-who-text">
+                  <span class="aun-menu-who-name" dir="auto" title={v.user.email}>{label}</span>
+                  {label !== v.user.email ? <span class="aun-menu-who-sub" dir="auto">{v.user.email}</span> : null}
+                  <span class="aun-menu-who-sub">{isAdmin(v) ? v.t.header.roleAdmin : isWriter(v) ? v.t.header.roleWriter : v.t.header.roleEditor}</span>
+               </span>
             </div>
-            <a class="mi" role="menuitem" href={`/sso/accounts?return=${ret}`}>
-               <Icon name="swap" /> {v.t.header.accounts}
+            <div class="aun-menu-sep" role="separator" />
+            <a class="aun-menu-item" role="menuitem" href={`/sso/accounts?return=${ret}`}>
+               <Icon name="swap" class="aun-menu-icon" /> <span class="aun-menu-text">{v.t.header.accounts}</span>
             </a>
-            <a class="mi" role="menuitem" href={`${v.wwwUrl}/${v.prefs.lang}/`}>
-               <Icon name="external" class="flip" /> {v.t.overview.viewSite}
-            </a>
-            <a class="mi danger" role="menuitem" href="/sso/logout">
-               <Icon name="logout" class="flip" /> {v.t.header.signOut}
+            {apps.length ? (
+               <>
+                  <div class="aun-menu-sep" role="separator" />
+                  <div role="group" aria-labelledby="account-apps-label">
+                     <span class="aun-menu-label" id="account-apps-label">{v.t.header.apps}</span>
+                     {apps.map((a) => (
+                        <a class="aun-menu-item" role="menuitem" href={a.href} data-app={a.id}>
+                           <span class="aun-menu-text">{appLabel[a.id]}</span>
+                        </a>
+                     ))}
+                  </div>
+               </>
+            ) : null}
+            <div class="aun-menu-sep" role="separator" />
+            <a class="aun-menu-item" role="menuitem" href="/sso/logout">
+               <Icon name="logout" class="aun-menu-icon flip" /> <span class="aun-menu-text">{v.t.header.signOut}</span>
             </a>
          </div>
       </details>
@@ -151,14 +183,14 @@ function CreateMenu(props: { v: View }) {
          <summary class="btn primary sm" aria-label={t.header.create}>
             <Icon name="pen" size={18} /> <span>{t.header.create}</span>
          </summary>
-         <div class="pop-panel" role="menu">
-            <a class="mi" role="menuitem" href="/pages/new">
+         <div class="aun-menu" role="menu">
+            <a class="aun-menu-item" role="menuitem" href="/pages/new">
                <Icon name="file" /> {t.header.newPage}
             </a>
-            <a class="mi" role="menuitem" href="/posts/new">
+            <a class="aun-menu-item" role="menuitem" href="/posts/new">
                <Icon name="pen" /> {t.header.newPost}
             </a>
-            <a class="mi" role="menuitem" href="/videos?add=1">
+            <a class="aun-menu-item" role="menuitem" href="/videos?add=1">
                <Icon name="play" /> {t.header.addVideo}
             </a>
          </div>
@@ -213,9 +245,8 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                         <Icon name="menu" />
                      </button>
                      <a class="brand" href="/">
-                        <span class="brand-mark" aria-hidden="true">
-                           <Icon name="sparkle" size={18} />
-                        </span>
+                        {/* The owner's app icon as supplied (docs/design/NAV.md: the logo, never a placeholder) */}
+                        <img class="brand-mark" src="/icon-192.png" alt="" width={36} height={36} />
                         <span>
                            <span class="brand-name">{t.brand}</span>
                            <span class="brand-sub">{t.cms}</span>

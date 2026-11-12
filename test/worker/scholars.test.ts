@@ -106,7 +106,9 @@ describe("a scholar signs in", () => {
       const s = await env.DB.prepare("SELECT slug, name_en, name_ar FROM scholars WHERE sso_sub = 'sch-named'").first<Record<string, unknown>>();
       expect(s).toMatchObject({ slug: "mahmoud-darwish", name_en: "Mahmoud Darwish", name_ar: null });
       const page = await (await client(v, cookie).f("/scholars/me", { headers: { cookie } })).text();
-      expect(page).toContain('<strong title="sch-named@example.com">Mahmoud Darwish</strong>');
+      // The account menu's name (shared nav contract): the name, the email under it
+      expect(page).toContain('<span class="aun-menu-who-name" dir="auto" title="sch-named@example.com">Mahmoud Darwish</span>');
+      expect(page).toContain('<span class="aun-acct-name" dir="auto">Mahmoud Darwish</span>');
       expect(page).toContain('aria-label="Account: Mahmoud Darwish"');
    });
 
@@ -121,7 +123,7 @@ describe("a scholar signs in", () => {
       const page = await (await client(v, cookie).f("/scholars/me", { headers: { cookie } })).text();
       expect(page).toContain('placeholder="Hint Person"');
       expect(page).toContain("Name on the account: Hint Person");
-      expect(page).toContain(">sch-hint@example.com</strong>");
+      expect(page).toContain('title="sch-hint@example.com">sch-hint@example.com</span>');
       expect(page).not.toContain("@hinthandle");
       const ar = await (await client(v, cookie).f("/scholars/me?lang=ar", { headers: { cookie } })).text();
       expect(ar).toContain("الاسم في الحساب: Hint Person");
