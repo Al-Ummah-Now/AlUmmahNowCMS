@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { resolveDisplayName, resolvePersonalName, type NameFields } from "../../src/lib/display-name.ts";
-import { accountName, accountPersonalName, fetchAccountProfile } from "../../src/lib/account-name.ts";
+import { resolveDisplayName, type NameFields } from "../../src/lib/display-name.ts";
+import { accountName, fetchAccountProfile } from "../../src/lib/account-name.ts";
 import { initialNames, scholarName } from "../../src/lib/scholars/profiles.ts";
 
 describe("resolveDisplayName (the platform rule: display name, else first + last)", () => {
@@ -18,11 +18,10 @@ describe("resolveDisplayName (the platform rule: display name, else first + last
       ["Arabic-only display name viewed in en", { displayNameLocalized: { ar: "محمود درويش" } }, "en", "محمود درويش"],
       ["Arabic-only first + last viewed in en", { firstNameLocalized: { ar: "محمود" }, lastNameLocalized: { ar: "درويش" } }, "en", "محمود درويش"],
       ["other languages: en before ar", { displayNameLocalized: { ar: "عربي", en: "English", fr: "Français" } }, "de", "English"],
-      ["handle only", { displayName: "", userName: "mahmoud" }, "en", "@mahmoud"],
-      ["handle stored as handle, @ not doubled", { handle: "@@mahmoud" }, "en", "@mahmoud"],
-      ["whitespace handle counts as missing", { userName: "  " }, "en", ""],
+      ["handle only: handles belong to channels, not users", { displayName: "", userName: "mahmoud" } as NameFields, "en", ""],
+      ["handle never beats first + last", { firstName: "Mahmoud", handle: "m" } as NameFields, "en", "Mahmoud"],
       ["nothing", {}, "en", ""],
-      ["all empty strings", { displayName: "", firstName: "", lastName: "", userName: "", displayNameLocalized: { en: "", ar: " " } }, "en", ""],
+      ["all empty strings", { displayName: "", firstName: "", lastName: "", displayNameLocalized: { en: "", ar: " " } }, "en", ""],
       ["null profile", null, "en", ""],
       ["undefined profile", undefined, undefined, ""],
       ["no locale: plain names", { displayName: "", firstName: "Mahmoud", lastName: "Darwish" }, undefined, "Mahmoud Darwish"],
@@ -37,14 +36,10 @@ describe("resolveDisplayName (the platform rule: display name, else first + last
       expect(resolveDisplayName({ email: "owner@example.com" } as NameFields, "en")).toBe("");
    });
 
-   it("resolvePersonalName stops before the handle", () => {
-      expect(resolvePersonalName({ userName: "mahmoud" }, "en")).toBe("");
-      expect(resolvePersonalName({ displayName: "", firstName: "Mahmoud", lastName: "Darwish", userName: "m" }, "en")).toBe("Mahmoud Darwish");
-   });
 });
 
 describe("account names from the videos API", () => {
-   const owner = { displayName: "", firstName: "Mahmoud", lastName: "Darwish", userName: null };
+   const owner = { displayName: "", firstName: "Mahmoud", lastName: "Darwish", userName: "mahmoud" };
    const api = (body: unknown, status = 200) => (async () => Response.json(body, { status })) as unknown as typeof fetch;
 
    it("reads the public profile and resolves it", async () => {
@@ -56,8 +51,9 @@ describe("account names from the videos API", () => {
       const p = await fetchAccountProfile("https://videos.api.test/", "u 1", f);
       expect(asked).toBe("https://videos.api.test/api/profiles/u%201");
       expect(p).not.toHaveProperty("bio");
+      expect(p).not.toHaveProperty("userName");
       expect(accountName(p, "en")).toBe("Mahmoud Darwish");
-      expect(accountPersonalName(p, "ar")).toBe("Mahmoud Darwish");
+      expect(accountName(p, "ar")).toBe("Mahmoud Darwish");
    });
 
    it("is null on 404, a bad body or a network error", async () => {
@@ -69,9 +65,7 @@ describe("account names from the videos API", () => {
 
    it("uses the API's resolvedDisplayName when the fields give nothing", () => {
       expect(accountName({ displayName: "", resolvedDisplayName: " Mahmoud Darwish " }, "en")).toBe("Mahmoud Darwish");
-      expect(accountPersonalName({ resolvedDisplayName: "@mahmoud" }, "en")).toBe("");
-      expect(accountPersonalName({ displayName: "@mahmoud" }, "en")).toBe("");
-      expect(accountName({ userName: "mahmoud" }, "en")).toBe("@mahmoud");
+      expect(accountName({ userName: "mahmoud" } as never, "en")).toBe("");
    });
 });
 

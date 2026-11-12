@@ -9,7 +9,9 @@
  *   3. first + last name (in `locale` when localized, else the plain ones), whichever of the two exists
  *   4. a display name, or first + last, in another language (an Arabic-only profile still has a name
  *      on an English page)
- *   5. @handle (userName)
+ *
+ * No @handle: handles belong to channels (Channel.handle), not to users. Where the UI shows who is
+ * acting as a channel, the channel's own name / @handle is shown, separate from the user's name.
  *
  * Empty and whitespace-only values count as missing. It never returns the email: a caller that has
  * nothing else decides on email itself (`resolveDisplayName(profile, locale) || email`). Returns ''
@@ -23,10 +25,6 @@ export interface NameFields {
    firstNameLocalized?: Record<string, string | null | undefined> | null;
    lastName?: string | null;
    lastNameLocalized?: Record<string, string | null | undefined> | null;
-   /** The handle; shown as @handle */
-   userName?: string | null;
-   /** Some records store the handle as `handle` */
-   handle?: string | null;
 }
 
 function clean(value: unknown): string {
@@ -56,11 +54,8 @@ function rank(key: string): number {
    return key === "en" ? 0 : key === "ar" ? 1 : 2;
 }
 
-/**
- * The display name, then first + last, without the @handle fallback. For places that keep the
- * handle in its own field, or that need a person's name (a new scholar profile).
- */
-export function resolvePersonalName(profile: NameFields | null | undefined, locale?: string): string {
+/** The name a user is shown by (see the order above); '' when there is none. Never the email. */
+export function resolveDisplayName(profile: NameFields | null | undefined, locale?: string): string {
    if (!profile || typeof profile !== "object") return "";
    const display = localized(profile.displayNameLocalized, locale) || clean(profile.displayName);
    if (display) return display;
@@ -74,12 +69,4 @@ export function resolvePersonalName(profile: NameFields | null | undefined, loca
       if (name) return name;
    }
    return "";
-}
-
-/** The name a user is shown by (see the order above); '' when there is none. Never the email. */
-export function resolveDisplayName(profile: NameFields | null | undefined, locale?: string): string {
-   const name = resolvePersonalName(profile, locale);
-   if (name) return name;
-   const handle = clean(profile?.userName) || clean(profile?.handle);
-   return handle ? `@${handle.replace(/^@+/, "")}` : "";
 }

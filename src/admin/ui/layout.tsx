@@ -115,7 +115,7 @@ function AccountMenu(props: { v: View }) {
    return (
       <details class="pop" data-pop>
          <summary class="who ic" style="width:auto" aria-label={`${v.t.header.account}: ${label}`}>
-            <span class="avatar" aria-hidden="true">{(label.replace(/^@/, "")[0] ?? "?").toUpperCase()}</span>
+            <span class="avatar" aria-hidden="true">{(label[0] ?? "?").toUpperCase()}</span>
             <Icon name="chevronDown" size={16} />
          </summary>
          <div class="pop-panel" role="menu">

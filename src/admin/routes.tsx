@@ -6,7 +6,7 @@
 import { Hono } from "hono";
 import { subOfUser } from "../lib/scholars/ownership.ts";
 import { scholarById, scholarName, scholarOfSub, type Scholar } from "../lib/scholars/profiles.ts";
-import { accountPersonalName, fetchAccountProfile } from "../lib/account-name.ts";
+import { accountName, fetchAccountProfile } from "../lib/account-name.ts";
 import { ownedChannels } from "../lib/scholars/videos-internal.ts";
 import { errText, log } from "../lib/log.ts";
 import { featuringApi, scholarsApi } from "./scholars-api.ts";
@@ -219,7 +219,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
             avatarPath: avatar?.path ?? null,
             endpoint,
             publicUrl: c.get("cfg").publicUrl,
-            accountNames: { en: accountPersonalName(account, "en"), ar: accountPersonalName(account, "ar") },
+            accountNames: { en: accountName(account, "en"), ar: accountName(account, "ar") },
          }));
    };
    r.get("/scholars/me", async (c) => {
