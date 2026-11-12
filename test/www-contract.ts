@@ -135,6 +135,9 @@ const snapshot = object({
    duration_seconds: optional(nullable(int)),
    upload_date: optional(nullable(str)),
    video_count: optional(nullable(int)),
+   width: optional(nullable(int)),
+   height: optional(nullable(int)),
+   channel_names: optional(localized(str)),
 });
 
 const curated = object({

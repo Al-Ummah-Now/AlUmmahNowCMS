@@ -80,7 +80,10 @@
                   "descriptions": {},
                   "duration_seconds": null,
                   "upload_date": null,
-                  "video_count": null
+                  "video_count": null,
+                  "width": null,
+                  "height": null,
+                  "channel_names": {}
                },
                "sort": 10
             }
@@ -351,7 +354,10 @@
                   "descriptions": {},
                   "duration_seconds": null,
                   "upload_date": null,
-                  "video_count": null
+                  "video_count": null,
+                  "width": null,
+                  "height": null,
+                  "channel_names": {}
                },
                "sort": 10
             }
@@ -380,7 +386,10 @@
                   "descriptions": {},
                   "duration_seconds": null,
                   "upload_date": null,
-                  "video_count": null
+                  "video_count": null,
+                  "width": null,
+                  "height": null,
+                  "channel_names": {}
                },
                "sort": 10
             }
@@ -763,7 +772,10 @@
                         "descriptions": {},
                         "duration_seconds": null,
                         "upload_date": null,
-                        "video_count": null
+                        "video_count": null,
+                        "width": null,
+                        "height": null,
+                        "channel_names": {}
                      }
                   },
                   {
@@ -781,7 +793,10 @@
                         "descriptions": {},
                         "duration_seconds": null,
                         "upload_date": null,
-                        "video_count": null
+                        "video_count": null,
+                        "width": null,
+                        "height": null,
+                        "channel_names": {}
                      }
                   }
                ]
@@ -803,7 +818,10 @@
                   "descriptions": {},
                   "duration_seconds": null,
                   "upload_date": null,
-                  "video_count": null
+                  "video_count": null,
+                  "width": null,
+                  "height": null,
+                  "channel_names": {}
                }
             },
             {

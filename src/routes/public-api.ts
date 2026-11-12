@@ -187,6 +187,10 @@ export function snapshotOf(snap: Row | null) {
          duration_seconds: positiveOrNull(snap.duration_seconds),
          upload_date: toIso(snap.upload_date),
          video_count: positiveOrNull(snap.video_count),
+         // Videos: the player frame's aspect ratio (www), and the channel name per language
+         width: positiveOrNull(snap.width),
+         height: positiveOrNull(snap.height),
+         channel_names: localizedOf(snap.channel_names),
       });
    }
    // Channels: their newest public videos (docs/specs/WWW-PAGES.md D7), at most 3.

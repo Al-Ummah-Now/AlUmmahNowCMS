@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { browseVideos, fromSearchResult, imageUrl, isPublicItem, lookupItem, searchVideos, toItem } from "../../src/lib/videos.ts";
+import { browseVideos, channelNames, clearChannelNamesCache, fromSearchResult, imageUrl, isPublicItem, lookupItem, searchVideos, toItem } from "../../src/lib/videos.ts";
 import { applyRules } from "../../src/lib/content-rules.ts";
 import { embedUrl, watchUrl } from "../../src/lib/embeds.ts";
 
@@ -139,5 +139,38 @@ describe("imageUrl (thumbnails from the videos API)", () => {
       const item = toItem("video", { id: "v1", title: "Legacy", thumbnailUrl: "images.alummahnow.net/legacy talk.jpg" });
       expect(item?.thumbnail_url).toBe("https://images.alummahnow.net/legacy%20talk.jpg");
       expect(() => applyRules("curated_videos", { kind: "video", ref_id: "v1", snapshot: { title: item!.title, thumbnail_url: item!.thumbnail_url, channel_name: null } }, "create")).not.toThrow();
+   });
+});
+
+describe("video snapshot: size and channel names (2026-11-12 www timeline)", () => {
+   const video = { id: "v1", title: "T", channelId: "c1", channelName: "Al Ummah Now", isPublic: true, uploadStatus: "ready", width: 1280, height: 720 };
+   const channel = { id: "c1", name: "Al Ummah Now", nameLocalized: { en: "Al Ummah Now", ar: "الأمة الآن" } };
+   const api = (calls: string[]) =>
+      (async (url: string) => {
+         calls.push(url);
+         return Response.json(url.includes("/api/channels/") ? channel : video);
+      }) as unknown as typeof fetch;
+
+   it("carries the video's width/height and its channel's name per language", async () => {
+      clearChannelNamesCache();
+      const calls: string[] = [];
+      const item = await lookupItem("https://v", "video", "v1", api(calls));
+      expect(item).toMatchObject({ width: 1280, height: 720, channel_name: "Al Ummah Now", channel_names: { en: "Al Ummah Now", ar: "الأمة الآن" } });
+      // one channel lookup serves every video of that channel (per isolate, 30 min)
+      await lookupItem("https://v", "video", "v1", api(calls));
+      expect(calls.filter((u) => u.includes("/api/channels/"))).toHaveLength(1);
+   });
+
+   it("a channel with only a plain name is English; a failing channel lookup leaves {}", async () => {
+      clearChannelNamesCache();
+      expect(await channelNames("https://v", "c2", (async () => Response.json({ name: "Plain" })) as unknown as typeof fetch)).toEqual({ en: "Plain" });
+      expect(await channelNames("https://v", "c3", (async () => new Response("no", { status: 500 })) as unknown as typeof fetch)).toEqual({});
+      expect(await channelNames("https://v", "../x", (async () => Response.json(channel)) as unknown as typeof fetch)).toEqual({});
+   });
+
+   it("no size when the API has none (old imports)", async () => {
+      clearChannelNamesCache();
+      const noSize = (async (url: string) => Response.json(url.includes("/api/channels/") ? channel : { ...video, width: 0, height: undefined })) as unknown as typeof fetch;
+      expect(await lookupItem("https://v", "video", "v1", noSize)).toMatchObject({ width: null, height: null });
    });
 });
