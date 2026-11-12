@@ -123,7 +123,8 @@ function overrides(opts: { jwtSecret: string; secureCookie: boolean; publicUrl: 
             expires: SESSION_TTL_SECONDS,
             issuer: "al-ummah-now-cms",
             // sid: this session's id, revoked by its sign-out (src/lib/sign-outs.ts)
-            fields: ["id", "email", "role", "sid"],
+            // name_en / name_ar: the account's name at sign-in (src/lib/account-name.ts), for the account menu
+            fields: ["id", "email", "role", "sid", "name_en", "name_ar"],
          },
          cookie: {
             path: "/",

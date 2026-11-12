@@ -10,6 +10,7 @@ import { createPkce, randomToken } from "../lib/pkce.ts";
 import { safeReturnPath } from "../lib/return-path.ts";
 import { mapRoles } from "../lib/roles.ts";
 import { upsertSsoUser } from "../lib/users.ts";
+import { accountName, accountPersonalName, fetchAccountProfile } from "../lib/account-name.ts";
 import { ensureScholar } from "../lib/scholars/profiles.ts";
 import { ownedChannels } from "../lib/scholars/videos-internal.ts";
 import { errText, log } from "../lib/log.ts";
@@ -188,7 +189,13 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       // PUBLIC videos API server-side without any user token (src/lib/videos.ts). So there is no
       // access token to refresh. When the bknd session ends, the gate sends the browser through
       // /sso/login again, which is silent while auth still has a browser session.
+      // The account's name (display name, else first + last: src/lib/display-name.ts) rides in the
+      // session for the account menu; a new scholar profile starts from it. Read from the public
+      // videos API in parallel with the rest; a failure only means the email is shown instead.
+      const profileP = fetchAccountProfile(cfg.videosApiUrl, identity.sub, deps.fetch);
       const user = await upsertSsoUser(c.env.DB, identity, role);
+      const profile = await profileP;
+      const names = { en: accountName(profile, "en") || identity.name || "", ar: accountName(profile, "ar") || identity.name || "" };
       if (role === "writer") {
          // A scholar's profile is made on their first sign-in, linked to the channels they own on the
          // videos platform (docs/SCHOLARS.md §3). A videos API hiccup never blocks the sign-in: the
@@ -197,11 +204,12 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
             log.warn("scholar channels unavailable at sign-in", { error: errText(error) });
             return [];
          });
-         await ensureScholar(c.env.DB, identity, owned.map((ch) => ch.id)).catch((error) => log.error("scholar profile not created", { error: errText(error) }));
+         const personal = { en: accountPersonalName(profile, "en"), ar: accountPersonalName(profile, "ar") };
+         await ensureScholar(c.env.DB, { ...identity, names: personal }, owned.map((ch) => ch.id)).catch((error) => log.error("scholar profile not created", { error: errText(error) }));
       }
       const app = await deps.getApp(c);
       const authenticator = app.module.auth.authenticator;
-      const token = await authenticator.jwt({ id: user.id, email: user.email, role: user.role, strategy: "sso", sid: newSessionId() });
+      const token = await authenticator.jwt({ id: user.id, email: user.email, role: user.role, strategy: "sso", sid: newSessionId(), name_en: names.en, name_ar: names.ar });
       const headers = await authenticator.getAuthCookieHeader(token, new Headers());
       for (const cookie of headers.getSetCookie()) c.header("Set-Cookie", cookie, { append: true });
       return c.redirect(tx.r, 302);

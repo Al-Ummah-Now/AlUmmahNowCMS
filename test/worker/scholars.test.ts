@@ -20,11 +20,18 @@ interface Videos {
    puts: { userId: string; externalId: string; body: Record<string, unknown> }[];
    deletes: { userId: string; externalId: string }[];
    down?: boolean;
+   /** Public profiles (`GET /api/profiles/:id`) by auth user id */
+   profiles?: Record<string, Record<string, unknown>>;
 }
 
 /** The videos API (public + /internal/scholars/*) as the CMS sees it. */
 function videosApi(v: Videos): Upstream {
    return async (url, init) => {
+      const prof = /^\/api\/profiles\/([^/]+)$/.exec(url.pathname);
+      if (prof) {
+         const p = v.profiles?.[decodeURIComponent(prof[1])];
+         return p ? Response.json({ success: true, result: { profile: p } }) : Response.json({ success: false }, { status: 404 });
+      }
       if (!url.pathname.startsWith("/internal/")) return new Response("nf", { status: 404 });
       if ((init?.headers as Record<string, string> | undefined)?.["X-API-Key"] !== KEY) return Response.json({ error: "Unauthorized" }, { status: 401 });
       if (v.down) return Response.json({ error: "busy" }, { status: 503 });
@@ -91,6 +98,32 @@ beforeEach(async () => {
 });
 
 describe("a scholar signs in", () => {
+   it("is named by the account's display name, else first + last (never the email)", async () => {
+      const v = fresh();
+      // The owner's prod profile shape: empty display name, first + last, no handle.
+      v.profiles = { "sch-named": { id: "sch-named", displayName: "", firstName: "Mahmoud", lastName: "Darwish", userName: null } };
+      const cookie = await session(v, ["Scholar"], "sch-named");
+      const s = await env.DB.prepare("SELECT slug, name_en, name_ar FROM scholars WHERE sso_sub = 'sch-named'").first<Record<string, unknown>>();
+      expect(s).toMatchObject({ slug: "mahmoud-darwish", name_en: "Mahmoud Darwish", name_ar: null });
+      const page = await (await client(v, cookie).f("/scholars/me", { headers: { cookie } })).text();
+      expect(page).toContain('<strong title="sch-named@example.com">Mahmoud Darwish</strong>');
+      expect(page).toContain('aria-label="Account: Mahmoud Darwish"');
+   });
+
+   it("an empty name field hints the account's first + last; no profile → the email in the menu", async () => {
+      const v = fresh();
+      const cookie = await session(v, ["Scholar"], "sch-hint");
+      const s = await env.DB.prepare("SELECT name_en, name_ar FROM scholars WHERE sso_sub = 'sch-hint'").first<Record<string, unknown>>();
+      expect(s).toMatchObject({ name_en: null, name_ar: null });
+      v.profiles = { "sch-hint": { id: "sch-hint", displayName: "  ", firstName: "Hint", lastName: "Person" } };
+      const page = await (await client(v, cookie).f("/scholars/me", { headers: { cookie } })).text();
+      expect(page).toContain('placeholder="Hint Person"');
+      expect(page).toContain("Name on the account: Hint Person");
+      expect(page).toContain(">sch-hint@example.com</strong>");
+      const ar = await (await client(v, cookie).f("/scholars/me?lang=ar", { headers: { cookie } })).text();
+      expect(ar).toContain("الاسم في الحساب: Hint Person");
+   });
+
    it("gets the writer role and a profile linked to the channels they own", async () => {
       const v = fresh();
       v.channels["sch-a"] = [{ id: "ch-a1", name: "Aisha's lessons", handle: "aisha" }];

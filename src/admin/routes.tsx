@@ -6,6 +6,7 @@
 import { Hono } from "hono";
 import { subOfUser } from "../lib/scholars/ownership.ts";
 import { scholarById, scholarName, scholarOfSub, type Scholar } from "../lib/scholars/profiles.ts";
+import { accountPersonalName, fetchAccountProfile } from "../lib/account-name.ts";
 import { ownedChannels } from "../lib/scholars/videos-internal.ts";
 import { errText, log } from "../lib/log.ts";
 import { featuringApi, scholarsApi } from "./scholars-api.ts";
@@ -59,6 +60,7 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       nonce: c.get("nonce"),
       user: {
          email: user.email,
+         name: ((prefs.lang === "ar" ? user.name_ar : user.name_en) ?? "").trim(),
          role: user.role === "admin" ? "admin" : user.role === "writer" ? "writer" : "editor",
          sub: user.role === "writer" ? await subOfUser(c.env.DB, user.id) : null,
       },
@@ -202,14 +204,23 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    const profile = async (c: Ctx, scholar: Scholar | null, endpoint: string) => {
       const v = await buildView(c, deps);
       if (!scholar) return render(c, v, v.t.common.notFound, <p class="notice">{v.t.scholars.noProfile}</p>, 404);
-      const [channels, avatar] = await Promise.all([
+      const needsName = !scholar.name_en?.trim() || !scholar.name_ar?.trim();
+      const [channels, avatar, account] = await Promise.all([
          ownedChannels(c.env, scholar.sso_sub, deps.fetch).catch((error) => {
             log.warn("scholar channels unavailable", { error: errText(error) });
             return null;
          }),
          scholar.avatar_media_id ? c.env.DB.prepare("SELECT path FROM media WHERE id = ?1").bind(scholar.avatar_media_id).first<{ path: string | null }>() : Promise.resolve(null),
+         needsName ? fetchAccountProfile(c.get("cfg").videosApiUrl, scholar.sso_sub, deps.fetch) : Promise.resolve(null),
       ]);
-      return render(c, v, v.user.role === "writer" ? v.t.scholars.myProfile : scholarName(scholar, v.prefs.lang), profileScreen(v, { scholar, channels, avatarPath: avatar?.path ?? null, endpoint, publicUrl: c.get("cfg").publicUrl }));
+      return render(c, v, v.user.role === "writer" ? v.t.scholars.myProfile : scholarName(scholar, v.prefs.lang), profileScreen(v, {
+            scholar,
+            channels,
+            avatarPath: avatar?.path ?? null,
+            endpoint,
+            publicUrl: c.get("cfg").publicUrl,
+            accountNames: { en: accountPersonalName(account, "en"), ar: accountPersonalName(account, "ar") },
+         }));
    };
    r.get("/scholars/me", async (c) => {
       const sub = await subOfUser(c.env.DB, c.get("user").id);

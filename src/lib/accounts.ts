@@ -68,7 +68,7 @@ async function load() {
   status.className = "status"; status.textContent = "";
   list.replaceChildren();
   for (const a of accounts) {
-    const label = a.name || a.email || a.userId;
+    const label = (typeof a.name === "string" && a.name.trim()) || a.email || a.userId;
     const li = el("li");
     const who = el("div", { class: "who" });
     const name = el("div", {}, label);

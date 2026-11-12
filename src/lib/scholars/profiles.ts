@@ -60,7 +60,9 @@ export function scholarOf(r: Row): Scholar {
 
 /** The name to show in `locale`, falling back to the other language, then the slug. */
 export function scholarName(s: Pick<Scholar, "name_en" | "name_ar" | "slug">, locale: "en" | "ar"): string {
-   return (locale === "ar" ? (s.name_ar ?? s.name_en) : (s.name_en ?? s.name_ar)) ?? s.slug;
+   const en = s.name_en?.trim() || null;
+   const ar = s.name_ar?.trim() || null;
+   return (locale === "ar" ? (ar ?? en) : (en ?? ar)) ?? s.slug;
 }
 
 export function scholarBio(s: Pick<Scholar, "bio_en" | "bio_ar">, locale: "en" | "ar"): string | null {
@@ -147,30 +149,56 @@ async function freeSlug(db: D1Database, base: string, exceptId?: number): Promis
    return `${root.slice(0, 40)}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+const ARABIC = /[\u0600-\u06ff]/;
+const nameOrNull = (v: string | null | undefined): string | null => {
+   const t = typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, NAME_MAX) : "";
+   return t || null;
+};
+
+/**
+ * A new profile's names: the token's name when auth sends one (its script picks the column), else
+ * the account's names resolved by the platform rule (src/lib/display-name.ts: display name, then
+ * first + last). An Arabic name goes to name_ar; the Arabic-page name is kept only when it differs.
+ */
+export function initialNames(who: { name?: string | null; names?: { en?: string | null; ar?: string | null } }): { en: string | null; ar: string | null } {
+   const token = nameOrNull(who.name);
+   if (token) return ARABIC.test(token) ? { en: null, ar: token } : { en: token, ar: null };
+   const en = nameOrNull(who.names?.en);
+   const ar = nameOrNull(who.names?.ar);
+   return {
+      en: en && !ARABIC.test(en) ? en : null,
+      ar: ar && (ARABIC.test(ar) || ar !== en) ? ar : en && ARABIC.test(en) ? en : null,
+   };
+}
+
 /**
  * The profile of a writer, created on their first CMS sign-in. Idempotent and race-safe: the unique
  * sso_sub index decides, and a concurrent second sign-in reads the row the first one made.
  */
-export async function ensureScholar(db: D1Database, who: { sub: string; email: string; name?: string | null }, channelIds: string[] = []): Promise<Scholar | null> {
+export async function ensureScholar(
+   db: D1Database,
+   who: { sub: string; email: string; name?: string | null; names?: { en?: string | null; ar?: string | null } },
+   channelIds: string[] = [],
+): Promise<Scholar | null> {
    const existing = await scholarOfSub(db, who.sub);
    if (existing) return existing;
-   const name = who.name?.trim() ? who.name.trim().slice(0, NAME_MAX) : null;
+   const { en, ar } = initialNames(who);
+   const name = en ?? ar;
    const slug = await freeSlug(db, name ?? who.email);
    const at = new Date().toISOString();
-   const arabic = !!name && /[؀-ۿ]/.test(name);
    await db
       .prepare(
          `INSERT INTO scholars (sso_sub, slug, name_en, name_ar, channel_ids, created_at, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7)
           ON CONFLICT (sso_sub) DO NOTHING`,
       )
-      .bind(who.sub, slug, arabic ? null : name, arabic ? name : null, JSON.stringify(channelIds.slice(0, CHANNELS_MAX)), at, who.email)
+      .bind(who.sub, slug, en, ar, JSON.stringify(channelIds.slice(0, CHANNELS_MAX)), at, who.email)
       .run()
       .catch(async (error: unknown) => {
          // The slug was taken between the check and the insert: one more try with a fresh one.
          if (!/UNIQUE/i.test(String(error))) throw error;
          await db
             .prepare(`INSERT INTO scholars (sso_sub, slug, name_en, name_ar, channel_ids, created_at, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7) ON CONFLICT (sso_sub) DO NOTHING`)
-            .bind(who.sub, `${slugify(name ?? who.email).slice(0, 40)}-${crypto.randomUUID().slice(0, 6)}`, arabic ? null : name, arabic ? name : null, JSON.stringify(channelIds.slice(0, CHANNELS_MAX)), at, who.email)
+            .bind(who.sub, `${slugify(name ?? who.email).slice(0, 40)}-${crypto.randomUUID().slice(0, 6)}`, en, ar, JSON.stringify(channelIds.slice(0, CHANNELS_MAX)), at, who.email)
             .run();
       });
    return scholarOfSub(db, who.sub);
