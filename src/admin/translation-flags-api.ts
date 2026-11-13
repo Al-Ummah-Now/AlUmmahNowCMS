@@ -55,11 +55,11 @@ import {
 } from "../lib/translation-flags/store.ts";
 
 type Row = Record<string, unknown>;
-type Role = "admin" | "editor" | "writer";
+type Role = "admin" | "editor" | "staff_writer" | "writer";
 
 const roleOf = (c: Ctx): Role | null => {
    const r = c.get("user")?.role;
-   return r === "admin" || r === "editor" || r === "writer" ? r : null;
+   return r === "admin" || r === "editor" || r === "staff_writer" || r === "writer" ? r : null;
 };
 const canResolve = (role: Role | null) => role === "admin" || role === "editor";
 const actorOf = (c: Ctx): Actor => {
@@ -82,9 +82,11 @@ async function body(c: Ctx): Promise<Record<string, unknown>> {
 async function rowFor(c: Ctx, kind: FlagKind, id: number): Promise<Row | null> {
    const role = roleOf(c);
    if (!role) return null;
-   if (role === "writer" && kind !== "posts") return null;
+   if ((role === "writer" || role === "staff_writer") && kind !== "posts") return null;
    const row = await c.env.DB.prepare(`SELECT * FROM "${kind}" WHERE id = ?1`).bind(id).first<Row>();
    if (!row) return null;
+   // A staff writer: Al Ummah Now's own posts only
+   if (role === "staff_writer" && (row.author_sub || row.ref_post_id)) return null;
    if (role === "writer") {
       const sub = await subOfUser(c.env.DB, c.get("user").id);
       if (!sub || row.author_sub !== sub) return null;

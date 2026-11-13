@@ -7,7 +7,7 @@ import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
 import { publishState, timeOf, type PublishState } from "../../lib/schedule.ts";
 import { Icon } from "../ui/icons.tsx";
-import { Empty, isAdmin, isWriter, PageHead, type View } from "../ui/layout.tsx";
+import { Empty, isAdmin, isStaffWriter, isWriter, PageHead, type View } from "../ui/layout.tsx";
 import { PickerDialog } from "../ui/picker.tsx";
 import { Autocomplete, comboboxProps } from "../ui/autocomplete.tsx";
 import { blockMediaIds, blockPostIds, blockVideoRefs, bodyAsBlocks, storedBlocks, storedSlides, type Block, type Slide } from "../../lib/blocks.ts";
@@ -120,7 +120,14 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
    const writer = isWriter(v);
    if (writer && (kind !== "posts" || !v.user.sub)) return <Empty icon="pen" title={t.common.notFound} />;
    // Scholar post references are not edited here (docs/SCHOLARS.md §7): they are on the Featuring screen.
-   const scope: Record<string, unknown> = { ...(writer ? { author_sub: v.user.sub } : {}), ...(kind === "posts" ? { ref_post_id: { $isnull: true } } : {}) };
+   // A staff writer (auth "Writer"): Al Ummah Now's own posts only (no scholar posts)
+   const staffWriter = isStaffWriter(v);
+   if (staffWriter && kind !== "posts") return <Empty icon="pen" title={t.common.notFound} />;
+   const scope: Record<string, unknown> = {
+      ...(writer ? { author_sub: v.user.sub } : {}),
+      ...(staffWriter ? { author_sub: { $isnull: true } } : {}),
+      ...(kind === "posts" ? { ref_post_id: { $isnull: true } } : {}),
+   };
    const res = await searchList(data, kind, p, select, scope);
    const pages = Math.max(1, Math.ceil(res.total / PAGE_SIZE));
    const base = `/${kind}`;
@@ -314,6 +321,8 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    if (id && !row) return null;
    // A writer edits only their own posts (docs/SCHOLARS.md §2): someone else's is "not found".
    if (writer && row && (!v.user.sub || row.author_sub !== v.user.sub)) return null;
+   // A staff writer: Al Ummah Now's own posts only (a scholar post or reference is "not found")
+   if (isStaffWriter(v) && (kind !== "posts" || (row && (row.author_sub || row.ref_post_id)))) return null;
    // A scholar post reference: written in Studio, featured on the Featuring screen (docs/SCHOLARS.md §7).
    if (kind === "posts" && row && typeof row.ref_post_id === "string" && row.ref_post_id) {
       const www = `${v.wwwUrl}/${String(row.locale)}/${WWW_POSTS}/${encodeURIComponent(String(row.slug))}/`;
@@ -349,7 +358,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    const history = id ? await historyCard({ v, data, kind, id }) : null;
    // Translation flags (docs/TRANSLATION_FLAGS.md): on a saved row with a version in the other language.
    const flags = !!row && translations.data.length > 0;
-   const canResolveFlags = flags && !writer;
+   const canResolveFlags = flags && !writer && !isStaffWriter(v);
    // Blocks (pages) and slides (card posts), with what the editor shows for their references.
    const blocks: Block[] = kind === "pages" ? (row ? (storedBlocks(row.blocks).length ? storedBlocks(row.blocks) : bodyAsBlocks(row.body)) : []) : [];
    const slides: Slide[] = kind === "posts" ? storedSlides(row?.slides) : [];
@@ -654,7 +663,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                         {s("seo_description") || (kind === "pages" ? s("summary") : s("excerpt"))}
                      </span>
                   </div>
-                  {kind === "posts" && !writer ? (
+                  {kind === "posts" && !writer && !isStaffWriter(v) ? (
                      <div class="field">
                         <label class="switch">
                            <input type="checkbox" name="show_on_timeline" aria-describedby="f-timeline-help" checked={row ? row.show_on_timeline !== false && row.show_on_timeline !== 0 : true} />

@@ -10,7 +10,7 @@
  * revision or log row.
  */
 import { listLibrary } from "../lib/library.ts";
-import { scopeWhere, subOfUser } from "../lib/scholars/ownership.ts";
+import { scopeWhereStaff, scopeWhere, subOfUser } from "../lib/scholars/ownership.ts";
 import { listScholars, scholarName } from "../lib/scholars/profiles.ts";
 import { articleCandidates } from "../lib/scholars/featuring.ts";
 import { Hono, type Context } from "hono";
@@ -51,7 +51,7 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
       const kind = c.req.query("kind") ?? "content";
       if (kind === "scholars" || kind === "scholar-posts") {
          // Scholars screen and the Featuring screen (staff only).
-         if (c.get("user")?.role === "writer") return c.json({ error: "forbidden" }, 403);
+         if (c.get("user")?.role === "writer" || c.get("user")?.role === "staff_writer") return c.json({ error: "forbidden" }, 403);
          const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
          if (!q) return c.json({ items: [] }, 200, { "Cache-Control": "no-store" });
          const lang = getCookie(c, LANG_COOKIE) === "ar" ? "ar" : "en";
@@ -94,7 +94,7 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
       if (kind === "list-pages") {
          // Featuring's "Add to page" (staff only): curated list pages of one language, most recently
          // changed first; opens with them before anything is typed. pages is a small table.
-         if (c.get("user")?.role === "writer") return c.json({ error: "forbidden" }, 403);
+         if (c.get("user")?.role === "writer" || c.get("user")?.role === "staff_writer") return c.json({ error: "forbidden" }, 403);
          const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
          const l = c.req.query("locale");
          const loc = l === "en" || l === "ar" ? l : "";
@@ -124,7 +124,7 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
       }
       if (kind === "tags" || kind === "library") {
          // The filter editor's Tag field (opens with the most used tags) and the Videos screen's search.
-         if (c.get("user")?.role === "writer") return c.json({ error: "forbidden" }, 403);
+         if (c.get("user")?.role === "writer" || c.get("user")?.role === "staff_writer") return c.json({ error: "forbidden" }, 403);
          const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
          const lang = getCookie(c, LANG_COOKIE) === "ar" ? "ar" : "en";
          const t = ADMIN_STRINGS[lang];
@@ -162,6 +162,7 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
          );
       }
       const writer = c.get("user")?.role === "writer";
+      const staffWriter = c.get("user")?.role === "staff_writer";
       let kinds: ContentKind[] = kind === "pages" ? ["pages"] : kind === "posts" ? ["posts"] : kind === "content" ? ["pages", "posts"] : [];
       if (!kinds.length) return c.json({ error: "bad_request" }, 400);
       // A writer (auth "Scholar") only ever sees their own posts (docs/SCHOLARS.md §2).
@@ -169,6 +170,11 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
       if (writer) {
          kinds = kinds.filter((k) => k === "posts");
          if (!kinds.length || !sub) return c.json({ items: [] }, 200, { "Cache-Control": "no-store" });
+      }
+      // A staff writer (auth "Writer"): Al Ummah Now's own posts only (src/lib/staff-writer.ts)
+      if (staffWriter) {
+         kinds = kinds.filter((k) => k === "posts");
+         if (!kinds.length) return c.json({ items: [] }, 200, { "Cache-Control": "no-store" });
       }
       const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
       if (!q) return c.json({ items: [] }, 200, { "Cache-Control": "no-store" });
@@ -185,7 +191,7 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
             if (/^[0-9]{1,12}$/.test(q)) branches.unshift({ where: { id: Number(q), ...(locale ? { locale } : {}) } });
             // data.get, not data.list: a suggestion needs no total (list() may count)
             const parts = await Promise.all(
-               branches.map((b) => data.get<{ data: Row[] }>(listUrl(k, { limit: SUGGEST_LIMIT, sort: "-updated_at", where: sub ? scopeWhere(b.where, sub) : b.where, select: SELECT }))),
+               branches.map((b) => data.get<{ data: Row[] }>(listUrl(k, { limit: SUGGEST_LIMIT, sort: "-updated_at", where: sub ? scopeWhere(b.where, sub) : staffWriter ? scopeWhereStaff(b.where) : b.where, select: SELECT }))),
             );
             const seen = new Map<string, Row>();
             for (const row of parts.flatMap((p) => p.data)) if (!seen.has(String(row.id))) seen.set(String(row.id), row);

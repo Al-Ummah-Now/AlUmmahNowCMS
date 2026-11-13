@@ -5,6 +5,7 @@
  *   POST  /admin/api/revisions/:id/restore  { updated_at }  → a page/post back to that revision (#8)
  *   POST  /admin/api/video-snapshots/retry   → requeue dead-lettered block video snapshots
  */
+import { isStaffPost } from "../lib/staff-writer.ts";
 import { Hono } from "hono";
 import { postAuthor, subOfUser } from "../lib/scholars/ownership.ts";
 import { retryVariants } from "../lib/variants/jobs.ts";
@@ -26,6 +27,12 @@ export function mediaAltRoute(deps: Deps): Hono<AppEnv> {
                  .bind(Number(c.req.param("id")), sub)
                  .first()
             : null;
+         if (!own) return c.json({ error: "forbidden" }, 403);
+      } else if (role === "staff_writer") {
+         // A staff writer describes the cover of one of Al Ummah Now's own posts only.
+         const own = await c.env.DB.prepare("SELECT 1 AS x FROM media m JOIN posts p ON p.id = m.entity_id WHERE m.id = ?1 AND m.reference = 'posts.cover' AND p.author_sub IS NULL AND p.ref_post_id IS NULL")
+            .bind(Number(c.req.param("id")))
+            .first();
          if (!own) return c.json({ error: "forbidden" }, 403);
       } else if (role !== "admin" && role !== "editor") return c.json({ error: "forbidden" }, 403);
       if (!(c.req.header("content-type") ?? "").includes("application/json")) return c.json({ error: "bad_request", message: "JSON body required" }, 415);
@@ -79,13 +86,14 @@ export function mediaAltRoute(deps: Deps): Hono<AppEnv> {
     */
    r.post("/revisions/:id{[0-9]+}/restore", async (c) => {
       const user = c.get("user");
-      if (user?.role !== "admin" && user?.role !== "editor" && user?.role !== "writer") return c.json({ error: "forbidden" }, 403);
+      if (user?.role !== "admin" && user?.role !== "editor" && user?.role !== "staff_writer" && user?.role !== "writer") return c.json({ error: "forbidden" }, 403);
       if (!(c.req.header("content-type") ?? "").includes("application/json")) return c.json({ error: "bad_request" }, 415);
       const body = (await c.req.json().catch(() => null)) as { updated_at?: unknown } | null;
       if (!body || typeof body.updated_at !== "string" || !body.updated_at) return c.json({ error: "bad_request" }, 400);
       const rev = await getRevision(c.env.DB, Number(c.req.param("id")));
       if (!rev) return c.json({ error: "not_found" }, 404);
       if (user.role === "writer" && (rev.entity !== "posts" || (await postAuthor(c.env.DB, rev.entity_id)) !== (await subOfUser(c.env.DB, user.id)))) return c.json({ error: "not_found" }, 404);
+      if (user.role === "staff_writer" && (rev.entity !== "posts" || (await isStaffPost(c.env.DB, rev.entity_id)) !== true)) return c.json({ error: "not_found" }, 404);
       const data: Record<string, unknown> = { updated_at: body.updated_at };
       for (const k of RESTORABLE[rev.entity]) {
          if (!(k in rev.snapshot)) continue;

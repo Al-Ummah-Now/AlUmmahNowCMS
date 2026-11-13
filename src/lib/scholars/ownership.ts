@@ -48,6 +48,12 @@ export async function applyOwnership(db: D1Database | undefined, entity: string,
    const actor = currentActor();
    if (actor?.system) return;
    for (const k of PROTECTED_POST_FIELDS) delete data[k];
+   // A staff writer (auth "Writer", SS18): Al Ummah Now's own posts only; the timeline is editors'
+   if (actor?.role === "staff_writer") {
+      delete data.show_on_timeline;
+      if (mode === "update" && (!current || current.author_sub || current.ref_post_id)) throw new NotOwnerError();
+      return;
+   }
    if (actor?.role !== "writer") return;
    // The home timeline switch is staff's (featuring decides what a scholar post shows on the main site).
    delete data.show_on_timeline;
@@ -104,6 +110,14 @@ export function scopeListUrl(url: URL, sub: string): URL {
       }
    }
    out.searchParams.set("where", JSON.stringify(scopeWhere(where, sub)));
+   return out;
+}
+
+/** A where filter limited to Al Ummah Now's own posts (no scholar author); caller `$or`s dropped. */
+export function scopeWhereStaff(where: Row): Row {
+   const out: Row = {};
+   for (const [k, v] of Object.entries(where)) if (!k.startsWith("$") && k !== "author_sub") out[k] = v;
+   out.author_sub = { $isnull: true };
    return out;
 }
 

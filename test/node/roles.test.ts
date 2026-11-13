@@ -17,7 +17,12 @@ describe("mapRoles", () => {
       expect(mapRoles(["Admin"])).toBe("admin");
    });
    it("maps moderator to bknd editor", () => expect(mapRoles(["Moderator"])).toBe("editor"));
-   it("maps scholar to bknd writer (own posts only)", () => expect(mapRoles(["Scholar", "Member"])).toBe("writer"));
+   it("maps scholar to bknd writer (Write in Studio, SS18)", () => expect(mapRoles(["Scholar", "Member"])).toBe("writer"));
+   it("maps writer (staff) to bknd staff_writer (Al Ummah Now's own posts)", () => expect(mapRoles(["Writer"])).toBe("staff_writer"));
+   it("a staff writer who is also a scholar is a staff writer; an editor outranks both", () => {
+      expect(mapRoles(["Scholar", "Writer"])).toBe("staff_writer");
+      expect(mapRoles(["Writer", "Moderator"])).toBe("editor");
+   });
    it("takes the strongest role", () => {
       expect(mapRoles(["Moderator", "Viewer", "Admin"])).toBe("admin");
       expect(mapRoles(["Scholar", "Moderator"])).toBe("editor");
