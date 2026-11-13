@@ -12,6 +12,7 @@ import { PickerDialog } from "../ui/picker.tsx";
 import { Autocomplete, comboboxProps } from "../ui/autocomplete.tsx";
 import { blockMediaIds, blockPostIds, blockVideoRefs, bodyAsBlocks, storedBlocks, storedSlides, type Block, type Slide } from "../../lib/blocks.ts";
 import { getSnapshots } from "../../lib/video-snapshots.ts";
+import { stableSnapshot } from "../../lib/stable-thumb.ts";
 import { PageTypeField, PageTypePanels, pageTypeOf } from "./page-type.tsx";
 import { BlocksEditor, emptyRefs, MediaDialog, mediaInfoOf, PostsDialog, SlidesEditor, type Refs } from "./blocks.tsx";
 import { ConfirmDialog, I18nScript, LocalTime, StateBadge } from "../ui/parts.tsx";
@@ -278,7 +279,7 @@ function Counter(props: { for: string; max: number }) {
 }
 
 /** Media, posts and video snapshots the blocks and slides refer to (for thumbnails and titles). */
-async function loadRefs(data: Data, db: D1Database | undefined, blocks: Block[], slides: Slide[]): Promise<Refs> {
+async function loadRefs(data: Data, db: D1Database | undefined, blocks: Block[], slides: Slide[], videosWebUrl: string): Promise<Refs> {
    const refs = emptyRefs();
    const mediaIds = [...new Set([...blockMediaIds(blocks), ...slides.flatMap((x) => (x.media_id ? [x.media_id] : []))])];
    const postIds = blockPostIds(blocks);
@@ -290,7 +291,10 @@ async function loadRefs(data: Data, db: D1Database | undefined, blocks: Block[],
    ]);
    for (const m of media.data) if (m.path) refs.media.set(Number(m.id), mediaInfoOf(m));
    for (const p of posts.data) refs.posts.set(Number(p.id), { title: String(p.title ?? ""), locale: String(p.locale ?? ""), status: String(p.status ?? "") });
-   for (const [k, snap] of snaps) {
+   for (const [k, stored] of snaps) {
+      // Shown with a stable thumbnail, so a signed URL stored before they were made stable never breaks.
+      const [kind, refId] = k.split(":");
+      const snap = stableSnapshot(videosWebUrl, stored, kind, refId);
       refs.videos.set(k, {
          title: typeof snap.title === "string" ? snap.title : k.split(":")[1],
          thumbnail_url: typeof snap.thumbnail_url === "string" ? snap.thumbnail_url : null,
@@ -332,7 +336,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    const slides: Slide[] = kind === "posts" ? storedSlides(row?.slides) : [];
    const postKind = kind === "posts" && row?.kind === "cards" ? "cards" : "article";
    const pageType = kind === "pages" ? pageTypeOf(row?.list_kind) : "";
-   const refs = await loadRefs(data, db, blocks, slides);
+   const refs = await loadRefs(data, db, blocks, slides, v.videosWebUrl ?? "");
    const s = (k: string) => (row && row[k] != null ? String(row[k]) : "");
    const state = publishState(row);
    const published = state === "published";

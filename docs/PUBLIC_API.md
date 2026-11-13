@@ -83,9 +83,12 @@ interface CuratedVideo {
 // render a curated item without calling the videos API. Fields after channel_name are present only
 // once a row has been refreshed (refreshed_at set). Rows the refresh finds no longer public are
 // not served at all.
+// thumbnail_url (and a channel's latest[].thumbnail_url) never expires: a signed videos-platform
+// URL is served as the videos web app's `<VIDEOS_WEB_URL>/thumb/<videoId>.jpg` (src/lib/stable-thumb.ts),
+// or null when no video id can be told. Unsigned images (custom thumbnails, avatars) are served as-is.
 interface CuratedSnapshot {
   title: string; thumbnail_url: string | null; channel_name: string | null;
-  refreshed_at?: string;          // ISO; thumbnail_url is a signed URL valid ≥ 6 h after this
+  refreshed_at?: string;          // ISO time of the last lookup
   handle?: string | null;         // channels
   description?: string | null;
   titles?: { en?: string; ar?: string }; descriptions?: { en?: string; ar?: string };

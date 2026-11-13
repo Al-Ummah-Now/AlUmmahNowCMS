@@ -2,12 +2,14 @@
  * Curated snapshots (audit UI-1): every curated row carries what www renders for it, so a www
  * render needs no per-item videos API call. The picker writes a snapshot at pick time; this job
  * refreshes snapshots out of band (cron), because they go stale: titles change, items go
- * private, and thumbnail URLs are signed Bunny URLs that expire (≥ 6 h after they are issued).
+ * private. Signed (expiring) thumbnail URLs from the videos API are swapped for the videos web app's
+ * stable `/thumb/<id>.jpg` before they are stored (src/lib/stable-thumb.ts).
  *
  * Safe under concurrency: overlapping runs and editor/picker writes race only through a
  * compare-and-set on the snapshot text (`WHERE snapshot IS <what we read>`), so a refresh never
  * overwrites a newer write; a lost race is retried on the next run.
  */
+import { stableSnapshot } from "./stable-thumb.ts";
 import { lookupItem, VideosApiError, type ItemDetail, type VideoKind } from "./videos.ts";
 
 export interface Snapshot extends Omit<ItemDetail, "kind" | "id"> {
@@ -17,13 +19,14 @@ export interface Snapshot extends Omit<ItemDetail, "kind" | "id"> {
    refreshed_at: string;
 }
 
-/** Rows per run. A run every 30 minutes refreshes 200 rows an hour, well inside the token TTL. */
+/** Rows per run (a run every 30 minutes refreshes 200 rows an hour). */
 export const REFRESH_BATCH = 100;
 export const REFRESH_CONCURRENCY = 6;
 
-export function snapshotOf(item: ItemDetail, now: Date): Snapshot {
-   const { kind: _k, id: _i, ...rest } = item;
-   return { ...rest, public: true, refreshed_at: now.toISOString() };
+/** An item as stored: its signed thumbnails swapped for stable ones (`videosWebUrl`/thumb/<id>.jpg). */
+export function snapshotOf(item: ItemDetail, now: Date, videosWebUrl: string): Snapshot {
+   const { kind, id, ...rest } = item;
+   return stableSnapshot(videosWebUrl, { ...rest, public: true, refreshed_at: now.toISOString() }, kind, id);
 }
 
 type Row = { id: number; kind: VideoKind; ref_id: string; snapshot: string | null };
@@ -35,7 +38,7 @@ function hiddenSnapshot(previous: string | null, refId: string, now: Date): Reco
    } catch {
       /* keep {} */
    }
-   // Keep the editor-facing title; drop the (expiring) thumbnail.
+   // Keep the editor-facing title; drop the thumbnail (/thumb answers 404 for a non-public video).
    return { ...prev, title: typeof prev.title === "string" ? prev.title : refId, thumbnail_url: null, public: false, refreshed_at: now.toISOString() };
 }
 
@@ -50,7 +53,7 @@ export interface RefreshResult {
 
 export async function refreshCuratedSnapshots(
    db: D1Database,
-   videosApiUrl: string,
+   videos: { apiUrl: string; webUrl: string },
    fetchImpl: typeof fetch = fetch,
    opts: { now?: Date; limit?: number; concurrency?: number } = {},
 ): Promise<RefreshResult> {
@@ -71,13 +74,13 @@ export async function refreshCuratedSnapshots(
          const row = results[next++];
          let item: ItemDetail | null;
          try {
-            item = await lookupItem(videosApiUrl, row.kind, row.ref_id, fetchImpl);
+            item = await lookupItem(videos.apiUrl, row.kind, row.ref_id, fetchImpl);
          } catch (error) {
             out.failed++;
             if (!(error instanceof VideosApiError)) console.warn("snapshot refresh failed", row.id, String(error));
             continue;
          }
-         const snapshot = item ? snapshotOf(item, now) : hiddenSnapshot(row.snapshot, row.ref_id, now);
+         const snapshot = item ? snapshotOf(item, now, videos.webUrl) : hiddenSnapshot(row.snapshot, row.ref_id, now);
          const res = await db
             .prepare("UPDATE curated_videos SET snapshot = ?1 WHERE id = ?2 AND snapshot IS ?3")
             .bind(JSON.stringify(snapshot), row.id, row.snapshot)

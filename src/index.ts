@@ -20,7 +20,7 @@ import { appIconRoutes } from "./lib/app-icons.ts";
 import { getBkndApp, MediaExistsError } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
 import { ALLOWED_UPLOAD, blockedApiPath, contentCollectionPath, deleteTarget, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
-import { ConfigError, runtimeConfig, trimSlash, type Env } from "./env.ts";
+import { ConfigError, runtimeConfig, videosUrls, type Env } from "./env.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
 import { consumeVariants, sweepVariants, type VariantMessage } from "./lib/variants/jobs.ts";
@@ -338,7 +338,7 @@ export default {
          return;
       }
       ctx.waitUntil(
-         refreshCuratedSnapshots(env.DB, trimSlash(env.VIDEOS_API_URL)).then(
+         refreshCuratedSnapshots(env.DB, videosUrls(env)).then(
             (r) => console.log(JSON.stringify({ msg: "curated snapshots refreshed", ...r })),
             (error) => console.error("curated snapshot refresh failed", String(error)),
          ),
@@ -353,7 +353,7 @@ export default {
       // Block and timeline video snapshots: a retrying queue in D1; dead-lettered rows are flagged on
       // the Overview. A snapshot that changed marks the timeline items showing it dirty.
       ctx.waitUntil(
-         runSnapshotQueue(env.DB, trimSlash(env.VIDEOS_API_URL), fetch, { onChange: (kind, ref) => videoChanged(env, kind, ref) }).then(
+         runSnapshotQueue(env.DB, videosUrls(env), fetch, { onChange: (kind, ref) => videoChanged(env, kind, ref) }).then(
             (r) => console.log(JSON.stringify({ msg: "block video snapshots", ...r })),
             (error) => console.error("block video snapshot queue failed", String(error)),
          ),

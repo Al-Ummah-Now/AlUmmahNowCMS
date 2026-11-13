@@ -46,7 +46,7 @@ describe("curated snapshot refresh", () => {
       const ids = [...Array.from({ length: 50 }, (_, i) => `v-${i}`), ...Array.from({ length: 5 }, (_, i) => `gone-${i}`), ...Array.from({ length: 5 }, (_, i) => `flaky-${i}`)];
       await seed(ids);
       const now = new Date("2026-11-09T12:00:00Z");
-      const results = await Promise.all(Array.from({ length: 20 }, () => refreshCuratedSnapshots(env.DB, API, videosApi(), { now, limit: 100 })));
+      const results = await Promise.all(Array.from({ length: 20 }, () => refreshCuratedSnapshots(env.DB, { apiUrl: API, webUrl: "https://videos.test" }, videosApi(), { now, limit: 100 })));
       expect(results.every((r) => r.checked === 60)).toBe(true);
       // Exactly one write per changed row across all runs; the rest lost the compare-and-set.
       expect(results.reduce((n, r) => n + r.refreshed, 0)).toBe(50);
@@ -54,7 +54,8 @@ describe("curated snapshot refresh", () => {
       for (let i = 0; i < 50; i++) {
          expect(await snap(`v-${i}`)).toEqual({
             title: `Title v-${i}`,
-            thumbnail_url: `https://cdn/v-${i}.jpg?token=new&expires=9999999999`,
+            // A signed URL is never stored; with no video UUID to make a /thumb from, no image.
+            thumbnail_url: null,
             channel_name: "Ch",
             handle: null,
             description: "Desc",
@@ -78,7 +79,7 @@ describe("curated snapshot refresh", () => {
 
    it("never overwrites a snapshot written while the lookup was in flight", async () => {
       await seed(["v-1"]);
-      const run = refreshCuratedSnapshots(env.DB, API, videosApi([], 50), { limit: 10 });
+      const run = refreshCuratedSnapshots(env.DB, { apiUrl: API, webUrl: "https://videos.test" }, videosApi([], 50), { limit: 10 });
       const edited = JSON.stringify({ title: "Edited meanwhile", thumbnail_url: null, channel_name: null });
       await env.DB.prepare("UPDATE curated_videos SET snapshot = ?1 WHERE ref_id = 'v-1'").bind(edited).run();
       const r = await run;
@@ -89,8 +90,8 @@ describe("curated snapshot refresh", () => {
    it("refreshes the oldest snapshots first, a batch at a time", async () => {
       await seed(Array.from({ length: 30 }, (_, i) => `v-${i}`));
       const calls: string[] = [];
-      await refreshCuratedSnapshots(env.DB, API, videosApi(calls), { now: new Date("2026-11-09T12:00:00Z"), limit: 20 });
-      await refreshCuratedSnapshots(env.DB, API, videosApi(calls), { now: new Date("2026-11-09T12:30:00Z"), limit: 20 });
+      await refreshCuratedSnapshots(env.DB, { apiUrl: API, webUrl: "https://videos.test" }, videosApi(calls), { now: new Date("2026-11-09T12:00:00Z"), limit: 20 });
+      await refreshCuratedSnapshots(env.DB, { apiUrl: API, webUrl: "https://videos.test" }, videosApi(calls), { now: new Date("2026-11-09T12:30:00Z"), limit: 20 });
       // Run 2 takes the 10 never-refreshed rows first, then the 10 oldest of run 1.
       expect(calls).toHaveLength(40);
       expect(new Set(calls.slice(20, 30))).toEqual(new Set(Array.from({ length: 10 }, (_, i) => `/api/videos/v-${20 + i}`)));
@@ -98,7 +99,7 @@ describe("curated snapshot refresh", () => {
 
    it("the public API hides rows found not public and serves the refreshed fields", async () => {
       await seed(["v-1", "gone-1"]);
-      await refreshCuratedSnapshots(env.DB, API, videosApi());
+      await refreshCuratedSnapshots(env.DB, { apiUrl: API, webUrl: "https://videos.test" }, videosApi());
       const res = await makeWorker()("/api/public/v1/home?locale=en");
       const { videos } = (await res.json()) as { videos: { ref_id: string; snapshot: Record<string, unknown> }[] };
       expect(videos.map((v) => v.ref_id)).toEqual(["v-1"]);

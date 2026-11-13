@@ -4,7 +4,8 @@
  * the Featuring screen (featured candidates: recent scholar articles and channel videos), and the
  * "Main site" card on a scholar post's editor.
  */
-import type { Env } from "../../env.ts";
+import { trimSlash, type Env } from "../../env.ts";
+import { stableImageUrl } from "../../lib/stable-thumb.ts";
 import { mediaUrl } from "../../lib/media-ref.ts";
 import { articleCandidates, featuredVideoKeys } from "../../lib/scholars/featuring.ts";
 import { BIO_MAX, listScholars, NAME_MAX, scholarName, SLUG_MAX, type Scholar } from "../../lib/scholars/profiles.ts";
@@ -436,9 +437,10 @@ export async function featuringScreen(v: View, env: Env, p: FeaturingParams, vid
                      <ul class="list">
                         {items.map((it) => {
                            const key = keys.get(it.id);
+                           const thumb = stableImageUrl(trimSlash(env.VIDEOS_WEB_URL), it.thumbnail_url, it.id);
                            return (
                               <li class="li" style="grid-template-columns:auto minmax(0,1fr) auto;align-items:center">
-                                 {it.thumbnail_url ? <img src={it.thumbnail_url} alt="" width={96} height={54} loading="lazy" style="width:96px;height:54px;object-fit:cover;border-radius:6px" /> : <span />}
+                                 {thumb ? <img src={thumb} alt="" width={96} height={54} loading="lazy" style="width:96px;height:54px;object-fit:cover;border-radius:6px" /> : <span />}
                                  <div class="li-body">
                                     <span class="li-title" dir="auto">
                                        {it.title}

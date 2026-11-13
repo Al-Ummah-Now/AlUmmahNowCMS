@@ -8,7 +8,8 @@
  * an entry is a soft delete (trash kind page_entries, restorable for 30 days). A video added here also
  * joins the CMS video library (src/lib/library.ts).
  */
-import type { Env } from "../env.ts";
+import { trimSlash, type Env } from "../env.ts";
+import { stableImageUrl } from "./stable-thumb.ts";
 import { toIso } from "../routes/public-api.ts";
 import { coverPath, TimelineError, type Actor, type AdminEntry } from "./feed/admin.ts";
 import { addToLibrary } from "./library.ts";
@@ -50,6 +51,7 @@ function snap(v: unknown): Row {
 /** Every entry of a page, for the editor: pinned (by rank), then the rest newest first. */
 export async function pageList(env: Env, page: ListPageRow): Promise<{ pinned: AdminEntry[]; items: AdminEntry[] }> {
    const now = Date.now();
+   const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
    const { results } = await env.DB.prepare(
       `SELECT pe.*, p.title AS post_title, p.slug AS post_slug, p.kind AS post_kind, p.publish_at, p.status,
               coalesce(pe.entry_date, p.published_at, p.created_at) AS d, vs.snapshot,
@@ -98,7 +100,7 @@ export async function pageList(env: Env, page: ListPageRow): Promise<{ pinned: A
          kind: r.video_kind === "playlist" ? "playlist" : r.video_kind === "channel" ? "channel" : "video",
          scheduled: false,
          publishAt: null,
-         thumb: typeof s.thumbnail_url === "string" ? s.thumbnail_url : null,
+         thumb: stableImageUrl(videosWebUrl, typeof s.thumbnail_url === "string" ? s.thumbnail_url : null, r.video_kind === "video" ? String(r.ref_id) : null),
          locale: page.locale,
          refId: String(r.ref_id),
          titleOverride: typeof r.title_override === "string" ? r.title_override : null,

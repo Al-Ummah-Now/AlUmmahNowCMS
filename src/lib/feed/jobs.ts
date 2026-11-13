@@ -21,7 +21,7 @@
  * per key). The consumer runs with max_concurrency 1, so builds never overlap.
  */
 import { noteCommunityChange } from "../scholars/community.ts";
-import { trimSlash, type Env } from "../../env.ts";
+import { videosUrls, type Env } from "../../env.ts";
 import { lookupItem } from "../videos.ts";
 import { putSnapshot } from "../video-snapshots.ts";
 import { bodyVideoIds, feedItems, liteItems, liteSig } from "./source.ts";
@@ -445,8 +445,9 @@ async function ensureBodySnapshots(env: Env, postIds: number[]): Promise<void> {
    const have = new Set(results.map((r) => r.ref_id));
    for (const id of list.filter((x) => !have.has(x)).slice(0, 10)) {
       try {
-         const item = await lookupItem(trimSlash(env.VIDEOS_API_URL), "video", id);
-         if (item) await putSnapshot(env.DB, item);
+         const { apiUrl, webUrl } = videosUrls(env);
+         const item = await lookupItem(apiUrl, "video", id);
+         if (item) await putSnapshot(env.DB, item, webUrl);
       } catch (error) {
          console.warn("feed body video lookup failed", id, String(error));
       }

@@ -42,7 +42,11 @@ export async function lookupForSnapshot(apiUrl: string, kind: VideoKind, id: str
 export const MAX_ATTEMPTS = 8;
 export const BASE_BACKOFF_MS = 5 * 60_000;
 export const MAX_BACKOFF_MS = 6 * 60 * 60_000;
-/** A healthy row is refreshed again after this long (thumbnail URLs are signed for ≥ 6 h). */
+/**
+ * A healthy row is refreshed again after this long, so titles, durations and visibility stay
+ * current. Thumbnails no longer expire (signed URLs are stored as the stable /thumb URL), so a late
+ * refresh only means a stale title, never a broken image.
+ */
 export const REFRESH_AFTER_MS = 2 * 60 * 60_000;
 export const BATCH = 60;
 export const CONCURRENCY = 6;
@@ -63,8 +67,8 @@ export function backoffMs(attempts: number): number {
 }
 
 /** Upsert at pick time (idempotent: picking the same item twice writes one row). */
-export async function putSnapshot(db: D1Database, item: ItemDetail, now = new Date()): Promise<Snapshot> {
-   const snap = snapshotOf(item, now);
+export async function putSnapshot(db: D1Database, item: ItemDetail, videosWebUrl: string, now = new Date()): Promise<Snapshot> {
+   const snap = snapshotOf(item, now, videosWebUrl);
    const at = now.toISOString();
    const next = new Date(now.getTime() + REFRESH_AFTER_MS).toISOString();
    await db
@@ -123,7 +127,7 @@ function hidden(previous: string | null, refId: string, now: Date) {
 /** One run of the refresh queue: due rows that a page still uses, oldest first. */
 export async function runSnapshotQueue(
    db: D1Database,
-   videosApiUrl: string,
+   videos: { apiUrl: string; webUrl: string },
    fetchImpl: typeof fetch = fetch,
    opts: { now?: Date; limit?: number; concurrency?: number; onChange?: (kind: VideoKind, refId: string) => Promise<void> } = {},
 ): Promise<QueueResult> {
@@ -160,7 +164,7 @@ export async function runSnapshotQueue(
          const row = results[next++];
          let item: ItemDetail | null;
          try {
-            item = await lookupForSnapshot(videosApiUrl, row.kind, row.ref_id, fetchImpl);
+            item = await lookupForSnapshot(videos.apiUrl, row.kind, row.ref_id, fetchImpl);
          } catch (error) {
             const attempts = row.attempts + 1;
             const code = error instanceof VideosApiError ? error.message.slice(0, 120) : error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network error";
@@ -171,7 +175,7 @@ export async function runSnapshotQueue(
             else out.skipped++;
             continue;
          }
-         const snap = item ? snapshotOf(item, now) : hidden(row.snapshot, row.ref_id, now);
+         const snap = item ? snapshotOf(item, now, videos.webUrl) : hidden(row.snapshot, row.ref_id, now);
          const ok = await cas(row, "snapshot = ?5, attempts = 0, last_error = NULL, next_attempt_at = ?6", JSON.stringify(snap), new Date(now.getTime() + REFRESH_AFTER_MS).toISOString());
          if (!ok) out.skipped++;
          else if (item) out.refreshed++;

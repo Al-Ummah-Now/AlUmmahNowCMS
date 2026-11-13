@@ -7,6 +7,7 @@
 import { Hono, type Context } from "hono";
 import { trimSlash, type Env } from "../env.ts";
 import { LIVE_SQL } from "../lib/schedule.ts";
+import { stableSnapshot } from "../lib/stable-thumb.ts";
 import { MAIN_SITE_SQL, mainSiteSql } from "../lib/scholars/main-site.ts";
 import { scholarName, scholarsBySubs, type Scholar } from "../lib/scholars/profiles.ts";
 import { scholarRoutes } from "./public-scholars.ts";
@@ -165,12 +166,22 @@ function localizedOf(v: unknown): Partial<Record<Locale, string>> {
    return out;
 }
 
+/** Which item a stored snapshot belongs to, and the videos web app that serves its stable thumbnails. */
+export interface SnapshotCtx {
+   videosWebUrl: string;
+   kind: string;
+   refId: string;
+}
+
 /**
  * The stored snapshot as served. The first three fields are the original contract; the rest are
  * filled by the snapshot refresh (src/lib/snapshots.ts) and are absent on rows not yet refreshed.
+ * A signed (expiring) thumbnail stored before they were made stable is served as the video's
+ * stable /thumb URL (src/lib/stable-thumb.ts), so no response ever carries one.
  */
-export function snapshotOf(snap: Row | null) {
-   if (!snap || typeof snap.title !== "string") return null;
+export function snapshotOf(stored: Row | null, ctx: SnapshotCtx) {
+   if (!stored || typeof stored.title !== "string") return null;
+   const snap = stableSnapshot(ctx.videosWebUrl, stored, ctx.kind, ctx.refId);
    const out: Record<string, unknown> = {
       title: snap.title,
       thumbnail_url: isHttps(snap.thumbnail_url) ? (snap.thumbnail_url as string) : null,
@@ -203,13 +214,13 @@ export function snapshotOf(snap: Row | null) {
    return out;
 }
 
-function curatedOf(r: Row) {
+function curatedOf(r: Row, videosWebUrl: string) {
    return {
       id: Number(r.id),
       kind: r.kind as "video" | "playlist" | "channel",
       ref_id: String(r.ref_id),
       title_override: strOrNull(r.title_override),
-      snapshot: snapshotOf(parseJson<Row | null>(r.snapshot, null)),
+      snapshot: snapshotOf(parseJson<Row | null>(r.snapshot, null), { videosWebUrl, kind: String(r.kind), refId: String(r.ref_id) }),
       sort: Number(r.sort ?? 0),
    };
 }
@@ -228,7 +239,8 @@ async function curated(env: Env, l: Locale, placement: "home" | "videos") {
    )
       .bind(placement, l, CURATED_MAX)
       .all<Row>();
-   return results.map(curatedOf);
+   const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
+   return results.map((r) => curatedOf(r, videosWebUrl));
 }
 
 export const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, author_sub, tags, kind, slides, published_at, updated_at, created_at";
@@ -312,7 +324,7 @@ function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[], au
 const blockDeps = (env: Env): BlockDeps => ({
    summaries: (rows) => postSummaries(env, rows),
    postCols: POST_SUMMARY_COLS,
-   snapshot: (s) => snapshotOf(s),
+   snapshot: (s, kind, refId) => snapshotOf(s, { videosWebUrl: trimSlash(env.VIDEOS_WEB_URL), kind, refId }),
 });
 
 async function alternates(env: Env, table: "pages" | "posts", key: unknown, l: Locale) {
