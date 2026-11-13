@@ -148,6 +148,7 @@ export const schema = em(
       index(e.posts).on(["kind", "status", "locale", "published_at"]);
       index(e.posts).on(["author_sub", "status", "locale", "published_at"]);
       index(e.posts).on(["ref_post_id"], true);
+      index(e.posts).on(["ref_channel_id"]);
       index(e.curated_videos).on(["placement", "status"]);
       // One row per video per placement and locale (migrations/0002): the picker inserts ON CONFLICT DO NOTHING.
       index(e.curated_videos).on(["kind", "ref_id", "placement", "locale"], true);

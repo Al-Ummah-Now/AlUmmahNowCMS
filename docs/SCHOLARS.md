@@ -160,6 +160,11 @@ recommendations and still await the owner's explicit confirmation.
 - **Writers (SS18):** a writer's CMS home is **Write in Studio** (`/write`): links to their channel's
   composer and Community management on the videos site, their www page and their profile. The data API
   refuses their post writes; their old post screens redirect to `/write`.
+- **Nightly check** (#1217, `src/lib/scholars/reconcile.ts`): at 03:00 UTC, for each scholar's primary
+  channel (≤ 50), api-videos' digest of its newest ≤ 200 posts (`GET /internal/posts/:channelId`) is
+  compared with that channel's refs (one indexed query, migration 0020). Missing or stale refs are
+  re-synced, refs of posts that are gone or no longer public are drafted; ≤ 50 repairs a night. Any
+  repair is logged as a warning (the outbox missed something).
 - **The old sync** (`community_links`, §4) is retired per post once it is a reference (state
   `retired`): it never re-posts or hides a converted post.
 
