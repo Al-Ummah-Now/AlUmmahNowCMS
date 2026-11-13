@@ -98,35 +98,88 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 
 const GUTTER = 8;
 const fitted = new Set<HTMLElement>();
-let refitting = false;
+const observers = new Map<HTMLElement, ResizeObserver>();
+let listening = false;
+
+function stopObserving(el: HTMLElement): void {
+   observers.get(el)?.disconnect();
+   observers.delete(el);
+}
+
+/** Re-fit when the popup's size changes (results arriving after it opened); the last size guards against our own cap. */
+function observe(el: HTMLElement): void {
+   if (observers.has(el) || typeof ResizeObserver === "undefined") return;
+   let last = "";
+   const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      const size = `${Math.round(r.width)}x${Math.round(r.height)}`;
+      if (size === last) return;
+      last = size;
+      fitToViewport(el);
+   });
+   ro.observe(el);
+   observers.set(el, ro);
+}
+
+/** The visible area in getBoundingClientRect coordinates: the visual viewport (an on-screen keyboard counts). */
+function viewport() {
+   const vv = window.visualViewport;
+   const width = document.documentElement.clientWidth;
+   const height = window.innerHeight;
+   if (!vv) return { left: 0, top: 0, right: width, bottom: height };
+   return { left: Math.max(0, vv.offsetLeft), top: Math.max(0, vv.offsetTop), right: Math.min(width, vv.offsetLeft + vv.width), bottom: Math.min(height, vv.offsetTop + vv.height) };
+}
 
 /**
- * Keeps an open popup (header menus, autocomplete and combobox lists) inside the viewport
- * (AlUmmahNow docs/design/NAV.md: no menu ever renders outside the screen; owner bug 2026-11-13).
- * Call after showing it: shifts it sideways (CSS `translate`) to keep an 8px gutter, narrows it when
- * wider than the screen, and caps its height to the room below its top (it scrolls inside).
- * Re-fits on resize / orientation change while open.
- */
-export function fitToViewport(pop: HTMLElement | null): void {
-   if (!pop) return;
-   pop.style.removeProperty("translate");
-   pop.style.removeProperty("max-inline-size");
-   pop.style.removeProperty("max-block-size");
-   if (pop.hidden || !pop.offsetParent) return;
-   fitted.add(pop);
-   if (!refitting) {
-      refitting = true;
-      addEventListener("resize", () => fitted.forEach((f) => (f.isConnected && !f.hidden && f.offsetParent ? fitToViewport(f) : fitted.delete(f))));
+* Keeps an open popup (header menus, autocomplete and combobox lists) inside the viewport
+* (AlUmmahNow docs/design/NAV.md; same function as AlUmmahNow packages/fanous-tokens/nav/menu-fit.js).
+* Shift sideways to an 8px gutter, narrow if wider than the screen; below its anchor when it fits,
+* else upwards when the anchor has more room above, capped to that room (never a minimum height:
+* a 96px floor pushed a picker past a landscape phone's bottom). Re-fits on size change and resize.
+*/
+export function fitToViewport(el: HTMLElement | null | undefined): void {
+   if (!el) return;
+   el.style.removeProperty("translate");
+   el.style.removeProperty("max-inline-size");
+   el.style.removeProperty("max-block-size");
+   if (el.hidden || !el.isConnected || el.getClientRects().length === 0) {
+      fitted.delete(el);
+      stopObserving(el);
+      return;
    }
-   const vw = document.documentElement.clientWidth;
-   let r = pop.getBoundingClientRect();
-   if (r.width > vw - 2 * GUTTER) {
-      pop.style.maxInlineSize = `${vw - 2 * GUTTER}px`;
-      r = pop.getBoundingClientRect();
+   fitted.add(el);
+   observe(el);
+   if (!listening) {
+      listening = true;
+      const refit = () => fitted.forEach((f) => fitToViewport(f));
+      window.addEventListener("resize", refit);
+      window.visualViewport?.addEventListener("resize", refit);
    }
-   const dx = r.left < GUTTER ? GUTTER - r.left : r.right > vw - GUTTER ? vw - GUTTER - r.right : 0;
-   if (dx) pop.style.translate = `${Math.round(dx)}px 0`;
-   const room = Math.floor(innerHeight - Math.max(r.top, 0) - GUTTER);
-   const cssMax = parseFloat(getComputedStyle(pop).maxBlockSize);
-   if (!(cssMax <= room)) pop.style.maxBlockSize = `${Math.max(room, 96)}px`;
+   const vp = viewport();
+   let r = el.getBoundingClientRect();
+   if (r.width > vp.right - vp.left - 2 * GUTTER) {
+      el.style.maxInlineSize = `${vp.right - vp.left - 2 * GUTTER}px`;
+      r = el.getBoundingClientRect();
+   }
+   const dx = r.left < vp.left + GUTTER ? vp.left + GUTTER - r.left : r.right > vp.right - GUTTER ? vp.right - GUTTER - r.right : 0;
+   let dy = 0;
+   const below = Math.floor(vp.bottom - GUTTER - Math.max(r.top, vp.top + GUTTER));
+   let cap: number | null = r.height > below ? below : null;
+   if (cap !== null) {
+      // No room below: open upwards when the anchor (the positioned box it hangs from) has more room
+      // above. A fixed popup (a phone sheet) has no anchor to flip around.
+      const anchor = getComputedStyle(el).position === "fixed" ? null : el.offsetParent;
+      if (anchor && anchor !== document.body && anchor !== document.documentElement) {
+         const a = anchor.getBoundingClientRect();
+         const gap = Math.max(0, r.top - a.bottom);
+         const above = Math.floor(a.top - gap - (vp.top + GUTTER));
+         if (above > below) {
+            const height = Math.min(r.height, above);
+            cap = r.height > above ? above : null;
+            dy = a.top - gap - height - r.top;
+         }
+      }
+   }
+   if (cap !== null) el.style.maxBlockSize = `${Math.max(cap, 0)}px`;
+   if (dx || dy) el.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
 }
