@@ -108,7 +108,7 @@ interface CuratedSnapshot {
 | `/timeline` | `locale`, `limit` (1–40, default 20), `before` (cursor from `next`) | `{ pinned: TimelineItem[], items: TimelineItem[], next: string \| null }`: the home timeline (see "Timeline"); `pinned` only on the first page; bad `before` → 400 |
 | `/search/suggest` | `locale` (or `lang`), `q`, `limit` (1–10, default 6) | `SearchHit[]`: the best few live posts for `q` (see "Search"); empty `q` → `[]` |
 | `/search` | `locale` (or `lang`), `q`, `page`, `limit` (1–20, default 10) | `{ items: SearchHit[], page, limit, total }`: every match, best first |
-| `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string }[], scholars: { slug: string, updated_at: string }[] }` (pages with show_in_sitemap only; `scholars` added: every scholar page, both locales) |
+| `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string, translation_key: string \| null }[], scholars: { slug: string, updated_at: string }[] }` (pages with show_in_sitemap only; `scholars` added: every scholar page, both locales) |
 | `/scholars` | `locale`, `page`, `limit` (1–48, default 24) | `{ items: ScholarSummary[], page, limit, total }` by name (see "Scholars") |
 | `/scholars/:slug` | `locale`, `page`, `limit` (1–24, default 12) | `{ scholar: Scholar, posts: { items: PostSummary[], page, limit, total }, post_counts: { en, ar } }` or 404 |
 | `/scholars/by-channel/:channelId` | — | `{ slug, name_en, name_ar }` of the scholar who linked that videos channel, or 404 |
