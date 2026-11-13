@@ -132,7 +132,7 @@ ref: { post_id: string; channel_id: string; videos_url: string } | null;   // th
 kind: 'article' | 'cards' | 'text' | 'image' | 'poll' | 'quiz' | 'video' | 'gif' | 'link';  // refs: any PostV2 kind
 v2: {                                     // refs only: the kind-specific summary (AlUmmahNow post-schema postSummary)
   images: MediaRef[]; image_count: number; video_id: string | null;
-  link: { url: string; title: string | null; description: string | null; image: MediaRef | null } | null;
+  link: { url: string; title: string | null; description: string | null; site_name: string | null; image: MediaRef | null } | null;
   poll: { question: string; options: { id: string; text: string }[] } | null;
   quiz: { question: string; options: { id: string; text: string }[] } | null;   // never the answer
   gif: MediaRef | null; text: string | null;

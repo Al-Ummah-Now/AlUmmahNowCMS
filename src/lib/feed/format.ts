@@ -18,7 +18,7 @@
 import type { FeedItem, HeadDoc, WeekDoc, WeekTombstone, YearDoc } from "./model.ts";
 import type { postSummaries, snapshotOf } from "../../routes/public-api.ts";
 
-export const FEED_FORMAT = 4;
+export const FEED_FORMAT = 5;
 
 /**
  * Format → fingerprint of the FeedShapeRoots type it was released with. APPEND-ONLY: never edit or
@@ -29,12 +29,15 @@ export const FEED_FORMAT = 4;
  *      the video and names the channel in the page language): FeedShapeRoots.videoSnapshot.
  *   4: scholar post references (docs/SCHOLARS.md §7): PostSummary `kind` is any PostV2 kind, plus
  *      `ref` (the community post) and `v2` (its kind-specific summary).
+ *   5: link posts carry the page's site name: PostSummary `v2.link.site_name` (wiki AUN-SCHOLAR-SITES
+ *      SS14; www and the sites render the preview card's site name, else the host).
  */
 export const FEED_FORMAT_HISTORY: Readonly<Record<number, string>> = {
    1: "afcfa9ffd2ba7bdb",
    2: "e41e47060af0efcb",
    3: "2556b53d1803e307",
    4: "e2c2ae044efbc5f8",
+   5: "3cf78e655a5a162e",
 };
 
 /** Everything whose shape is part of the stored feed (the test fingerprints this type). */
