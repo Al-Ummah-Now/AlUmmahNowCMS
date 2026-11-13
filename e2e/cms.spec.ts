@@ -147,7 +147,8 @@ test.describe("signed in", () => {
       expect(res?.status()).toBeLessThan(400);
       await expect(page).toHaveURL(`${CMS_URL}/`);
       await page.locator("summary.who").click();
-      await expect(page.getByRole("menuitem", { name: "Switch account" })).toHaveAttribute("href", "/sso/accounts?return=%2F");
+      // "More accounts" since the shared nav (docs/design/NAV.md); "Switch account" before
+      await expect(page.getByRole("menuitem", { name: /^(Switch account|More accounts)$/ })).toHaveAttribute("href", "/sso/accounts?return=%2F");
       await shot(page, "admin-home");
       for (const lang of ["en", "ar"] as const) {
          await page.goto(`/videos?lang=${lang}`);

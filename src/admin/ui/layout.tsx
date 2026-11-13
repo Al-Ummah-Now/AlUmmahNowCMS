@@ -146,8 +146,14 @@ function AccountMenu(props: { v: View }) {
                </span>
             </div>
             <div class="aun-menu-sep" role="separator" />
-            <a class="aun-menu-item" role="menuitem" href={`/sso/accounts?return=${ret}`}>
-               <Icon name="swap" class="aun-menu-icon" /> <span class="aun-menu-text">{v.t.header.accounts}</span>
+            {/* More accounts: the CMS server cannot list the browser's other accounts, so they open on its
+                accounts page (switch, sign out of one); then Add another account (docs/design/NAV.md) */}
+            <a class="aun-menu-item" role="menuitem" href={`/sso/accounts?return=${ret}`} data-testid="cms-more-accounts">
+               <Icon name="users" class="aun-menu-icon" /> <span class="aun-menu-text">{v.t.header.moreAccounts}</span>
+               <Icon name="chevronEnd" class="aun-menu-icon flip" />
+            </a>
+            <a class="aun-menu-item" role="menuitem" href={`/sso/login?prompt=login&return=${ret}`} data-testid="cms-add-account">
+               <Icon name="login" class="aun-menu-icon flip" /> <span class="aun-menu-text">{v.t.header.addAccount}</span>
             </a>
             {apps.length ? (
                <>
@@ -156,6 +162,7 @@ function AccountMenu(props: { v: View }) {
                      <span class="aun-menu-label" id="account-apps-label">{v.t.header.apps}</span>
                      {apps.map((a) => (
                         <a class="aun-menu-item" role="menuitem" href={a.href} data-app={a.id}>
+                           <span class="aun-app-icon" data-app={a.id} aria-hidden="true" />
                            <span class="aun-menu-text">{appLabel[a.id]}</span>
                         </a>
                      ))}
