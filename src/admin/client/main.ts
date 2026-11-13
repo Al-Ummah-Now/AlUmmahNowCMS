@@ -5,6 +5,8 @@
  */
 import { $$, api, strings, toast } from "./dom.ts";
 import { initBlocks } from "./blocks.ts";
+// The lantern street (Fawanees): vendored by scripts/sync-fanous.ts, draws only when the theme switches it on
+import { startStreet } from "./fanous-street.generated.js";
 import { initAi } from "./ai.ts";
 import { initAiSettings } from "./ai-settings.ts";
 import { initAutocomplete } from "./autocomplete.ts";
@@ -24,6 +26,7 @@ import { initTranslationFlags } from "./translation-flags.ts";
 import { initGlossary } from "./glossary.ts";
 
 initShell();
+startStreet();
 initAutocomplete();
 initLeaveGuard();
 initTimes();
