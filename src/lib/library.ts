@@ -5,7 +5,8 @@
  * kinds, src/lib/lists.ts) lists it, newest added first. Deleting is a soft delete (trash kind
  * cms_videos, docs/SOFT_DELETE.md) and only takes it off filter pages.
  */
-import type { Env } from "../env.ts";
+import { trimSlash, type Env } from "../env.ts";
+import { stableImageUrl } from "./stable-thumb.ts";
 import { softDelete, type TrashActor } from "./trash.ts";
 
 export type LibraryKind = "video" | "playlist" | "channel";
@@ -84,6 +85,7 @@ export async function listLibrary(env: Env, opts: { q?: string; kind?: LibraryKi
          .bind(...binds)
          .all<Record<string, unknown>>(),
    ]);
+   const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
    const items = rows.results.map((r): LibraryRow => {
       let s: Record<string, unknown> = {};
       try {
@@ -99,7 +101,7 @@ export async function listLibrary(env: Env, opts: { q?: string; kind?: LibraryKi
          added_at: String(r.added_at),
          added_by: typeof r.added_by === "string" ? r.added_by : null,
          title: typeof s.title === "string" && s.title ? s.title : String(r.ref_id),
-         thumb: typeof s.thumbnail_url === "string" ? s.thumbnail_url : null,
+         thumb: stableImageUrl(videosWebUrl, typeof s.thumbnail_url === "string" ? s.thumbnail_url : null, r.kind === "video" ? String(r.ref_id) : null),
          channel: typeof s.channel_name === "string" ? s.channel_name : null,
          unavailable: !r.snapshot || s.public === false,
          usedOn: [...(r.on_home ? ["home"] : []), ...(typeof r.pages === "string" && r.pages ? r.pages.split("\u001f") : [])],

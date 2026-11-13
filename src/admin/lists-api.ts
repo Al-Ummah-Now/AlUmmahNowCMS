@@ -65,7 +65,7 @@ function fail(c: C, error: unknown) {
 /** Looks the item up on the videos site and stores its snapshot (null: not public / not found). */
 async function snapshot(c: C, deps: Deps, kind: "video" | "playlist" | "channel", refId: string) {
    const item = await lookupForSnapshot(c.get("cfg").videosApiUrl, kind, refId, deps.fetch);
-   if (item) await putSnapshot(c.env.DB, item);
+   if (item) await putSnapshot(c.env.DB, item, c.get("cfg").videosWebUrl);
    return item;
 }
 

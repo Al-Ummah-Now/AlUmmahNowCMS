@@ -7,7 +7,7 @@
  * video entry for the locale (or 'all') whose snapshot is public; minus hidden entries. Pinned
  * entries (pin_rank set) come first, by pin_rank; the rest by date, newest first.
  */
-import type { Env } from "../../env.ts";
+import { trimSlash, type Env } from "../../env.ts";
 import { postSummaries, POST_SUMMARY_COLS, snapshotOf, toIso } from "../../routes/public-api.ts";
 import { LIVE_SQL } from "../schedule.ts";
 import { mainSiteSql } from "../scholars/main-site.ts";
@@ -76,6 +76,7 @@ export function where(sel: Selection, date: string, type: "p" | "v", base: numbe
  * title_override) plus the snapshot; list pages (src/lib/lists.ts) map their own rows to that shape.
  */
 export async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<FeedItem[]> {
+   const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
    const summaries = await postSummaries(env, posts);
    const refs = new Set<string>();
    const bodyIds = posts.map((r) => bodyVideoIds(r.body));
@@ -86,7 +87,7 @@ export async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<Fe
       const s = summaries[i] as Row;
       const videos: FeedVideo[] = bodyIds[i].map((id) => {
          const raw = snaps.get(id);
-         const snap = raw ? snapshotOf(raw) : null;
+         const snap = raw ? snapshotOf(raw, { videosWebUrl, kind: "video", refId: id }) : null;
          return { kind: "video", ref_id: id, snapshot: snap };
       });
       // A video that is no longer public is left out (the post page skips it the same way).
@@ -100,7 +101,8 @@ export async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<Fe
       } catch {
          raw = null;
       }
-      const snapshot = snapshotOf(raw);
+      const kind = r.video_kind === "playlist" ? "playlist" : r.video_kind === "channel" ? "channel" : "video";
+      const snapshot = snapshotOf(raw, { videosWebUrl, kind, refId: String(r.ref_id) });
       if (!snapshot) continue;
       const date = toIso(r.entry_date) ?? toIso(r.created_at) ?? new Date(0).toISOString();
       out.push({
@@ -108,7 +110,7 @@ export async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<Fe
          type: "video",
          date,
          pinned: r.pin_rank !== null && r.pin_rank !== undefined,
-         video: { kind: r.video_kind === "playlist" ? "playlist" : r.video_kind === "channel" ? "channel" : "video", ref_id: String(r.ref_id), snapshot, title_override: typeof r.title_override === "string" && r.title_override ? r.title_override : null },
+         video: { kind, ref_id: String(r.ref_id), snapshot, title_override: typeof r.title_override === "string" && r.title_override ? r.title_override : null },
       });
    }
    return out;

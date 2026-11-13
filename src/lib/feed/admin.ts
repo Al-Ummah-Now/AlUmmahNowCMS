@@ -4,7 +4,8 @@
  * editors make. Every change is logged (timeline_changes: who, when, before → after) and marks the
  * item dirty for the KV build (src/lib/feed/jobs.ts).
  */
-import type { Env } from "../../env.ts";
+import { trimSlash, type Env } from "../../env.ts";
+import { stableImageUrl } from "../stable-thumb.ts";
 import { toIso } from "../../routes/public-api.ts";
 import { compareSort, isOlder, parseCursor } from "./model.ts";
 import { markDirty } from "./jobs.ts";
@@ -79,7 +80,7 @@ export function postEntry(r: Row, now: number): AdminEntry {
    };
 }
 
-export function videoEntry(r: Row): AdminEntry {
+export function videoEntry(r: Row, videosWebUrl: string): AdminEntry {
    const s = snap(r.snapshot);
    return {
       key: `v${r.id}`,
@@ -93,7 +94,7 @@ export function videoEntry(r: Row): AdminEntry {
       kind: r.video_kind === "playlist" ? "playlist" : r.video_kind === "channel" ? "channel" : "video",
       scheduled: false,
       publishAt: null,
-      thumb: typeof s.thumbnail_url === "string" ? s.thumbnail_url : null,
+      thumb: stableImageUrl(videosWebUrl, typeof s.thumbnail_url === "string" ? s.thumbnail_url : null, r.video_kind === "video" ? String(r.ref_id) : null),
       locale: String(r.locale ?? "all"),
       refId: String(r.ref_id),
       titleOverride: typeof r.title_override === "string" ? r.title_override : null,
@@ -107,6 +108,7 @@ const POST_COLS = `p.id, p.title, p.slug, p.locale, p.kind, p.publish_at, ${PDAT
 /** Pinned entries (all, in pin order) and one page of the rest, newest first, by cursor. */
 export async function adminTimeline(env: Env, l: "en" | "ar", before: string | null, size = 30): Promise<{ pinned: AdminEntry[]; items: AdminEntry[]; next: string | null }> {
    const now = Date.now();
+   const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
    const c = parseCursor(before);
    const cIso = c ? new Date(c.ms).toISOString() : null;
    const [pp, pv, up, uv] = await Promise.all([
@@ -119,8 +121,8 @@ export async function adminTimeline(env: Env, l: "en" | "ar", before: string | n
          .bind(l, ...(cIso ? [cIso] : []))
          .all<Row>(),
    ]);
-   const pinned = [...pp.results.map((r) => postEntry(r, now)), ...pv.results.map(videoEntry)].sort((a, b) => (a.pinRank ?? 0) - (b.pinRank ?? 0) || a.key.localeCompare(b.key));
-   const sorted = [...up.results.map((r) => postEntry(r, now)), ...uv.results.map(videoEntry)]
+   const pinned = [...pp.results.map((r) => postEntry(r, now)), ...pv.results.map((r) => videoEntry(r, videosWebUrl))].sort((a, b) => (a.pinRank ?? 0) - (b.pinRank ?? 0) || a.key.localeCompare(b.key));
+   const sorted = [...up.results.map((r) => postEntry(r, now)), ...uv.results.map((r) => videoEntry(r, videosWebUrl))]
       .filter((e) => !c || isOlder(e, c))
       .sort((a, b) => compareSort(Date.parse(a.date), a.key, Date.parse(b.date), b.key));
    const items = sorted.slice(0, size);

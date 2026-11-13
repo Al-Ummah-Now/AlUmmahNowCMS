@@ -74,7 +74,7 @@ export interface BlockDeps {
    summaries: (rows: Row[]) => Promise<unknown[]>;
    postCols: string;
    /** The served form of a stored snapshot, or null (src/routes/public-api.ts snapshotOf). */
-   snapshot: (s: Row | null) => Record<string, unknown> | null;
+   snapshot: (s: Row | null, kind: string, refId: string) => Record<string, unknown> | null;
 }
 
 async function postsFor(env: Env, b: Extract<Block, { type: "posts" }>, l: Locale, deps: BlockDeps): Promise<unknown[]> {
@@ -128,7 +128,7 @@ export async function publicBlocks(env: Env, row: Row, deps: BlockDeps): Promise
    const served = (kind: string, ref: string) => {
       const raw = snaps.get(`${kind}:${ref}`) ?? null;
       if (raw && raw.public === false) return undefined; // no longer public: left out
-      return deps.snapshot(raw);
+      return deps.snapshot(raw, kind, ref);
    };
    const out: Record<string, unknown>[] = [];
    for (const b of blocks) {

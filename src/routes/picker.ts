@@ -7,26 +7,33 @@ import { applyRules, ContentRuleError } from "../lib/content-rules.ts";
 import { embedUrl } from "../lib/embeds.ts";
 import { snapshotOf } from "../lib/snapshots.ts";
 import { putSnapshot } from "../lib/video-snapshots.ts";
-import { browseVideos, lookupItem, searchVideos, VIDEO_KINDS, type VideoKind } from "../lib/videos.ts";
+import { browseVideos, lookupItem, searchVideos, VIDEO_KINDS, type PickerItem, type VideoKind } from "../lib/videos.ts";
+import { stableImageUrl, stableSnapshot } from "../lib/stable-thumb.ts";
 import type { AppEnv, Deps } from "../types.ts";
 
 const CURATED_COLS = "id, kind, ref_id, placement, locale, title_override, sort, status, snapshot, created_at, updated_at";
 type StoredRow = Record<string, unknown> & { snapshot: string | null };
 
-/** The row as bknd's data API returns it (snapshot as JSON, not text). */
-function hydrate(r: StoredRow): Record<string, unknown> {
+/** The row as bknd's data API returns it (snapshot as JSON, not text), its thumbnails stable. */
+function hydrate(r: StoredRow, videosWebUrl: string): Record<string, unknown> {
    let snapshot: unknown = null;
    try {
       snapshot = r.snapshot ? JSON.parse(r.snapshot) : null;
    } catch {
       /* keep null */
    }
+   if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) snapshot = stableSnapshot(videosWebUrl, snapshot as Record<string, unknown>, String(r.kind), String(r.ref_id));
    return { ...r, snapshot };
 }
 
 const PLACEMENTS = ["home", "videos"];
 const LOCALES = ["en", "ar", "all"];
 const STATUSES = ["draft", "published"];
+
+/** A search result as the picker shows it: stable thumbnail (never an expiring signed URL) and embed link. */
+function pickerItemOf(videosWebUrl: string, it: PickerItem) {
+   return { ...it, thumbnail_url: stableImageUrl(videosWebUrl, it.thumbnail_url, it.kind === "video" ? it.id : null), embed_url: embedUrl(videosWebUrl, it.kind, it.id) };
+}
 
 export function pickerRoutes(deps: Deps): Hono<AppEnv> {
    const picker = new Hono<AppEnv>();
@@ -44,7 +51,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
          const cursor = (c.req.query("cursor") ?? "").slice(0, 40) || null;
          try {
             const { items, nextCursor } = await browseVideos(cfg.videosApiUrl, kind, cursor, deps.fetch);
-            return c.json({ items: items.map((it) => ({ ...it, embed_url: embedUrl(cfg.videosWebUrl, it.kind, it.id) })), next_cursor: nextCursor });
+            return c.json({ items: items.map((it) => pickerItemOf(cfg.videosWebUrl, it)), next_cursor: nextCursor });
          } catch (error) {
             console.warn("picker browse failed", (error as Error).message);
             return c.json({ error: "upstream_error" }, 502);
@@ -54,7 +61,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       try {
          const items = await searchVideos(cfg.videosApiUrl, kind, q, deps.fetch);
          return c.json({
-            items: items.map((it) => ({ ...it, embed_url: embedUrl(cfg.videosWebUrl, it.kind, it.id) })),
+            items: items.map((it) => pickerItemOf(cfg.videosWebUrl, it)),
          });
       } catch (error) {
          console.warn("picker search failed", (error as Error).message);
@@ -105,7 +112,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
          sort,
          status,
          title_override: titleOverride,
-         snapshot: snapshotOf(item, new Date()),
+         snapshot: snapshotOf(item, new Date(), cfg.videosWebUrl),
       };
       try {
          applyRules("curated_videos", row, "create");
@@ -123,11 +130,11 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       )
          .bind(row.kind, row.ref_id, row.placement, row.locale, row.title_override, row.sort, row.status, JSON.stringify(row.snapshot), (row.created_at as Date).toISOString())
          .first<StoredRow>();
-      if (inserted) return c.json({ data: hydrate(inserted) }, 201);
+      if (inserted) return c.json({ data: hydrate(inserted, cfg.videosWebUrl) }, 201);
       const existing = await c.env.DB.prepare(`SELECT ${CURATED_COLS} FROM curated_videos WHERE kind = ?1 AND ref_id = ?2 AND placement = ?3 AND locale = ?4`)
          .bind(row.kind, row.ref_id, row.placement, row.locale)
          .first<StoredRow>();
-      return c.json({ data: existing ? hydrate(existing) : null, existing: true }, 200);
+      return c.json({ data: existing ? hydrate(existing, cfg.videosWebUrl) : null, existing: true }, 200);
    });
 
    // Change the video of an existing row (spec §0): same lookup and server-side snapshot as POST.
@@ -162,7 +169,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
             kind,
             ref_id: item.id,
             // The same full snapshot as a new pick (public, refreshed_at, localized titles…)
-            snapshot: snapshotOf(item, new Date()),
+            snapshot: snapshotOf(item, new Date(), cfg.videosWebUrl),
          } as never);
          return c.json({ data }, 200);
       } catch (error) {
@@ -190,7 +197,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
          return c.json({ error: "upstream_error" }, 502);
       }
       if (!item) return c.json({ error: "not_found", message: "not found or not public" }, 404);
-      const snapshot = await putSnapshot(c.env.DB, item);
+      const snapshot = await putSnapshot(c.env.DB, item, cfg.videosWebUrl);
       return c.json({ data: { kind, ref_id: item.id, snapshot } }, 200);
    });
 

@@ -64,6 +64,11 @@ export function trimSlash(u: string): string {
    return u.slice(0, end);
 }
 
+/** The videos platform's API and web app, as the snapshot jobs take them. */
+export function videosUrls(env: Env): { apiUrl: string; webUrl: string } {
+   return { apiUrl: trimSlash(env.VIDEOS_API_URL), webUrl: trimSlash(env.VIDEOS_WEB_URL) };
+}
+
 export function runtimeConfig(env: Env): RuntimeConfig {
    const isLocal = env.ENVIRONMENT === "local";
    const secret = env.BKND_JWT_SECRET?.trim();

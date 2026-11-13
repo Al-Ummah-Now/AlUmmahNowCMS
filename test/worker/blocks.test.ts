@@ -162,8 +162,8 @@ describe("block video snapshot queue", () => {
       await seed();
       await env.DB.prepare("INSERT INTO video_snapshots (kind, ref_id, snapshot, created_at, updated_at) VALUES ('video', 'unused', '{}', 'x', 'x')").run();
       const later = new Date(Date.now() + 3 * 3600_000);
-      expect(await runSnapshotQueue(env.DB, "https://videos.api.test", fetchVideos, { now: later })).toMatchObject({ due: 1, refreshed: 1 });
-      expect(await runSnapshotQueue(env.DB, "https://videos.api.test", fetchVideos, { now: later })).toMatchObject({ due: 0 });
+      expect(await runSnapshotQueue(env.DB, { apiUrl: "https://videos.api.test", webUrl: "https://videos.test" }, fetchVideos, { now: later })).toMatchObject({ due: 1, refreshed: 1 });
+      expect(await runSnapshotQueue(env.DB, { apiUrl: "https://videos.api.test", webUrl: "https://videos.test" }, fetchVideos, { now: later })).toMatchObject({ due: 0 });
    });
 
    it("backs off on failure, dead-letters after MAX_ATTEMPTS, flags it and requeues on Retry", async () => {
@@ -171,15 +171,15 @@ describe("block video snapshot queue", () => {
       videosUp = false;
       let now = Date.now() + 3 * 3600_000;
       for (let attempt = 1; attempt < MAX_ATTEMPTS; attempt++) {
-         expect(await runSnapshotQueue(env.DB, "https://videos.api.test", fetchVideos, { now: new Date(now) })).toMatchObject({ due: 1, retrying: 1 });
+         expect(await runSnapshotQueue(env.DB, { apiUrl: "https://videos.api.test", webUrl: "https://videos.test" }, fetchVideos, { now: new Date(now) })).toMatchObject({ due: 1, retrying: 1 });
          const row = await env.DB.prepare("SELECT attempts, next_attempt_at, last_error FROM video_snapshots").first<{ attempts: number; next_attempt_at: string; last_error: string }>();
          expect(row!.attempts).toBe(attempt);
          expect(Date.parse(row!.next_attempt_at) - now).toBe(backoffMs(attempt));
          // not due again before the backoff ends
-         expect((await runSnapshotQueue(env.DB, "https://videos.api.test", fetchVideos, { now: new Date(now + 1000) })).due).toBe(0);
+         expect((await runSnapshotQueue(env.DB, { apiUrl: "https://videos.api.test", webUrl: "https://videos.test" }, fetchVideos, { now: new Date(now + 1000) })).due).toBe(0);
          now += backoffMs(attempt);
       }
-      expect(await runSnapshotQueue(env.DB, "https://videos.api.test", fetchVideos, { now: new Date(now) })).toMatchObject({ dead: 1 });
+      expect(await runSnapshotQueue(env.DB, { apiUrl: "https://videos.api.test", webUrl: "https://videos.test" }, fetchVideos, { now: new Date(now) })).toMatchObject({ dead: 1 });
       expect(await deadSnapshots(env.DB)).toMatchObject({ total: 1, items: [{ ref_id: "vid-1", title: "Talk one" }] });
       // The last good snapshot is still served while dead.
       const page = await env.DB.prepare("SELECT snapshot FROM video_snapshots").first<{ snapshot: string }>();
@@ -202,7 +202,7 @@ describe("block video snapshot queue", () => {
       expect((await json(res)).data.requeued).toBe(1);
       expect((await json(await send("POST", "/admin/api/video-snapshots/retry"))).data.requeued).toBe(0);
       videosUp = true;
-      expect(await runSnapshotQueue(env.DB, "https://videos.api.test", fetchVideos, { now: new Date(now) })).toMatchObject({ refreshed: 1 });
+      expect(await runSnapshotQueue(env.DB, { apiUrl: "https://videos.api.test", webUrl: "https://videos.test" }, fetchVideos, { now: new Date(now) })).toMatchObject({ refreshed: 1 });
       expect((await deadSnapshots(env.DB)).total).toBe(0);
       expect(await retryDead(env.DB)).toBe(0);
    });

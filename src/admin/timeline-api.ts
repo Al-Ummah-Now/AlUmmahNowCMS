@@ -69,7 +69,7 @@ export function timelineApi(deps: Deps): Hono<AppEnv> {
          return c.json({ error: "upstream_error" }, 502);
       }
       if (!item) return c.json({ error: "not_found" }, 404);
-      await putSnapshot(c.env.DB, item);
+      await putSnapshot(c.env.DB, item, c.get("cfg").videosWebUrl);
       try {
          const res = await addVideo(c.env, { kind, ref_id: item.id, locale, entry_date: typeof b?.entry_date === "string" ? b.entry_date : null }, actorOf(c));
          return c.json({ data: res }, res.existing ? 200 : 201);
