@@ -118,3 +118,44 @@ for (const [lang, mode] of [
       await reset(page);
    });
 }
+
+/**
+ * The provider-layer smoke, mocked (deployed e2e/ai-assist.spec.ts runs it against the real Workers AI
+ * only by hand, E2E_REAL_AI=1): Test connection on the default Workers AI card answers through the
+ * provider contract, and one SEO job runs end to end (API → queue → router → Workers AI → validated
+ * result). The mock is the only AI this CI can reach: AI_MOCK_URL is honoured only when
+ * ENVIRONMENT=local and the local config drops the real `AI` binding.
+ */
+test("provider layer (mocked Workers AI): Test connection answers, one SEO job runs end to end", async ({ page }) => {
+   const A = ADMIN_STRINGS.en.aiSettings;
+   await signInAdmin(page);
+   await reset(page);
+   const status = (await (await page.request.get(`${ON}/admin/api/ai/status`)).json()) as { configured: boolean };
+   expect(status.configured, "the local CMS must reach the mock Workers AI").toBe(true);
+
+   await page.goto(`${ON}/ai-settings?lang=en`);
+   const card = page.locator('[data-provider][data-kind="workers-ai"]');
+   await card.getByRole("combobox", { name: A.testModel }).fill("@cf/deepseek-ai/deepseek-v4.1-flash-1017");
+   await card.getByRole("button", { name: A.test }).click();
+   await expect(card.locator("[data-test-result]")).toContainText(A.testOk("\u0000", "").split("\u0000")[0].trim(), { timeout: 30_000 });
+
+   const created = await page.request.post(`${ON}/admin/api/ai/jobs`, {
+      headers: { origin: ON, accept: "application/json" },
+      data: { feature: "seo", kind: "posts", locale: "en", ui: "en", fields: { title: `Provider layer smoke ${Date.now()}`, summary: "", body: "A short note on the timetable for the last ten nights of Ramadan." } },
+   });
+   expect([200, 202], await created.text()).toContain(created.status());
+   const { job } = (await created.json()) as { job: { id: string } };
+   let last: { status: string; result: { seo_title?: string } | null; error: string | null } = { status: "queued", result: null, error: null };
+   await expect
+      .poll(
+         async () => {
+            last = ((await (await page.request.get(`${ON}/admin/api/ai/jobs/${job.id}`, { headers: { accept: "application/json" } })).json()) as { job: typeof last }).job;
+            return last.status;
+         },
+         { timeout: 60_000, intervals: [500, 1000, 2000] },
+      )
+      .toMatch(/done|failed/);
+   expect(last.error).toBeNull();
+   expect(last.status).toBe("done");
+   expect(last.result?.seo_title?.length ?? 0).toBeGreaterThan(0);
+});
