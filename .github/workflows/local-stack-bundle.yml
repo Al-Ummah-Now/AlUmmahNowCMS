@@ -1,0 +1,80 @@
+name: Local-stack bundle
+
+# Publishes what AlUmmahNow's local E2E stack needs from this repo for a released commit: the
+# prebuilt CMS Worker, its wrangler config and every migration (scripts/release/local-stack-bundle.sh),
+# as the release asset local-stack.tar.gz of the prerelease local-stack-<sha12>. AlUmmahNow downloads
+# and verifies it (its scripts/local-stack/fetch-auth.ts --repo cms) instead of checking out and
+# installing this repo, so its main and release runs never execute a second repo's checkout. Its
+# scholar-reference spec (CMS refs → www) needs it.
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Released commit to bundle (a commit on main whose Release run succeeded)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-stack-bundle-${{ github.event.workflow_run.head_sha || inputs.sha }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    name: Build and publish
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+    steps:
+      - name: Released commit
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::not a full commit sha: $SHA"; exit 1; }
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SHA }}
+          fetch-depth: 0
+
+      # The bundle script from this workflow's own commit (an older released commit predates it)
+      - uses: actions/checkout@v6
+        with:
+          path: .bundle-tools
+          sparse-checkout: scripts/release/local-stack-bundle.sh
+          sparse-checkout-cone-mode: false
+
+      - name: On main?
+        run: git merge-base --is-ancestor "$SHA" origin/main || { echo "::error::$SHA is not on main"; exit 1; }
+
+      # No dependency cache: this job writes a release, keep it independent of cache contents
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
+      - name: Assemble
+        run: bash .bundle-tools/scripts/release/local-stack-bundle.sh
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="local-stack-${SHA::12}"
+          tar -czf local-stack.tar.gz -C dist/local-stack .
+          sha256sum local-stack.tar.gz | cut -d' ' -f1 > local-stack.tar.gz.sha256
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" local-stack.tar.gz local-stack.tar.gz.sha256 --clobber
+          else
+            gh release create "$tag" local-stack.tar.gz local-stack.tar.gz.sha256 --target "$SHA" --prerelease \
+              --title "Local-stack bundle ${SHA::7}" \
+              --notes "Prebuilt CMS Worker, config and migrations of ${SHA} for AlUmmahNow's local E2E stack (scripts/local-stack). Not a product release."
+          fi
+          echo "### Published $tag ($(cat local-stack.tar.gz.sha256))" >> "$GITHUB_STEP_SUMMARY"
