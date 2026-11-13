@@ -47,6 +47,7 @@ import { postAuthor, scopeListUrl, scopeWhere, subOfUser, writerApiVerdict } fro
 import { writerScreenAllowed } from "./lib/scholars/access.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
 import { robotsTxtResponse, withCrawlerRules } from "./lib/crawlers.ts";
+import { pingIndexNow } from "./lib/indexnow.ts";
 import { pickerRoutes } from "./routes/picker.ts";
 import { previewApi, previewRoutes } from "./routes/preview.ts";
 import { publicApi } from "./routes/public-api.ts";
@@ -340,6 +341,8 @@ export default {
          ctx.waitUntil(syncCommunity(env).catch((error) => log.error("community sync failed", { error: errText(error) })));
          return;
       }
+      // IndexNow: changed and newly live posts and pages (production only; src/lib/indexnow.ts)
+      ctx.waitUntil(pingIndexNow(env).catch((error) => log.warn("indexnow ping failed", { error: errText(error) })));
       ctx.waitUntil(
          refreshCuratedSnapshots(env.DB, videosUrls(env)).then(
             (r) => console.log(JSON.stringify({ msg: "curated snapshots refreshed", ...r })),
