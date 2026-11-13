@@ -406,49 +406,49 @@
                "type": "page",
                "locale": "ar",
                "slug": "about",
-               "updated_at": "<iso-date>"
+               "updated_at": "<iso-date>", "translation_key": "k-about"
             },
             {
                "type": "page",
                "locale": "ar",
                "slug": "articles",
-               "updated_at": "<iso-date>"
+               "updated_at": "<iso-date>", "translation_key": "www-articles"
             },
             {
                "type": "page",
                "locale": "ar",
                "slug": "videos",
-               "updated_at": "<iso-date>"
+               "updated_at": "<iso-date>", "translation_key": "www-videos"
             },
             {
                "type": "page",
                "locale": "en",
                "slug": "about",
-               "updated_at": "<iso-date>"
+               "updated_at": "<iso-date>", "translation_key": "k-about"
             },
             {
                "type": "page",
                "locale": "en",
                "slug": "articles",
-               "updated_at": "<iso-date>"
+               "updated_at": "<iso-date>", "translation_key": "www-articles"
             },
             {
                "type": "page",
                "locale": "en",
                "slug": "videos",
-               "updated_at": "<iso-date>"
+               "updated_at": "<iso-date>", "translation_key": "www-videos"
             },
             {
                "type": "post",
                "locale": "en",
                "slug": "second",
-               "updated_at": "<iso-date>"
+               "updated_at": "<iso-date>", "translation_key": null
             },
             {
                "type": "post",
                "locale": "en",
                "slug": "first",
-               "updated_at": "<iso-date>"
+               "updated_at": "<iso-date>", "translation_key": null
             }
          ],
          "scholars": []

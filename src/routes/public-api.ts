@@ -687,10 +687,10 @@ export function publicApi(): Hono<{ Bindings: Env }> {
    api.get("/sitemap", async (c) => {
       const [pages, posts] = await Promise.all([
          c.env.DB.prepare(
-            `SELECT slug, locale, show_in_sitemap, updated_at, published_at, created_at FROM pages WHERE ${LIVE_SQL} ORDER BY locale, slug`,
+            `SELECT slug, locale, translation_key, show_in_sitemap, updated_at, published_at, created_at FROM pages WHERE ${LIVE_SQL} ORDER BY locale, slug`,
          ).all<Row>(),
          c.env.DB.prepare(
-            `SELECT slug, locale, updated_at, published_at, created_at FROM posts WHERE ${LIVE_SQL} ORDER BY locale, published_at DESC`,
+            `SELECT slug, locale, translation_key, updated_at, published_at, created_at FROM posts WHERE ${LIVE_SQL} ORDER BY locale, published_at DESC`,
          ).all<Row>(),
       ]);
       const updated = (r: Row) => toIso(r.updated_at) ?? toIso(r.published_at) ?? toIso(r.created_at) ?? new Date(0).toISOString();
@@ -703,8 +703,9 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       const items = [
          ...pages.results
             .filter((r) => truthy(r.show_in_sitemap, true))
-            .map((r) => ({ type: "page" as const, locale: r.locale as Locale, slug: String(r.slug), updated_at: updated(r) })),
-         ...posts.results.map((r) => ({ type: "post" as const, locale: r.locale as Locale, slug: String(r.slug), updated_at: updated(r) })),
+            .map((r) => ({ type: "page" as const, locale: r.locale as Locale, slug: String(r.slug), updated_at: updated(r), translation_key: r.translation_key ? String(r.translation_key) : null })),
+         // translation_key pairs the languages of one item (www's sitemap hreflang, wiki AUN-SEO)
+         ...posts.results.map((r) => ({ type: "post" as const, locale: r.locale as Locale, slug: String(r.slug), updated_at: updated(r), translation_key: r.translation_key ? String(r.translation_key) : null })),
       ];
       return json(c, { items, scholars: scholars.results.map((r) => ({ slug: String(r.slug), updated_at: toIso(r.updated_at) ?? new Date(0).toISOString() })) });
    });
