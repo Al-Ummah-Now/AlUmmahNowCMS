@@ -93,19 +93,39 @@ describe("GET /search/suggest", () => {
             return { success: (seen.get(key) ?? 0) <= 2 };
          },
       };
+      const points: string[][] = [];
+      const ABUSE_EVENTS = { writeDataPoint: (p: { blobs?: string[] }) => void points.push(p.blobs ?? []) };
       const headers = { "CF-Connecting-IP": "203.0.113.9" };
-      const call = (q: string, h: Record<string, string> = headers) => api(`/search/suggest?locale=en&q=${q}`, { headers: h }, { SEARCH_LIMITER });
+      const call = (q: string, h: Record<string, string> = headers) => api(`/search/suggest?locale=en&q=${q}`, { headers: h }, { SEARCH_LIMITER, ABUSE_EVENTS });
       expect((await call("rl-one")).status).toBe(200);
       expect((await call("rl-two")).status).toBe(200);
       const limited = await call("rl-three");
       expect(limited.status).toBe(429);
       expect(limited.headers.get("retry-after")).toBe("60");
       expect(await limited.json()).toEqual({ error: "rate_limited" });
+      // One abuse counter point for the admin Abuse page, no IP or query in it
+      expect(points).toHaveLength(1);
+      expect(points[0].slice(0, 3)).toEqual(["cms", "cms.search", "rate_limited"]);
+      expect(JSON.stringify(points)).not.toContain("203.0.113.9");
       expect((await call("rl-one")).status).toBe(200); // cached: not counted
       expect((await call("rl-four", { "CF-Connecting-IP": "203.0.113.10" })).status).toBe(200);
       // Over the service binding (no CF-Connecting-IP), www names the visitor in X-Client-IP.
       await call("rl-five", { "X-Client-IP": "198.51.100.1" });
       expect(seen.get("198.51.100.1")).toBe(1);
+   });
+});
+
+describe("GET /search/scholars", () => {
+   it("is limited per IP like the post search (it reads D1 on every lookup)", async () => {
+      const SEARCH_LIMITER = { limit: async () => ({ success: false }) };
+      const points: string[][] = [];
+      const ABUSE_EVENTS = { writeDataPoint: (p: { blobs?: string[] }) => void points.push(p.blobs ?? []) };
+      const res = await api("/search/scholars?locale=en&q=ahmad", { headers: { "CF-Connecting-IP": "203.0.113.20" } }, { SEARCH_LIMITER, ABUSE_EVENTS });
+      expect(res.status).toBe(429);
+      expect(points[0].slice(0, 3)).toEqual(["cms", "cms.search_scholars", "rate_limited"]);
+      // Too short to search: answered without counting
+      const short = await api("/search/scholars?locale=en&q=a", { headers: { "CF-Connecting-IP": "203.0.113.20" } }, { SEARCH_LIMITER, ABUSE_EVENTS });
+      expect(short.status).toBe(200);
    });
 });
 

@@ -32,6 +32,11 @@ export interface Env {
    /** Per-IP limit on the public search (src/routes/public-api.ts). Without it search is unlimited. */
    SEARCH_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
    /**
+    * Abuse counters (Analytics Engine al_ummah_now_abuse[_stage|_qa]): one point per refused search,
+    * read by the videos admin Abuse page. blobs [app, endpoint, kind, env]; no IP or query.
+    */
+   ABUSE_EVENTS?: { writeDataPoint(point: { blobs?: string[]; doubles?: number[]; indexes?: string[] }): void };
+   /**
     * api-videos' service-to-service key (Secrets Store; its /internal/* routes): scholar channels and
     * community posts (src/lib/scholars/videos-internal.ts). Without it those features wait and retry.
     * A plain string in tests and local runs.
