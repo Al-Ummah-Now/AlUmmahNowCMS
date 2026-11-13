@@ -94,13 +94,15 @@ export function withParam(v: View, key: string, value: string): string {
 function Prefs(props: { v: View }) {
    const { v } = props;
    const other = v.prefs.lang === "ar" ? "en" : "ar";
-   const nextMode = v.prefs.mode === "system" ? "light" : v.prefs.mode === "light" ? "dark" : "system";
-   const modeIcon: IconName = v.prefs.mode === "light" ? "sun" : v.prefs.mode === "dark" ? "moon" : "monitor";
-   const modeLabel = { system: v.t.prefs.system, light: v.t.prefs.light, dark: v.t.prefs.dark }[v.prefs.mode];
    return (
       <>
-         <a class="ic" href={withParam(v, "mode", nextMode)} title={`${v.t.prefs.mode}: ${modeLabel}`} aria-label={`${v.t.prefs.mode}: ${modeLabel}`} data-mode-toggle>
-            <Icon name={modeIcon} />
+         {/* Light / Dark (no "System"): one link per target mode, CSS shows the one for the mode on
+             screen (html.dark), so it is right before paint even when the device decides */}
+         <a class="ic mode-to-light" href={withParam(v, "mode", "light")} title={v.t.prefs.toLight} aria-label={v.t.prefs.toLight} data-mode-toggle="light">
+            <Icon name="sun" />
+         </a>
+         <a class="ic mode-to-dark" href={withParam(v, "mode", "dark")} title={v.t.prefs.toDark} aria-label={v.t.prefs.toDark} data-mode-toggle="dark">
+            <Icon name="moon" />
          </a>
          <a class="ic" href={withParam(v, "lang", other)} lang={other} hreflang={other} title={v.t.prefs.switchTo} aria-label={v.t.prefs.switchTo}>
             <Icon name="languages" />
@@ -223,16 +225,16 @@ function CreateMenu(props: { v: View }) {
    );
 }
 
-/** Runs before paint: resolves "system" mode to html.dark, and follows later changes. */
-const MODE_SCRIPT = `(function(){var h=document.documentElement;if(h.dataset.mode!=="system")return;var m=matchMedia("(prefers-color-scheme: dark)");var a=function(){h.classList.toggle("dark",m.matches)};a();m.addEventListener("change",a)})();`;
+/** Runs before paint: with no saved choice (no data-mode), the device decides html.dark, and later changes follow. */
+const MODE_SCRIPT = `(function(){var h=document.documentElement;if(h.dataset.mode)return;var m=matchMedia("(prefers-color-scheme: dark)");var a=function(){h.classList.toggle("dark",m.matches)};a();m.addEventListener("change",a)})();`;
 
 export function Shell(props: { v: View; title: string; children: Child }) {
    const { v } = props;
    const { t, prefs } = v;
    const theme = THEMES[prefs.theme];
-   const dark = prefs.mode === "dark" || prefs.mode === "system";
+   const dark = prefs.mode !== "light";
    return (
-      <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode} class={dark ? "dark" : undefined}>
+      <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} class={dark ? "dark" : undefined}>
          <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

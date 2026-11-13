@@ -1,5 +1,5 @@
 /** Shell behaviour: drawer, popover menus, session watcher. */
-import { $, $$ } from "./dom.ts";
+import { $, $$, fitToViewport } from "./dom.ts";
 
 export function initShell(): void {
    const drawer = $<HTMLDialogElement>("#drawer");
@@ -21,7 +21,9 @@ export function initShell(): void {
    const pops = $$<HTMLDetailsElement>("details[data-pop]");
    for (const d of pops) {
       d.addEventListener("toggle", () => {
-         if (d.open) for (const o of pops) if (o !== d) o.open = false;
+         if (!d.open) return;
+         for (const o of pops) if (o !== d) o.open = false;
+         fitToViewport(d.querySelector<HTMLElement>(".aun-menu"));
       });
    }
    document.addEventListener("click", (e) => {

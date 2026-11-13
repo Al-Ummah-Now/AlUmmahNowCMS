@@ -11,8 +11,12 @@ import type { Ctx } from "../types.ts";
 import { THEME_IDS, type ThemeId } from "./theme/vendor.generated.ts";
 
 export const DEFAULT_THEME: ThemeId = "fawanees";
-export type Mode = "system" | "light" | "dark";
-export const MODES: readonly Mode[] = ["system", "light", "dark"];
+/**
+ * Light or dark (owner decision 2026-11-13: no "System" option). `null` = no choice saved yet: the
+ * page follows the device (MODE_SCRIPT in ui/layout.tsx, before paint) until the first click.
+ */
+export type Mode = "light" | "dark";
+export const MODES: readonly Mode[] = ["light", "dark"];
 
 const TTL_MS = 30_000;
 const TIMEOUT_MS = 500;
@@ -50,7 +54,8 @@ export async function siteTheme(adminApiUrl: string | undefined, fetcher: typeof
 
 export interface Prefs {
    lang: Lang;
-   mode: Mode;
+   /** The saved choice; null follows the device. */
+   mode: Mode | null;
    theme: ThemeId;
    /** The site's own theme (differs from `theme` while previewing). */
    siteTheme: ThemeId;
@@ -74,13 +79,16 @@ export async function resolvePrefs(c: Ctx, fetcher: typeof fetch): Promise<Prefs
    }
 
    const qMode = url.searchParams.get("mode");
-   let mode: Mode;
+   let mode: Mode | null;
    if (qMode && (MODES as readonly string[]).includes(qMode)) {
       mode = qMode as Mode;
       setCookie(c, MODE_COOKIE, mode, opts);
    } else {
       const saved = getCookie(c, MODE_COOKIE);
-      mode = saved && (MODES as readonly string[]).includes(saved) ? (saved as Mode) : "system";
+      mode = saved && (MODES as readonly string[]).includes(saved) ? (saved as Mode) : null;
+      // "system" (or anything else) saved by an older release: dropped once, so the page shows the
+      // device's mode (the value "system" resolved to) until the next click saves light or dark
+      if (saved !== undefined && mode === null) setCookie(c, MODE_COOKIE, "", { ...opts, maxAge: 0 });
    }
 
    const site = await siteTheme(c.env.ADMIN_API_URL, fetcher);

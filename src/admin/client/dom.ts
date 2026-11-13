@@ -95,3 +95,38 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
    if (!res.ok) throw new ApiError(res.status, parsed);
    return parsed as T;
 }
+
+const GUTTER = 8;
+const fitted = new Set<HTMLElement>();
+let refitting = false;
+
+/**
+ * Keeps an open popup (header menus, autocomplete and combobox lists) inside the viewport
+ * (AlUmmahNow docs/design/NAV.md: no menu ever renders outside the screen; owner bug 2026-11-13).
+ * Call after showing it: shifts it sideways (CSS `translate`) to keep an 8px gutter, narrows it when
+ * wider than the screen, and caps its height to the room below its top (it scrolls inside).
+ * Re-fits on resize / orientation change while open.
+ */
+export function fitToViewport(pop: HTMLElement | null): void {
+   if (!pop) return;
+   pop.style.removeProperty("translate");
+   pop.style.removeProperty("max-inline-size");
+   pop.style.removeProperty("max-block-size");
+   if (pop.hidden || !pop.offsetParent) return;
+   fitted.add(pop);
+   if (!refitting) {
+      refitting = true;
+      addEventListener("resize", () => fitted.forEach((f) => (f.isConnected && !f.hidden && f.offsetParent ? fitToViewport(f) : fitted.delete(f))));
+   }
+   const vw = document.documentElement.clientWidth;
+   let r = pop.getBoundingClientRect();
+   if (r.width > vw - 2 * GUTTER) {
+      pop.style.maxInlineSize = `${vw - 2 * GUTTER}px`;
+      r = pop.getBoundingClientRect();
+   }
+   const dx = r.left < GUTTER ? GUTTER - r.left : r.right > vw - GUTTER ? vw - GUTTER - r.right : 0;
+   if (dx) pop.style.translate = `${Math.round(dx)}px 0`;
+   const room = Math.floor(innerHeight - Math.max(r.top, 0) - GUTTER);
+   const cssMax = parseFloat(getComputedStyle(pop).maxBlockSize);
+   if (!(cssMax <= room)) pop.style.maxBlockSize = `${Math.max(room, 96)}px`;
+}

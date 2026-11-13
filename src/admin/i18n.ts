@@ -59,10 +59,8 @@ const en = {
    prefs: {
       language: "Language",
       switchTo: "العربية",
-      mode: "Appearance",
-      system: "Device",
-      light: "Light",
-      dark: "Dark",
+      toLight: "Switch to light mode",
+      toDark: "Switch to dark mode",
    },
    overview: {
       title: "Overview",
@@ -1196,10 +1194,8 @@ const ar: Strings = {
    prefs: {
       language: "اللغة",
       switchTo: "English",
-      mode: "المظهر",
-      system: "الجهاز",
-      light: "فاتح",
-      dark: "داكن",
+      toLight: "التبديل إلى الوضع الفاتح",
+      toDark: "التبديل إلى الوضع الداكن",
    },
    overview: {
       title: "نظرة عامة",
