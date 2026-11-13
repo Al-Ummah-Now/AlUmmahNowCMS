@@ -91,6 +91,37 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
             { "Cache-Control": "no-store" },
          );
       }
+      if (kind === "list-pages") {
+         // Featuring's "Add to page" (staff only): curated list pages of one language, most recently
+         // changed first; opens with them before anything is typed. pages is a small table.
+         if (c.get("user")?.role === "writer") return c.json({ error: "forbidden" }, 403);
+         const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
+         const l = c.req.query("locale");
+         const loc = l === "en" || l === "ar" ? l : "";
+         const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
+         const { results } = await c.env.DB.prepare(
+            `SELECT id, title, slug, locale, status FROM pages
+             WHERE list_kind = 'curated' AND (?1 = '' OR locale = ?1) AND (?2 = '%%' OR title LIKE ?2 ESCAPE '\\' OR slug LIKE ?2 ESCAPE '\\')
+             ORDER BY updated_at DESC, id DESC LIMIT ?3`,
+         )
+            .bind(loc, like, SUGGEST_LIMIT)
+            .all<Row>();
+         return c.json(
+            {
+               items: results.map((p) => ({
+                  kind: "pages",
+                  id: String(p.id),
+                  label: String(p.title ?? "") || `/${String(p.slug)}`,
+                  secondary: `/${String(p.slug)}`,
+                  imageUrl: null,
+                  href: `/pages/${p.id}`,
+                  lang: p.locale === "ar" ? "ar" : "en",
+               })),
+            },
+            200,
+            { "Cache-Control": "no-store" },
+         );
+      }
       if (kind === "tags" || kind === "library") {
          // The filter editor's Tag field (opens with the most used tags) and the Videos screen's search.
          if (c.get("user")?.role === "writer") return c.json({ error: "forbidden" }, 403);

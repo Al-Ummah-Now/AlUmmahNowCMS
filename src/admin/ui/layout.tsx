@@ -357,6 +357,8 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                         videoAdded: t.featuring.videoAdded,
                         videoAlready: t.featuring.videoAlready,
                         videoRemoved: t.featuring.videoRemoved,
+                        addedToPage: t.featuring.addedToPage,
+                        addToPageNone: t.featuring.addToPageNone,
                      },
                      scholarDeleted: t.scholars.deleted,
                      published: t.content.published,
