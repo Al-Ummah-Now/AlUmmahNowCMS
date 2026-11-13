@@ -17,8 +17,10 @@ wrapped by a small Hono app that adds SSO, a public read API for www, and a vide
 
 SSO only, through auth.alummahnow.net (public PKCE client, no client secret). Roles from the
 access token: **Super Admin / Admin → bknd `admin`**, **Moderator → bknd `editor`** (create/edit/
-publish content, upload images; no deletes, no settings). Everyone else gets a 403 page. bknd's own
-password login and registration are disabled.
+publish content, upload images; no deletes, no settings), **Scholar → bknd `writer`** (their own
+posts and their scholar profile only, `docs/SCHOLARS.md`). The strongest role wins
+(`src/lib/roles.ts`). Everyone else gets a 403 page. bknd's own password login and registration
+are disabled, and so is bknd's admin UI: staff use the CMS's own screens (`src/admin`).
 
 ## Develop
 
