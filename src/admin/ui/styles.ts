@@ -582,4 +582,15 @@ html.seq-dragging,html.seq-dragging *{cursor:grabbing!important;user-select:none
 .gl-terms{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-weight:600}
 .gl-form{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+/* The lantern street (Fawanees; html.fanous-street): blocks that can sit straight on the page are
+   tinted against the page colour instead of see-through, so the street never shows through them
+   (the same look over the page). */
+html.fanous-street .empty{background:color-mix(in srgb,var(--fanous-color-surface) 60%,var(--fanous-color-background))}
+html.fanous-street .notice{background:color-mix(in srgb,var(--fanous-color-primary) 12%,var(--fanous-color-background))}
+html.fanous-street .notice.bad{background:color-mix(in srgb,var(--fanous-color-error-fill) 14%,var(--fanous-color-background))}
+html.fanous-street .md-bar{background:color-mix(in srgb,var(--fanous-color-surface) 70%,var(--fanous-color-background))}
+html.fanous-street .row{background:color-mix(in srgb,var(--fanous-color-surface) 70%,var(--fanous-color-background))}
+html.fanous-street .blk{background:color-mix(in srgb,var(--fanous-color-surface) 78%,var(--fanous-color-background))}
+html.fanous-street .drop{background:color-mix(in srgb,var(--fanous-color-primary) 9%,var(--fanous-color-background))}
+html.fanous-street .drop:hover,html.fanous-street .drop.over{background:color-mix(in srgb,var(--fanous-color-primary) 18%,var(--fanous-color-background))}
 `;

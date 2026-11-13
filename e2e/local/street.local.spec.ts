@@ -8,6 +8,10 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 
+// Browser globals used inside page.evaluate (the CMS typechecks e2e without the DOM lib)
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare const document: any, window: any, Image: any, getComputedStyle: any, innerHeight: number, innerWidth: number;
+
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
 const RUN = `st${Date.now().toString(36)}`;
@@ -43,16 +47,16 @@ function seeThrough(page: Page) {
   return page.evaluate(() => {
     const alpha = (bg: string) => { const slash = bg.match(/\/\s*([\d.]+)\)/), rgba = bg.match(/^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/); return slash ? parseFloat(slash[1]!) : rgba ? parseFloat(rgba[1]!) : bg === 'transparent' ? 0 : 1; };
     const paints = (e: Element) => { const st = getComputedStyle(e); return alpha(st.backgroundColor) === 1 || st.backgroundImage !== 'none' || /^(IMG|VIDEO|CANVAS|PICTURE|IFRAME)$/.test(e.tagName); };
-    return Array.from(document.querySelectorAll('main *')).filter((el) => {
+    return Array.from(document.querySelectorAll('main *')).filter((el: any) => {
       if (el.tagName === 'IMG') return false;
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height || r.bottom < 0 || r.top > innerHeight) return false;
       const a = alpha(getComputedStyle(el).backgroundColor);
       if (!(a > 0 && a < 1)) return false;
       const stack = document.elementsFromPoint(r.left + r.width / 2, Math.min(innerHeight - 1, Math.max(0, r.top + r.height / 2)));
-      const below = stack.slice(stack.indexOf(el) + 1).filter((e) => !el.contains(e) && e !== document.body && e !== document.documentElement);
+      const below = stack.slice(stack.indexOf(el) + 1).filter((e: any) => !el.contains(e) && e !== document.body && e !== document.documentElement);
       return !below.some(paints);
-    }).map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 3).join('.')}`);
+    }).map((el: any) => `${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 3).join('.')}`);
   });
 }
 
@@ -60,11 +64,11 @@ function seeThrough(page: Page) {
 async function cutLanterns(page: Page) {
   await stable(page);
   const boxes = await page.evaluate(() => {
-    const chrome = Array.from(document.querySelectorAll('body *')).filter((e) => !e.closest('#fanous-street') && ['fixed', 'sticky'].includes(getComputedStyle(e).position))
-      .map((e) => e.getBoundingClientRect()).filter((r) => r.width && r.height && r.bottom > 0 && r.top < innerHeight);
-    const hit = (b: { x: number; y: number; w: number; h: number }) => chrome.some((r) => b.x < r.right && b.x + b.w > r.left && b.y < r.bottom && b.y + b.h > r.top);
-    return Array.from(document.querySelectorAll('#fanous-street .fs-l use')).map((u) => { const r = u.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })
-      .filter((b) => b.y >= 0 && b.y + b.h <= innerHeight && b.x >= 0 && b.x + b.w <= innerWidth && !hit(b));
+    const chrome = Array.from(document.querySelectorAll('body *')).filter((e: any) => !e.closest('#fanous-street') && ['fixed', 'sticky'].includes(getComputedStyle(e).position))
+      .map((e: any) => e.getBoundingClientRect()).filter((r: any) => r.width && r.height && r.bottom > 0 && r.top < innerHeight);
+    const hit = (b: { x: number; y: number; w: number; h: number }) => chrome.some((r: any) => b.x < r.right && b.x + b.w > r.left && b.y < r.bottom && b.y + b.h > r.top);
+    return Array.from(document.querySelectorAll('#fanous-street .fs-l use')).map((u: any) => { const r = u.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })
+      .filter((b: any) => b.y >= 0 && b.y + b.h <= innerHeight && b.x >= 0 && b.x + b.w <= innerWidth && !hit(b));
   });
   if (!boxes.length) return [];
   const on = (await page.screenshot()).toString('base64');
@@ -72,9 +76,9 @@ async function cutLanterns(page: Page) {
   const off = (await page.screenshot()).toString('base64');
   await page.evaluate(() => { document.getElementById('fanous-street')!.style.visibility = ''; });
   return page.evaluate(async ({ on, off, boxes }) => {
-    const load = (b: string) => new Promise<HTMLImageElement>((res) => { const i = new Image(); i.onload = () => res(i); i.src = `data:image/png;base64,${b}`; });
+    const load = (b: string) => new Promise<any>((res: any) => { const i = new Image(); i.onload = () => res(i); i.src = `data:image/png;base64,${b}`; });
     const [a, b] = await Promise.all([load(on), load(off)]);
-    const px = (img: HTMLImageElement) => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d')!; g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
+    const px = (img: any) => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d')!; g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
     const A = px(a), B = px(b), W = a.width, k = a.width / innerWidth;
     const out: string[] = [];
     for (const bx of boxes) {
