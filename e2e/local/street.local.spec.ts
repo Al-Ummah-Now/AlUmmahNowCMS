@@ -15,6 +15,7 @@ declare const document: any, window: any, Image: any, getComputedStyle: any, inn
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
 const RUN = `st${Date.now().toString(36)}`;
+let checkedOnScreen = 0;
 // The pixel check decodes screenshots from data: URLs
 test.use({ bypassCSP: true });
 test.describe.configure({ mode: "serial" });
@@ -46,7 +47,7 @@ async function stable(page: Page) {
 function seeThrough(page: Page) {
   return page.evaluate(() => {
     const alpha = (bg: string) => { const slash = bg.match(/\/\s*([\d.]+)\)/), rgba = bg.match(/^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/); return slash ? parseFloat(slash[1]!) : rgba ? parseFloat(rgba[1]!) : bg === 'transparent' ? 0 : 1; };
-    const paints = (e: Element) => { const st = getComputedStyle(e); return alpha(st.backgroundColor) === 1 || st.backgroundImage !== 'none' || /^(IMG|VIDEO|CANVAS|PICTURE|IFRAME)$/.test(e.tagName); };
+    const paints = (e: any) => { const st = getComputedStyle(e); return alpha(st.backgroundColor) === 1 || st.backgroundImage !== 'none' || /^(IMG|VIDEO|CANVAS|PICTURE|IFRAME)$/.test(e.tagName); };
     return Array.from(document.querySelectorAll('main *')).filter((el: any) => {
       if (el.tagName === 'IMG') return false;
       const r = el.getBoundingClientRect();
@@ -64,12 +65,14 @@ function seeThrough(page: Page) {
 async function cutLanterns(page: Page) {
   await stable(page);
   const boxes = await page.evaluate(() => {
-    const chrome = Array.from(document.querySelectorAll('body *')).filter((e: any) => !e.closest('#fanous-street') && ['fixed', 'sticky'].includes(getComputedStyle(e).position))
+    const paints = (e: any) => { const st = getComputedStyle(e); return !((st.backgroundColor === 'transparent' || /rgba\([^)]*,\s*0\)$/.test(st.backgroundColor)) && st.backgroundImage === 'none'); };
+    const chrome = Array.from(document.querySelectorAll('body *')).filter((e: any) => !e.closest('#fanous-street, #fanous-street-lights') && ['fixed', 'sticky'].includes(getComputedStyle(e).position) && paints(e))
       .map((e: any) => e.getBoundingClientRect()).filter((r: any) => r.width && r.height && r.bottom > 0 && r.top < innerHeight);
     const hit = (b: { x: number; y: number; w: number; h: number }) => chrome.some((r: any) => b.x < r.right && b.x + b.w > r.left && b.y < r.bottom && b.y + b.h > r.top);
     return Array.from(document.querySelectorAll('#fanous-street .fs-l use')).map((u: any) => { const r = u.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })
       .filter((b: any) => b.y >= 0 && b.y + b.h <= innerHeight && b.x >= 0 && b.x + b.w <= innerWidth && !hit(b));
   });
+  checkedOnScreen += boxes.length;
   if (!boxes.length) return [];
   const on = (await page.screenshot()).toString('base64');
   await page.evaluate(() => { document.getElementById('fanous-street')!.style.visibility = 'hidden'; });
@@ -98,6 +101,7 @@ for (const mode of ["light", "dark"] as const) {
       test(`${mode} ${lang}: nothing see-through, every lantern whole`, async ({ page }, info) => {
          await signIn(page, `${RUN}${info.project.name.slice(0, 1)}-${mode}-${lang}`);
          await theme(page, "fawanees", mode);
+         checkedOnScreen = 0;
          for (const path of [`/?lang=${lang}`, `/posts?lang=${lang}`]) {
             await page.goto(path);
             await expect(page.locator("html")).toHaveClass(/fanous-street/);
@@ -107,6 +111,8 @@ for (const mode of ["light", "dark"] as const) {
             for (const c of await cutLanterns(page)) problems.push(`${path} ${c}`);
             expect(problems, problems.join("\n")).toEqual([]);
          }
+         // The whole-lantern check must have looked at real lanterns
+         expect(checkedOnScreen, "lanterns checked on screen").toBeGreaterThan(0);
       });
    }
 }
