@@ -7,7 +7,7 @@
  * last 35 minutes (the overlap makes a missed run harmless; resubmitting a URL is allowed).
  * Production only. The key is public by design: www serves it at /<key>.txt (AlUmmahNowUI public/).
  */
-import type { Env } from "../env.ts";
+import { trimSlash, type Env } from "../env.ts";
 import { LIVE_SQL } from "./schedule.ts";
 import { log } from "./log.ts";
 
@@ -23,7 +23,7 @@ type Row = { slug: string; locale: string };
 
 /** The www addresses of changed posts and pages. */
 export function indexNowUrls(wwwUrl: string, posts: Row[], pages: Row[]): string[] {
-   const base = wwwUrl.replace(/\/+$/, "");
+   const base = trimSlash(wwwUrl);
    const ok = (r: Row) => (r.locale === "en" || r.locale === "ar") && /^[a-z0-9-]{1,120}$/.test(r.slug);
    const urls = [
       ...posts.filter(ok).map((r) => `${base}/${r.locale}/articles/${r.slug}/`),
@@ -48,7 +48,7 @@ export async function pingIndexNow(env: Env, now = Date.now(), fetcher: typeof f
    const res = await fetcher(INDEXNOW_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ host, key: INDEXNOW_KEY, keyLocation: `${env.WWW_URL.replace(/\/+$/, "")}/${INDEXNOW_KEY}.txt`, urlList }),
+      body: JSON.stringify({ host, key: INDEXNOW_KEY, keyLocation: `${trimSlash(env.WWW_URL)}/${INDEXNOW_KEY}.txt`, urlList }),
    });
    // 200/202: accepted. 4xx: our request or key; never retried in a loop (the next run resends)
    if (!res.ok) log.warn("indexnow refused", { status: res.status, urls: urlList.length });
