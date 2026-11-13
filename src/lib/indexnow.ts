@@ -8,7 +8,6 @@
  * Production only. The key is public by design: www serves it at /<key>.txt (AlUmmahNowUI public/).
  */
 import { trimSlash, type Env } from "../env.ts";
-import { LIVE_SQL } from "./schedule.ts";
 import { log } from "./log.ts";
 
 export const INDEXNOW_KEY = "9e1b0c3eec45ae20f6d905e0d4c5b004";
@@ -36,8 +35,11 @@ export async function pingIndexNow(env: Env, now = Date.now(), fetcher: typeof f
    if (env.ENVIRONMENT !== "production" || !env.WWW_URL) return { sent: 0 };
    const since = new Date(now - INDEXNOW_WINDOW_MS).toISOString();
    const nowIso = new Date(now).toISOString();
+   // The window is (since, now]: a row changed after `now` belongs to the next ping.
    // julianday(): the rows mix ISO (T…Z) and SQL (space) timestamps
-   const changed = `${LIVE_SQL} AND (julianday(updated_at) > julianday(?1) OR (julianday(publish_at) > julianday(?1) AND julianday(publish_at) <= julianday(?2)))`;
+   // Live at `now` (not the database clock), so a run for a given instant always sees the same rows
+   const live = `status = 'published' AND (publish_at IS NULL OR julianday(publish_at) <= julianday(?2))`;
+   const changed = `${live} AND ((julianday(updated_at) > julianday(?1) AND julianday(updated_at) <= julianday(?2)) OR (julianday(publish_at) > julianday(?1) AND julianday(publish_at) <= julianday(?2)))`;
    const [posts, pages] = await Promise.all([
       env.DB.prepare(`SELECT slug, locale FROM posts WHERE ${changed}`).bind(since, nowIso).all<Row>(),
       env.DB.prepare(`SELECT slug, locale FROM pages WHERE ${changed}`).bind(since, nowIso).all<Row>(),
