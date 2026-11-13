@@ -4,6 +4,8 @@
  * allowed; the list only helps pick a known value. Markup: `<div class="combo"><input role="combobox">
  * <ul class="combo-list" role="listbox" hidden></ul></div>`.
  */
+import { fitToViewport } from "./dom.ts";
+
 let seq = 0;
 
 /** Case-insensitive "contains" filter, exact matches first, at most `max`. */
@@ -69,6 +71,7 @@ export function attachCombobox(input: HTMLInputElement, options: () => string[],
          list.append(li);
       } else list.append(...items);
       list.hidden = false;
+      fitToViewport(list);
       input.setAttribute("aria-expanded", "true");
       active = -1;
    };

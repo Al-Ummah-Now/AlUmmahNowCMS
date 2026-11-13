@@ -7,6 +7,7 @@ export const ADMIN_CSS = String.raw`
 *,*::before,*::after{box-sizing:border-box}
 html{background:var(--fanous-color-background);--rail:84px;--rail-wide:248px;--hd:64px;--gap:var(--fanous-spacing-lg);color-scheme:light;font-family:var(--fanous-font-latin);-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html.dark{color-scheme:dark}
+html.dark .mode-to-dark,html:not(.dark) .mode-to-light{display:none}
 html[lang=ar]{font-family:var(--fanous-font-arabic)}
 body{margin:0;min-height:100dvh;background:var(--m-page);background-attachment:fixed;color:var(--fanous-color-text-primary);font-size:var(--fanous-type-latin-body-size);line-height:var(--fanous-type-latin-body-line-height)}
 html[lang=ar] body{font-size:var(--fanous-type-arabic-body-size);line-height:var(--fanous-type-arabic-body-line-height)}

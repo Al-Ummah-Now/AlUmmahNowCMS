@@ -19,7 +19,7 @@ describe("staff shell", () => {
       const res = await makeWorker()("/", { headers: { cookie } });
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).toMatch(/^<!doctype html><html lang="en" dir="ltr" data-theme="fawanees" data-mode="system" class="dark">/);
+      expect(html).toMatch(/^<!doctype html><html lang="en" dir="ltr" data-theme="fawanees" class="dark">/);
       expect(html).toContain('aria-current="page"');
       expect(html).not.toContain('href="/people"');
       expect(html).toContain('href="/pages/new"');
@@ -39,6 +39,33 @@ describe("staff shell", () => {
       expect(set).toMatch(/cms_mode=light/);
       const again = await (await f("/", { headers: { cookie: `${cookie}; cms_lang=ar; cms_mode=dark` } })).text();
       expect(again).toMatch(/<html lang="ar" dir="rtl" data-theme="fawanees" data-mode="dark" class="dark">/);
+   });
+
+   it("Light / Dark with no System option: no choice follows the device; an old cms_mode=system is dropped", async () => {
+      const cookie = await session(["Admin"], "shell-mode");
+      const f = makeWorker();
+      // nothing saved: no data-mode (the head script lets the device decide before paint)
+      const first = await f("/", { headers: { cookie } });
+      const html = await first.text();
+      expect(html).toMatch(/<html lang="en" dir="ltr" data-theme="fawanees" class="dark">/);
+      expect(html).toContain('data-mode-toggle="light"');
+      expect(html).toContain('data-mode-toggle="dark"');
+      expect(html).toContain('aria-label="Switch to light mode"');
+      expect(html).toContain('aria-label="Switch to dark mode"');
+      expect(html).not.toMatch(/mode=system|>System<|Device/);
+      expect(first.headers.getSetCookie().join("\n")).not.toMatch(/cms_mode/);
+      // ?mode=system is not a mode any more: ignored, nothing saved
+      const sys = await f("/?mode=system", { headers: { cookie } });
+      expect(await sys.text()).not.toContain("data-mode=");
+      expect(sys.headers.getSetCookie().join("\n")).not.toMatch(/cms_mode=system/);
+      // a "system" saved by an older release is cleared once; the device decides until the next click
+      const old = await f("/", { headers: { cookie: `${cookie}; cms_mode=system` } });
+      expect(await old.text()).not.toContain("data-mode=");
+      expect(old.headers.getSetCookie().join("\n")).toMatch(/cms_mode=;.*Max-Age=0/i);
+      // a click saves the choice
+      const dark = await f("/?mode=dark", { headers: { cookie } });
+      expect(await dark.text()).toMatch(/data-mode="dark" class="dark"/);
+      expect(dark.headers.getSetCookie().join("\n")).toMatch(/cms_mode=dark/);
    });
 
    it("follows site.theme from the videos admin", async () => {

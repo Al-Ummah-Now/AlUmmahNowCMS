@@ -5,7 +5,7 @@
  * chosen still submits the form (the full search); choosing a suggestion opens it.
  * The behaviour lives in autocomplete-model.ts.
  */
-import { $, $$, el, strings } from "./dom.ts";
+import { $, $$, el, fitToViewport, strings } from "./dom.ts";
 import { DEBOUNCE_MS, MIN_QUERY, announcement, closed, failed, initialState, keyDown, received, typed, type Option, type State, type Suggestion } from "./autocomplete-model.ts";
 
 interface Strings {
@@ -42,7 +42,9 @@ function attach(root: HTMLElement, T: Strings): void {
    const render = () => {
       const expanded = state.open && (state.options.length > 0 || state.status !== "idle");
       input.setAttribute("aria-expanded", String(expanded));
+      const opening = expanded && list.hidden;
       list.hidden = !expanded;
+      if (opening) fitToViewport(list);
       if (state.active >= 0 && expanded) input.setAttribute("aria-activedescendant", optionId(state.active));
       else input.removeAttribute("aria-activedescendant");
       list.replaceChildren(...state.options.map((o, i) => optionEl(o, i)));

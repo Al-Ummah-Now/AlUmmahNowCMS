@@ -94,7 +94,7 @@ test.describe("shell", () => {
       await expectNoAxeViolations(page);
       await page.goto("/?mode=dark");
       await expect(page.locator("html")).toHaveClass(/dark/);
-      await page.goto("/?mode=system");
+      await page.goto("/?mode=light");
 
       for (const theme of ["nahas", "zujaj", "lantern", "fawanees"]) {
          await page.goto(`/?theme=${theme}`);
@@ -485,7 +485,7 @@ test.describe("content history (#8)", () => {
       await expect(page.locator("html")).toHaveClass(/dark/);
       await expectNoAxeViolations(page);
       await shot(page, "admin-history-dark");
-      await page.goto(`/posts/${id}/history?mode=system`);
+      await page.goto(`/posts/${id}/history?mode=light`);
 
       // Someone saves meanwhile: restoring from the stale screen is refused with a clear message.
       await page.goto(`/posts/${id}/history?lang=en`);
