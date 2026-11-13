@@ -100,7 +100,8 @@ export async function reconcileRefs(env: Env, opts: { fetch?: typeof fetch } = {
             if (seen.has(ref.ref_post_id) || ref.status !== "published") continue;
             out.checked++;
             await repair(async () => {
-               const post = digest ? await communityPost(env, ch, ref.ref_post_id, opts.fetch) : null;
+               // Always re-read by id: only a post api-videos says is gone (404) loses its ref.
+               const post = await communityPost(env, ch, ref.ref_post_id, opts.fetch);
                if (!post) {
                   await removeRef(env, ref.ref_post_id, ch);
                   out.removed++;

@@ -255,6 +255,18 @@ describe("the nightly reference check (#1217)", () => {
       expect((await env.DB.prepare("SELECT ref_post_id, status, updated_at FROM posts WHERE ref_channel_id = 'ch-rec' ORDER BY ref_post_id").all()).results).toEqual(before.results);
    });
 
+   it("an api-videos without the digest route changes nothing", async () => {
+      await scholar("sch-old", "old-scholar", "ch-old");
+      const store = new Map<string, Record<string, unknown>>();
+      await put(refs(store), { ...POST_FIXTURES.text, id: "r-old", channelId: "ch-old" });
+      const bare404 = (async (input: RequestInfo | URL) => {
+         const url = new URL(String(input instanceof Request ? input.url : input));
+         return /^\/internal\/posts\/[^/]+$/.test(url.pathname) ? new Response("404 Not Found", { status: 404 }) : videos(store).fetchImpl(input);
+      }) as typeof fetch;
+      await reconcileRefs(E, { fetch: bare404 });
+      expect(await env.DB.prepare("SELECT status FROM posts WHERE ref_post_id = 'r-old'").first()).toEqual({ status: "published" });
+   });
+
    it("runs once a night: the 03:00 UTC run of the 30-minute cron", () => {
       expect(isReconcileSlot(Date.parse("2026-11-14T03:00:00Z"))).toBe(true);
       expect(isReconcileSlot(Date.parse("2026-11-14T03:30:00Z"))).toBe(false);
