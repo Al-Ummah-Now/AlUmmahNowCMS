@@ -32,7 +32,7 @@ export interface ScholarHelpers {
 }
 
 /** Columns of a post summary (the same as POST_SUMMARY_COLS in public-api.ts, kept local to avoid a cycle). */
-const COLS = "id, slug, locale, title, excerpt, author_name, author_sub, tags, kind, slides, published_at, updated_at, created_at";
+const COLS = "id, slug, locale, title, excerpt, author_name, author_sub, tags, kind, slides, published_at, updated_at, created_at, ref_post_id, ref_channel_id, summary_json";
 
 async function avatars(env: Env, list: Scholar[]): Promise<Map<number, MediaRef>> {
    return mediaByIds(

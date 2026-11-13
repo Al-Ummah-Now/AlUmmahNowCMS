@@ -11,6 +11,7 @@ import { ownedChannels } from "../lib/scholars/videos-internal.ts";
 import { errText, log } from "../lib/log.ts";
 import { featuringApi, scholarsApi } from "./scholars-api.ts";
 import { featuringScreen, parseFeaturingParams, profileScreen, scholarsListScreen } from "./screens/scholars.tsx";
+import { writeScreen } from "./screens/write.tsx";
 import { tabIconLinks } from "../lib/app-icons.ts";
 import type { Child } from "hono/jsx";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
@@ -43,7 +44,7 @@ import { curatedPage } from "../lib/page-entries.ts";
 import { Shell, type View } from "./ui/layout.tsx";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
-export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted", "/ai-settings", "/scholars", "/featuring", "/glossary"];
+export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/write", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted", "/ai-settings", "/scholars", "/featuring", "/glossary"];
 export const isStaffScreen = (p: string) => p === "/" || ADMIN_SCREENS.some((x) => p === x || p.startsWith(`${x}/`));
 
 export async function buildView(c: Ctx, deps: Deps): Promise<View> {
@@ -90,12 +91,21 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    const r = new Hono<AppEnv>();
 
    r.get("/", async (c) => {
-      // A scholar's home is their articles.
-      if (c.get("user")?.role === "writer") return c.redirect("/posts", 302);
+      // A scholar's home is "Write in Studio" (docs/SCHOLARS.md §7, SS18).
+      if (c.get("user")?.role === "writer") return c.redirect("/write", 302);
       const v = await buildView(c, deps);
       const failures = v.user.role === "admin" ? await flaggedFailures(c.env.DB).catch(() => null) : null;
       return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps), c.env.DB, failures));
    });
+
+   r.get("/write", async (c) => {
+      const v = await buildView(c, deps);
+      if (v.user.role !== "writer") return c.redirect("/posts", 302);
+      return render(c, v, v.t.write.title, await writeScreen(v, c.env.DB));
+   });
+   // Scholars write in Studio: their old post screens lead to /write.
+   r.use("/posts/*", async (c, next) => (c.get("user")?.role === "writer" ? c.redirect("/write", 302) : next()));
+   r.use("/posts", async (c, next) => (c.get("user")?.role === "writer" ? c.redirect("/write", 302) : next()));
 
    for (const kind of ["pages", "posts"] as ContentKind[]) {
       r.get(`/${kind}`, async (c) => {

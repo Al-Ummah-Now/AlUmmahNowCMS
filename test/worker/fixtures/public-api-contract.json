@@ -103,7 +103,9 @@
                "kind": "article",
                "slide_count": 0,
                "first_slide": null,
-               "slides": []
+               "slides": [],
+               "ref": null,
+               "v2": null
             },
             {
                "slug": "first",
@@ -121,7 +123,9 @@
                "kind": "article",
                "slide_count": 0,
                "first_slide": null,
-               "slides": []
+               "slides": [],
+               "ref": null,
+               "v2": null
             }
          ]
       }
@@ -224,7 +228,9 @@
                "kind": "article",
                "slide_count": 0,
                "first_slide": null,
-               "slides": []
+               "slides": [],
+               "ref": null,
+               "v2": null
             },
             {
                "slug": "first",
@@ -242,7 +248,9 @@
                "kind": "article",
                "slide_count": 0,
                "first_slide": null,
-               "slides": []
+               "slides": [],
+               "ref": null,
+               "v2": null
             }
          ],
          "page": 1,
@@ -272,7 +280,9 @@
                "kind": "article",
                "slide_count": 0,
                "first_slide": null,
-               "slides": []
+               "slides": [],
+               "ref": null,
+               "v2": null
             }
          ],
          "page": 2,
@@ -305,7 +315,10 @@
          "seo_title": null,
          "seo_description": null,
          "alternates": [],
-         "images": []
+         "images": [],
+         "ref": null,
+         "v2": null,
+         "community": null
       }
    },
    "/api/public/v1/posts/hidden?locale=en": {
@@ -406,49 +419,57 @@
                "type": "page",
                "locale": "ar",
                "slug": "about",
-               "updated_at": "<iso-date>", "translation_key": "k-about"
+               "updated_at": "<iso-date>",
+               "translation_key": "k-about"
             },
             {
                "type": "page",
                "locale": "ar",
                "slug": "articles",
-               "updated_at": "<iso-date>", "translation_key": "www-articles"
+               "updated_at": "<iso-date>",
+               "translation_key": "www-articles"
             },
             {
                "type": "page",
                "locale": "ar",
                "slug": "videos",
-               "updated_at": "<iso-date>", "translation_key": "www-videos"
+               "updated_at": "<iso-date>",
+               "translation_key": "www-videos"
             },
             {
                "type": "page",
                "locale": "en",
                "slug": "about",
-               "updated_at": "<iso-date>", "translation_key": "k-about"
+               "updated_at": "<iso-date>",
+               "translation_key": "k-about"
             },
             {
                "type": "page",
                "locale": "en",
                "slug": "articles",
-               "updated_at": "<iso-date>", "translation_key": "www-articles"
+               "updated_at": "<iso-date>",
+               "translation_key": "www-articles"
             },
             {
                "type": "page",
                "locale": "en",
                "slug": "videos",
-               "updated_at": "<iso-date>", "translation_key": "www-videos"
+               "updated_at": "<iso-date>",
+               "translation_key": "www-videos"
             },
             {
                "type": "post",
                "locale": "en",
                "slug": "second",
-               "updated_at": "<iso-date>", "translation_key": null
+               "updated_at": "<iso-date>",
+               "translation_key": null
             },
             {
                "type": "post",
                "locale": "en",
                "slug": "first",
-               "updated_at": "<iso-date>", "translation_key": null
+               "updated_at": "<iso-date>",
+               "translation_key": null
             }
          ],
          "scholars": []
@@ -635,7 +656,9 @@
                            "body": null,
                            "position": "top"
                         }
-                     ]
+                     ],
+                     "ref": null,
+                     "v2": null
                   },
                   {
                      "slug": "second",
@@ -651,7 +674,9 @@
                      "kind": "article",
                      "slide_count": 0,
                      "first_slide": null,
-                     "slides": []
+                     "slides": [],
+                     "ref": null,
+                     "v2": null
                   }
                ]
             },
@@ -740,7 +765,9 @@
                            "body": null,
                            "position": "top"
                         }
-                     ]
+                     ],
+                     "ref": null,
+                     "v2": null
                   }
                ]
             },
@@ -960,7 +987,10 @@
          "seo_title": null,
          "seo_description": null,
          "alternates": [],
-         "images": []
+         "images": [],
+         "ref": null,
+         "v2": null,
+         "community": null
       }
    },
    "/api/public/v1/cards?locale=en": {
@@ -1048,7 +1078,9 @@
                      "body": null,
                      "position": "top"
                   }
-               ]
+               ],
+               "ref": null,
+               "v2": null
             }
          ],
          "page": 1,
@@ -1144,7 +1176,9 @@
                      "body": null,
                      "position": "top"
                   }
-               ]
+               ],
+               "ref": null,
+               "v2": null
             }
          ],
          "page": 1,

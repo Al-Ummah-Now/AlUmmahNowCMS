@@ -1,6 +1,8 @@
 # Scholars: pages on www, articles and videos, editors feature
 
-**Status:** v1, 2026-11-10
+**Status:** v2, 2026-11-13: scholar content comes from community posts (§7, §8; wiki AUN-SCHOLAR-SITES
+phase 1). §1–§4 describe v1 (writing in the CMS), which stays for posts not yet converted.
+**v1:** 2026-11-10
 **Owner decisions (2026-11-10):** articles are "a mix, scholar pages on main site, and editors feature
 from there to main feed"; videos "same as above"; scholars write in the CMS, reached from the videos
 studio through SSO, and see and edit only their own posts.
@@ -130,3 +132,55 @@ See docs/PUBLIC_API.md "Scholars": `/scholars`, `/scholars/:slug`, `/scholars/by
 - E2E (QA): `e2e/scholars.spec.ts`: a scholar signs in, writes and publishes; the post is on the www
   scholar page and the channel's Community tab and not on the Articles list; an editor features it; it is
   on www's home and Articles.
+
+
+## 7. v2: scholar posts are community posts (wiki AUN-SCHOLAR-SITES §6.3)
+
+Owner decisions 2026-11-13: SS5 (one post format), SS6 (scholar content is fuelled by the primary
+channel's community posts; www holds hidden references), SS8 (no opt-out: editors decide what to
+feature). SS18 (scholars write only in Studio) and SS14 (keep GIF, add Link) follow the spec's
+recommendations and still await the owner's explicit confirmation.
+
+- **Primary channel:** `scholars.primary_channel_id` (migration 0019), the first linked channel. Saving
+  the profile's channels sets it; the 30-minute cron fills it where missing.
+- **One format:** `src/lib/post-schema.generated.ts`, vendored from AlUmmahNow
+  `packages/shared-types/src/post-schema.ts` (`npm run sync:posts -- --ref <sha>`, `check:posts` in CI).
+- **References:** rows in `posts` with `ref_post_id` (unique), `ref_channel_id`, `summary_json`
+  (`src/lib/scholars/refs.ts`). `kind` is the community post's kind. `body` is empty: never a copy.
+  A ref keeps its slug for life; title, kind, summary and dates follow the post.
+- **The outbox:** api-videos' processor calls `PUT/DELETE /internal/refs/:postId` on every community post
+  create, edit and delete (`src/routes/internal-refs.ts`, `X-API-Key` = the shared internal key). The
+  CMS answers `ignored` for channels that are no scholar's primary channel, and for article mirrors not
+  yet converted. A deleted or non-public post drafts its ref (www 404); publishing again restores it.
+- **www:** lists, the timeline and search render refs from `summary_json`; `/posts/:slug` reads the
+  community post from api-videos (`GET /internal/posts/:channelId/:postId`, Cache API 60 s). See
+  docs/PUBLIC_API.md "Scholars". `FEED_FORMAT` 4.
+- **Staff screens:** refs are not in the Posts list; opening one shows links to www and Studio. The
+  Featuring screen's "Scholar posts" tab lists refs of every kind with Feature and Open in Studio.
+- **Writers (SS18):** a writer's CMS home is **Write in Studio** (`/write`): links to their channel's
+  composer and Community management on the videos site, their www page and their profile. The data API
+  refuses their post writes; their old post screens redirect to `/write`.
+- **The old sync** (`community_links`, §4) is retired per post once it is a reference (state
+  `retired`): it never re-posts or hides a converted post.
+
+## 8. Converting existing CMS scholar posts (wiki AUN-SCHOLAR-SITES §6.6)
+
+`src/lib/scholars/convert.ts`, driven by `scripts/ops/convert-scholar-posts.ts` through
+`POST /api/release/v1/scholar-conversion` (one-time D1 token, purpose `scholar-conversion`).
+
+```bash
+node --experimental-strip-types scripts/ops/convert-scholar-posts.ts --env qa              # plan (dry run)
+node --experimental-strip-types scripts/ops/convert-scholar-posts.ts --env qa --apply      # convert, then check
+node --experimental-strip-types scripts/ops/convert-scholar-posts.ts --env qa --check      # check only
+# production: --apply --allow-production, only with the owner's go-ahead
+```
+
+- An article with a link-only mirror is upgraded **in place** on api-videos (same post id, likes,
+  comments); cards posts and articles without a mirror become new community posts. Media is
+  re-referenced (CMS media URLs), not copied.
+- The CMS row becomes the reference with the **same slug**, locale, translation key, featuring,
+  timeline and page entries; its original is kept as a content revision (actor
+  `system:scholar-conversion`), the rollback copy.
+- Skipped and reported: scheduled posts, scholars without a channel, posts whose scholar profile is gone.
+- The check compares every converted post with its original: title, body hash (articles), card count
+  (cards), www address, status, featured state, kind.

@@ -7,12 +7,12 @@ import { scholarName, slugify, validateScholarInput } from "../../src/lib/schola
 describe("writerApiVerdict", () => {
    it.each([
       ["GET", "/api/data/entity/posts", "scope-list"],
-      ["POST", "/api/data/entity/posts", "create-post"],
+      ["POST", "/api/data/entity/posts", "deny"],
       ["POST", "/api/data/entity/posts/fn/count", "scope-count"],
       ["GET", "/api/data/entity/posts/12", "own-post"],
-      ["PATCH", "/api/data/entity/posts/12", "own-post"],
-      ["DELETE", "/api/data/entity/posts/12", "own-post"],
-      ["POST", "/api/media/entity/posts/12/cover", "own-post"],
+      ["PATCH", "/api/data/entity/posts/12", "deny"],
+      ["DELETE", "/api/data/entity/posts/12", "deny"],
+      ["POST", "/api/media/entity/posts/12/cover", "deny"],
       ["GET", "/api/data/entity/media", "allow"],
       ["POST", "/api/media/upload", "allow"],
       ["GET", "/api/auth/me", "allow"],
@@ -38,11 +38,11 @@ describe("scoping a writer's filters", () => {
 });
 
 describe("writerScreenAllowed", () => {
-   it("allows their articles, profile and tools; nothing of staff's", () => {
-      for (const p of ["/", "/posts", "/posts/new", "/posts/3", "/posts/3/history", "/scholars/me", "/admin/api/scholars/me", "/admin/api/suggest", "/admin/api/ai/jobs", "/picker/api/search", "/preview/posts/3", "/admin/api/revisions/9/restore"]) {
+   it("allows Write in Studio, their profile and old post links (redirected); nothing of staff's", () => {
+      for (const p of ["/", "/write", "/posts", "/posts/new", "/posts/3", "/scholars/me", "/admin/api/scholars/me", "/admin/api/suggest"]) {
          expect(writerScreenAllowed("GET", p), p).toBe(true);
       }
-      for (const p of ["/pages", "/pages/1", "/timeline", "/featuring", "/scholars", "/scholars/3", "/navigation", "/site", "/library", "/people", "/deleted", "/admin/api/timeline/videos", "/admin/api/featuring/posts/1", "/admin/api/trash", "/preview/pages/1"]) {
+      for (const p of ["/pages", "/pages/1", "/timeline", "/featuring", "/scholars", "/scholars/3", "/navigation", "/site", "/library", "/people", "/deleted", "/admin/api/timeline/videos", "/admin/api/featuring/posts/1", "/admin/api/trash", "/preview/pages/1", "/preview/posts/3", "/admin/api/ai/jobs", "/picker/api/search", "/admin/api/revisions/9/restore"]) {
          expect(writerScreenAllowed("GET", p), p).toBe(false);
       }
    });
@@ -64,7 +64,7 @@ describe("profiles", () => {
    });
    it("validates edits; channels must be the scholar's own", () => {
       expect(validateScholarInput({ name_en: "  Aisha  ", bio_ar: "", slug: "aisha" }, [])).toEqual({ name_en: "Aisha", bio_ar: null, slug: "aisha" });
-      expect(validateScholarInput({ channel_ids: ["c1", "c1"] }, ["c1"])).toEqual({ channel_ids: '["c1"]' });
+      expect(validateScholarInput({ channel_ids: ["c1", "c1"] }, ["c1"])).toEqual({ channel_ids: '["c1"]', primary_channel_id: "c1" });
       expect(() => validateScholarInput({ channel_ids: ["c2"] }, ["c1"])).toThrow("not_your_channel");
       expect(() => validateScholarInput({ channel_ids: ["c1"] }, null)).toThrow("channels_unavailable");
       expect(() => validateScholarInput({ slug: "Not OK" }, [])).toThrow("bad_slug");

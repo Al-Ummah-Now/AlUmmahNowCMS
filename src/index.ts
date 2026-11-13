@@ -5,6 +5,7 @@
  *   /api/public/v1/*         public read API (published rows only), CORS for www
  *   /api/preview/v1/*        draft preview for www (one row per signed, expiring token; no CORS)
  *   /api/release/v1/*        release pipeline only (one-time D1 token; src/routes/release-api.ts)
+ *   /internal/refs/*         api-videos' scholar post reference outbox (X-API-Key; src/routes/internal-refs.ts)
  *   /preview/:kind/:id       staff: mint a preview token, 303 → www/preview (session required)
  *   /sso/*                   SSO login/callback/logout (PKCE public client)
  *   /admin-assets/*          staff screens' CSS/JS (public, immutable, no data)
@@ -32,6 +33,8 @@ import { collectGarbage, consumeFeed, consumeFeedDlq, duePosts, verifyFeed, vide
 import { isFeedDlq, isFeedQueue } from "./lib/feed/queues.ts";
 import { checkFeedFormat } from "./lib/feed/auto-rebuild.ts";
 import { releaseApi } from "./routes/release-api.ts";
+import { internalRefsApi } from "./routes/internal-refs.ts";
+import { fillPrimaryChannels } from "./lib/scholars/refs.ts";
 import { pruneJobs } from "./lib/ai/jobs.ts";
 import { handleAiQueue, isAiQueue } from "./lib/ai/runner.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
@@ -156,6 +159,8 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    app.route("/api/preview/v1", previewApi() as unknown as Hono<AppEnv>);
    // Release pipeline (feed format rebuild): its own token check, no session (src/routes/release-api.ts).
    app.route("/api/release/v1", releaseApi() as unknown as Hono<AppEnv>);
+   // Scholar post references from api-videos (docs/SCHOLARS.md §7): its own key check, no session.
+   app.route("/internal/refs", internalRefsApi() as unknown as Hono<AppEnv>);
 
    // Staff screens' CSS/JS: public, immutable, no data (content-hashed names).
    app.route("/admin-assets", adminAssets() as unknown as Hono<AppEnv>);
@@ -341,6 +346,8 @@ export default {
          ctx.waitUntil(syncCommunity(env).catch((error) => log.error("community sync failed", { error: errText(error) })));
          return;
       }
+      // Scholars' primary channels (docs/SCHOLARS.md §7): filled from channel_ids[0] where missing.
+      ctx.waitUntil(fillPrimaryChannels(env.DB).catch((error) => log.warn("primary channel fill failed", { error: errText(error) })));
       // IndexNow: changed and newly live posts and pages (production only; src/lib/indexnow.ts)
       ctx.waitUntil(pingIndexNow(env).catch((error) => log.warn("indexnow ping failed", { error: errText(error) })));
       ctx.waitUntil(

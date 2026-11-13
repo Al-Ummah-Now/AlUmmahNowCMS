@@ -6,6 +6,7 @@
 import type { Env } from "../../env.ts";
 import { LIVE_SQL } from "../schedule.ts";
 import { normalizeSearchText } from "./normalize.ts";
+import { refSummary } from "../scholars/ref-summary.ts";
 import type { SearchDoc } from "./rank.ts";
 
 export type Locale = "en" | "ar";
@@ -39,11 +40,14 @@ export function docOf(row: Row): PostDoc {
       }
    })();
    const body = typeof row.body === "string" ? row.body.slice(0, SEARCH_BODY_CHARS * 2) : "";
+   // Scholar post references keep no body (docs/SCHOLARS.md §7): their summary's text is searched.
+   const ref = refSummary(row);
+   const refText = ref ? [ref.text, ref.poll?.question, ref.quiz?.question, ref.link?.title, ref.link?.description, ...ref.slides.flatMap((x) => [x.heading, x.body])].filter(Boolean).join(" ") : "";
    const at = new Date(String(row.published_at ?? row.created_at ?? "")).getTime();
    return {
       id: Number(row.id),
       title: normalizeSearchText(String(row.title ?? "")),
-      text: normalizeSearchText([row.excerpt ?? "", tags.join(" "), body].join(" ")).slice(0, SEARCH_BODY_CHARS),
+      text: normalizeSearchText([row.excerpt ?? "", tags.join(" "), body, refText].join(" ")).slice(0, SEARCH_BODY_CHARS),
       publishedMs: Number.isNaN(at) ? 0 : at,
       row,
    };
@@ -51,7 +55,7 @@ export function docOf(row: Row): PostDoc {
 
 async function load(env: Env, locale: Locale): Promise<PostDoc[]> {
    const { results } = await env.DB.prepare(
-      `SELECT id, slug, locale, title, excerpt, body, author_name, tags, kind, slides, published_at, updated_at, created_at
+      `SELECT id, slug, locale, title, excerpt, body, author_name, tags, kind, slides, published_at, updated_at, created_at, ref_post_id, ref_channel_id, summary_json
        FROM posts WHERE locale = ?1 AND ${LIVE_SQL} ORDER BY published_at DESC, id DESC LIMIT ?2`,
    )
       .bind(locale, SEARCH_MAX_DOCS)

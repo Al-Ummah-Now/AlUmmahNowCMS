@@ -339,9 +339,16 @@ export async function featuringScreen(v: View, env: Env, p: FeaturingParams, vid
                   {res.items.map((a) => (
                      <li class="li" style="grid-template-columns:minmax(0,1fr) auto" data-candidate={String(a.id)}>
                         <div class="li-body">
-                           <a class="li-title" href={`/posts/${a.id}`} lang={a.locale} dir="auto">
-                              {a.title}
-                           </a>
+                           {a.ref ? (
+                              // A reference: scholars edit the post in Studio; editors only feature it.
+                              <a class="li-title" href={`${trimSlash(env.WWW_URL || "https://www.alummahnow.net")}/${a.locale}/articles/${encodeURIComponent(a.slug)}/`} lang={a.locale} dir="auto">
+                                 {a.title}
+                              </a>
+                           ) : (
+                              <a class="li-title" href={`/posts/${a.id}`} lang={a.locale} dir="auto">
+                                 {a.title}
+                              </a>
+                           )}
                            <div class="li-meta">
                               <span class="badge loc">{a.locale.toUpperCase()}</span>
                               {a.scholar ? (
@@ -349,7 +356,12 @@ export async function featuringScreen(v: View, env: Env, p: FeaturingParams, vid
                                     {scholarName(a.scholar, v.prefs.lang)}
                                  </a>
                               ) : null}
-                              {a.kind === "cards" ? <span>{t.content.kindCards}</span> : null}
+                              {a.kind !== "article" ? <span>{tf.kinds[a.kind] ?? a.kind}</span> : null}
+                              {a.ref && a.ref.channel_id ? (
+                                 <a href={`${trimSlash(env.VIDEOS_WEB_URL)}/${v.prefs.lang}/settings/channel/${encodeURIComponent(a.ref.channel_id)}/community`} data-open-studio>
+                                    {tf.openInStudio}
+                                 </a>
+                              ) : null}
                               {a.published_at ? <LocalTime iso={a.published_at} lang={v.prefs.lang} /> : null}
                               {a.featured_at ? (
                                  <span class="badge published">

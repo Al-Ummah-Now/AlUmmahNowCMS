@@ -22,6 +22,9 @@ import { checkFeedFormat } from "../lib/feed/auto-rebuild.ts";
 import { parseQuery, rank } from "../lib/search/rank.ts";
 import { searchDocs, type PostDoc } from "../lib/search/source.ts";
 import { mediaByIds, publicBlocks, publicSlides, rowSlides, slideMediaIds, type BlockDeps, type PublicSlide } from "../lib/blocks-public.ts";
+import { refSummary } from "../lib/scholars/ref-summary.ts";
+import { loadRefPost, mediaOf, publicCommunity, refInfo, slidesOf } from "../lib/scholars/ref-public.ts";
+import type { PostKind } from "../lib/post-schema.generated.ts";
 
 type Locale = "en" | "ar";
 type Row = Record<string, unknown>;
@@ -95,7 +98,7 @@ const truthy = (v: unknown, def: boolean) =>
 export { mediaUrl, mediaVariants };
 export type { MediaRef, MediaVariants };
 
-async function covers(env: Env, entity: "pages" | "posts", ids: unknown[]): Promise<Map<string, MediaRef>> {
+export async function covers(env: Env, entity: "pages" | "posts", ids: unknown[]): Promise<Map<string, MediaRef>> {
    const out = new Map<string, MediaRef>();
    if (ids.length === 0) return out;
    const keys = ids.map(String);
@@ -243,7 +246,7 @@ async function curated(env: Env, l: Locale, placement: "home" | "videos") {
    return results.map((r) => curatedOf(r, videosWebUrl));
 }
 
-export const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, author_sub, tags, kind, slides, published_at, updated_at, created_at";
+export const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, author_sub, tags, kind, slides, published_at, updated_at, created_at, ref_post_id, ref_channel_id, summary_json";
 
 /** A scholar post's byline (docs/SCHOLARS.md §3): the scholar's name in the post's language and their page. */
 export interface PostAuthor {
@@ -284,7 +287,7 @@ export async function postSummaries(env: Env, rows: Row[]) {
    ]);
    return rows.map((r) => {
       const slides = publicSlides(rowSlides(r), media);
-      return postSummaryOf(r, cov.get(String(r.id)) ?? null, slides, authorOf(r, authors));
+      return postSummaryOf(env, r, cov.get(String(r.id)) ?? null, slides, authorOf(r, authors));
    });
 }
 
@@ -299,9 +302,16 @@ export const SUMMARY_SLIDES_MAX = 10;
  * `kind`, `slide_count`, `first_slide` and `slides` are additive (card posts); articles have 0, null
  * and []. A summary's `slides` stops at SUMMARY_SLIDES_MAX; the full post (postOf) carries them all.
  */
-function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[], author: PostAuthor | null) {
+function postSummaryOf(env: Env, r: Row, cover: MediaRef | null, slides: PublicSlide[], author: PostAuthor | null) {
    const published = toIso(r.published_at) ?? toIso(r.created_at) ?? new Date(0).toISOString();
    const tags = parseJson<unknown>(r.tags, []);
+   // A scholar post reference (docs/SCHOLARS.md §7): its face comes from the summary cache.
+   const v2 = refSummary(r);
+   if (v2) {
+      cover = mediaOf(v2.cover);
+      slides = slidesOf(v2.slides);
+   }
+   const kind: PostKind = v2 ? v2.kind : r.kind === "cards" ? "cards" : "article";
    return {
       slug: String(r.slug),
       locale: r.locale as Locale,
@@ -314,10 +324,24 @@ function postSummaryOf(r: Row, cover: MediaRef | null, slides: PublicSlide[], au
       tags: Array.isArray(tags) ? tags.filter((t): t is string => typeof t === "string") : [],
       published_at: published,
       updated_at: toIso(r.updated_at) ?? published,
-      kind: r.kind === "cards" ? ("cards" as const) : ("article" as const),
-      slide_count: slides.length,
+      kind,
+      slide_count: v2 ? v2.slide_count : slides.length,
       first_slide: slides[0] ?? null,
       slides: slides.slice(0, SUMMARY_SLIDES_MAX),
+      // Additive (scholar post references): the community post, and its kind-specific summary.
+      ref: v2 ? refInfo(env, r) : null,
+      v2: v2
+         ? {
+              images: v2.images.map(mediaOf).filter((m): m is MediaRef => m !== null),
+              image_count: v2.image_count,
+              video_id: v2.video_id,
+              link: v2.link ? { url: v2.link.url, title: v2.link.title, description: v2.link.description, image: mediaOf(v2.link.image) } : null,
+              poll: v2.poll,
+              quiz: v2.quiz,
+              gif: mediaOf(v2.gif),
+              text: v2.text,
+           }
+         : null,
    };
 }
 
@@ -370,7 +394,7 @@ export async function pageOf(env: Env, row: Row) {
 /** A `posts` row as the public `Post` (also served by the preview API). */
 export async function postOf(env: Env, row: Row) {
    const l = row.locale as Locale;
-   const body = typeof row.body === "string" ? row.body : "";
+   let body = typeof row.body === "string" ? row.body : "";
    const slideRows = rowSlides(row);
    const [cov, alts, images, media, authors] = await Promise.all([
       covers(env, "posts", [row.id]),
@@ -379,10 +403,31 @@ export async function postOf(env: Env, row: Row) {
       mediaByIds(env, slideMediaIds(slideRows)),
       postAuthors(env, [row]),
    ]);
-   const slides = publicSlides(slideRows, media);
+   let slides = publicSlides(slideRows, media);
+   const summary = postSummaryOf(env, row, cov.get(String(row.id)) ?? null, slides, authorOf(row, authors));
+   // A scholar post reference: the content is the community post's, read live (cached 60 s).
+   let community: Record<string, unknown> | null = null;
+   if (summary.ref) {
+      const live = await loadRefPost(env, row);
+      if (live === "missing") return null;
+      if (live !== "unavailable") {
+         community = publicCommunity(live);
+         const article = live.article as { body?: unknown; cover?: unknown } | undefined;
+         if (typeof article?.body === "string") body = article.body;
+         const all = slidesOf(live.slides);
+         if (all.length) slides = all;
+         const cover = mediaOf(article?.cover as never);
+         if (cover) summary.cover = cover;
+      } else {
+         slides = summary.slides;
+      }
+      if (!body) body = summary.excerpt ?? "";
+   }
    return {
-      ...postSummaryOf(row, cov.get(String(row.id)) ?? null, slides, authorOf(row, authors)),
+      ...summary,
       slides, // all of them (a summary stops at SUMMARY_SLIDES_MAX)
+      // Additive: the community post's public fields (refs only); null when it could not be read.
+      community,
       body,
       seo_title: strOrNull(row.seo_title),
       seo_description: strOrNull(row.seo_description),
@@ -437,7 +482,8 @@ async function json(c: Context<{ Bindings: Env }>, data: unknown, cache = CACHE)
 /** One search answer (docs/PUBLIC_API.md "Search"). */
 export interface SearchHit {
    id: number;
-   type: "article" | "cards";
+   /** Every PostV2 kind (scholar post references); staff posts are article or cards. */
+   type: PostKind;
    title: string;
    slug: string;
    locale: Locale;
@@ -597,7 +643,10 @@ export function publicApi(): Hono<{ Bindings: Env }> {
          .bind(c.req.param("slug"), l)
          .first<Row>();
       if (!row) throw new HttpError(404);
-      return json(c, await postOf(c.env, row));
+      const post = await postOf(c.env, row);
+      // A ref whose community post is gone or no longer public (the outbox drafts the ref soon)
+      if (!post) throw new HttpError(404);
+      return json(c, post);
    });
 
    // A renamed post's or page's old address (migration 0018, owner decision D-SEO-7): the current

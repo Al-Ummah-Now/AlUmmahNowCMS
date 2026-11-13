@@ -135,6 +135,9 @@ summaries. The feed is then rebuilt automatically in every env, with no human st
   rebuild is idempotent and logged: the Worker log has `feed format rebuild started`, and
   `timeline_changes` has action `rebuild` by `system/release`.
 
+Format 4 (2026-11-13): scholar post references (docs/SCHOLARS.md §7) on the timeline; PostSummary
+`kind` is any PostV2 kind, with `ref` and `v2`.
+
 **The bump rule.** Bump `FEED_FORMAT` whenever a stored item's shape changes (feed item,
 PostSummary, video snapshot, head/week/year docs). Bump it too when what fills the items changes,
 such as how slides or covers are chosen. Then append the new fingerprint to `FEED_FORMAT_HISTORY`.

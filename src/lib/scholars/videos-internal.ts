@@ -103,3 +103,48 @@ export async function hideArticlePost(env: Env, userId: string, externalId: stri
       throw error;
    }
 }
+
+/* ── PostV2 (docs/SCHOLARS.md §7–§8) ──────────────────────────────────────────────────────────── */
+
+/** A community post as api-videos stores it (post-schema PostLike plus counters). */
+export type CommunityPostJson = Record<string, unknown> & { id: string; channelId: string; type: string };
+
+/** One community post for www's post page (never counts a view). Null = gone or not public. */
+export async function communityPost(env: Env, channelId: string, postId: string, fetchImpl: typeof fetch = fetch): Promise<CommunityPostJson | null> {
+   try {
+      const body = await call<{ post?: CommunityPostJson }>(env, fetchImpl, "GET", `/internal/posts/${enc(channelId)}/${enc(postId)}`);
+      return body.post && typeof body.post === "object" ? body.post : null;
+   } catch (error) {
+      if (error instanceof VideosInternalError && error.status === 404) return null;
+      throw error;
+   }
+}
+
+/** The conversion's body (AlUmmahNow apps/api-videos/src/lib/scholar-articles.ts parseConvert). */
+export interface ConvertBody {
+   channelId: string;
+   kind: "article" | "cards";
+   locale: "en" | "ar";
+   translationKey?: string;
+   title?: string;
+   article?: { title: string; excerpt: string | null; body: string; cover: { url: string; alt: string | null; width: number | null; height: number | null } | null };
+   slides?: { id: string; image: { url: string; alt: string | null; width: number | null; height: number | null }; heading: string | null; body: string | null; position: string }[];
+   www: { url: string; slug: string; locale: "en" | "ar" };
+   status: "published" | "draft";
+   publishedAt: string | null;
+}
+
+/** Writes a CMS scholar post as a full community post (upgrades its mirror in place). Idempotent. */
+export async function convertPost(env: Env, userId: string, externalId: string, body: ConvertBody, fetchImpl: typeof fetch = fetch): Promise<{ postId: string; channelId: string; created: boolean; upgraded: boolean; post: CommunityPostJson }> {
+   return call(env, fetchImpl, "PUT", `/internal/scholars/${enc(userId)}/posts/${enc(externalId)}`, body);
+}
+
+/** What the conversion wrote for a CMS post (the check). Null = never converted. */
+export async function convertedPost(env: Env, userId: string, externalId: string, fetchImpl: typeof fetch = fetch): Promise<{ postId: string; channelId: string; post: CommunityPostJson } | null> {
+   try {
+      return await call(env, fetchImpl, "GET", `/internal/scholars/${enc(userId)}/posts/${enc(externalId)}`);
+   } catch (error) {
+      if (error instanceof VideosInternalError && error.status === 404) return null;
+      throw error;
+   }
+}
