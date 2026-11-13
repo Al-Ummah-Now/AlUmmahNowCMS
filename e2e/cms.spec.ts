@@ -113,7 +113,7 @@ test.describe("signed in", () => {
          await expect(page.locator("html")).toHaveAttribute("lang", locale);
          await expect(page.locator("html")).toHaveAttribute("dir", locale === "ar" ? "rtl" : "ltr");
          await expect(page.getByRole("heading", { level: 1 })).toHaveText(locale === "ar" ? "لا تملك صلاحية الوصول" : "No access");
-         await expect(page.getByRole("link", { name: locale === "ar" ? "إضافة حساب آخر" : "Add another account" })).toHaveAttribute(
+         await expect(page.getByRole("link", { name: locale === "ar" ? "تسجيل الدخول بحساب آخر" : "Sign in to another account" })).toHaveAttribute(
             "href",
             "/sso/login?prompt=login&return=%2F",
          );
