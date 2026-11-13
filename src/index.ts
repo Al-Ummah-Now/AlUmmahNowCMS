@@ -46,6 +46,7 @@ import { isCmsRole } from "./lib/roles.ts";
 import { postAuthor, scopeListUrl, scopeWhere, subOfUser, writerApiVerdict } from "./lib/scholars/ownership.ts";
 import { writerScreenAllowed } from "./lib/scholars/access.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
+import { robotsTxtResponse, withCrawlerRules } from "./lib/crawlers.ts";
 import { pickerRoutes } from "./routes/picker.ts";
 import { previewApi, previewRoutes } from "./routes/preview.ts";
 import { publicApi } from "./routes/public-api.ts";
@@ -324,7 +325,9 @@ const worker = createWorker({
 });
 
 export default {
-   fetch: (request: Request, env: Env, ctx: ExecutionContext) => worker.fetch(request, env, ctx),
+   // Crawler rules (src/lib/crawlers.ts): robots.txt, and noindex on everything but public media
+   fetch: async (request: Request, env: Env, ctx: ExecutionContext) =>
+      robotsTxtResponse(request) ?? withCrawlerRules(request, await worker.fetch(request, env, ctx)),
    // Cron (wrangler.jsonc triggers). Every minute: scheduled posts going live onto the home timeline.
    // Every 30 minutes: snapshot refreshes, image variants, the feed verifier and its garbage, the
    // soft-delete cleanup (purges admin-deleted items after 30 days, or at once when an admin asked).
