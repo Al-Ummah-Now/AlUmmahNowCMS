@@ -2,8 +2,10 @@
  * AI writing assist on a deployed CMS (docs/AI_ASSIST_SPEC.md §9). Every env declares the Workers AI
  * binding, so both roles normally get the controls; an env without the binding shows admins the "not
  * set up" notice and moderators nothing. The editor flows themselves run against mocks in e2e/local.
- * One provider-layer smoke test makes two tiny real Workers AI calls per run (Test connection and one
- * SEO job; under $0.001): the default provider still answers through the pluggable layer.
+ * The provider-layer smoke (Test connection and one SEO job: two tiny real Workers AI calls) runs only
+ * by hand with E2E_REAL_AI=1: CI never calls a real AI provider (its capacity is not ours to gate a
+ * deploy on: on 2026-11-13 "rate-limiting or out of capacity" failed the QA deploy), and the editor
+ * flows run against mocks in e2e/local.
  */
 import { expect, test } from "@playwright/test";
 import { ADMIN_STRINGS } from "../src/admin/i18n.ts";
@@ -74,6 +76,8 @@ test("AI assist settings: admin-only screen and API; Workers AI is the default a
    await expect(page.getByRole("heading", { level: 1, name: T.title })).toBeVisible();
    await expectNoAxeViolations(page);
    test.skip(!(await configured()) || !wai.enabled, "Workers AI is switched off in this env");
+   // Real provider calls are a manual smoke only (no real AI in CI)
+   test.skip(process.env.E2E_REAL_AI !== "1", "real AI calls run only by hand with E2E_REAL_AI=1");
 
    // Test connection: one tiny real call to Workers AI through the provider contract
    const card = page.locator('[data-provider][data-kind="workers-ai"]');
