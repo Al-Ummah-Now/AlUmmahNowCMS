@@ -7,10 +7,11 @@ name: Local-stack bundle
 # installing this repo, so its main and release runs never execute a second repo's checkout. Its
 # scholar-reference spec (CMS refs → www) needs it.
 
+# On every release tag (the stack only uses bundles of commits whose Release run succeeded:
+# AlUmmahNow scripts/local-stack/resolve-refs.ts), and by hand for an older released commit.
 on:
-  workflow_run:
-    workflows: [Release]
-    types: [completed]
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       sha:
@@ -21,18 +22,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: local-stack-bundle-${{ github.event.workflow_run.head_sha || inputs.sha }}
+  group: local-stack-bundle-${{ inputs.sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
   bundle:
     name: Build and publish
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:
-      SHA: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+      SHA: ${{ inputs.sha || github.sha }}
     steps:
       - name: Released commit
         run: |
