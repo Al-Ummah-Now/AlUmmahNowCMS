@@ -32,6 +32,17 @@ describe("tab and app icons", () => {
       expect(manifest.name).toBe("Al Ummah Now CMS");
    });
 
+   it("serves the account menu's app icons as separate WebP files (never inlined in the CSS)", async () => {
+      const f = makeWorker();
+      for (const id of ["www", "videos", "profile", "cms", "admin", "auth-admin"]) {
+         const res = await f(`/aun-nav/icons/${id}.webp`);
+         expect(res.status, id).toBe(200);
+         expect(res.headers.get("content-type")).toBe("image/webp");
+         const body = new Uint8Array(await res.arrayBuffer());
+         expect(new TextDecoder().decode(body.subarray(8, 12))).toBe("WEBP");
+      }
+   });
+
    it("the staff shell links the icon for its environment", async () => {
       const { callback } = await signIn(["Moderator"], { id: "icons-ed", email: "icons-ed@example.com" });
       const cookie = cookiesOf(callback);
