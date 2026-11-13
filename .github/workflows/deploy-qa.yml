@@ -1,7 +1,9 @@
 name: Deploy QA
 
 # Every push to main: migrate the QA D1 (expand-only), deploy al-ummah-now-cms-qa, smoke,
-# secrets check, then E2E. Production is released separately, by a vYYYY.MM.DD tag (release.yml).
+# secrets check. No E2E against QA here: owner rule (2026-11-13), tests run against the deployed QA
+# only on numbered releases (QA's D1 read volume). The release's stage E2E is the gate; e2e-qa.yml
+# runs the suite on QA by hand. Production is released separately, by a vYYYY.MM.DD tag (release.yml).
 on:
   push:
     branches: [main]
@@ -81,10 +83,3 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node --experimental-strip-types --no-warnings scripts/release/feed-format.ts --env qa
-
-  e2e:
-    name: E2E (QA)
-    needs: deploy
-    uses: ./.github/workflows/e2e-qa.yml
-    secrets:
-      QA_SEED_PASSWORD: ${{ secrets.QA_SEED_PASSWORD }}

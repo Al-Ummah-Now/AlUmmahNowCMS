@@ -1,7 +1,8 @@
 name: E2E (QA)
 
-# Playwright against the deployed QA CMS. Called by deploy-qa.yml after every QA deploy;
-# can also be run by hand.
+# Playwright against the deployed QA CMS, by hand only. Owner rule (2026-11-13): tests run against
+# QA only on numbered releases, so deploy-qa.yml no longer calls this after each QA deploy; the
+# release's stage E2E (release.yml) runs the same suite as the gate.
 on:
   workflow_call:
     secrets:
