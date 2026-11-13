@@ -154,7 +154,8 @@ function overrides(opts: { jwtSecret: string; secureCookie: boolean; publicUrl: 
             issuer: "al-ummah-now-cms",
             // sid: this session's id, revoked by its sign-out (src/lib/sign-outs.ts)
             // name_en / name_ar: the account's name at sign-in (src/lib/account-name.ts), for the account menu
-            fields: ["id", "email", "role", "sid", "name_en", "name_ar"],
+            // pkd: a staff passkey grace deadline (epoch s, src/lib/passkeys.ts); the session lapses at it
+            fields: ["id", "email", "role", "sid", "name_en", "name_ar", "pkd"],
          },
          cookie: {
             path: "/",

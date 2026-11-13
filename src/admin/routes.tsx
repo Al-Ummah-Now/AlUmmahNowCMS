@@ -42,6 +42,7 @@ import { libraryScreen, navigationScreen, siteScreen } from "./screens/site.tsx"
 import { libraryVideosScreen } from "./screens/videos-library.tsx";
 import { curatedPage } from "../lib/page-entries.ts";
 import { Shell, type View } from "./ui/layout.tsx";
+import { passkeySetupUrl, sessionPasskeyDeadline } from "../lib/passkeys.ts";
 
 /** Paths the staff screens own (the session gate in src/index.ts uses this). */
 export const ADMIN_SCREENS = ["/admin/api", "/pages", "/posts", "/write", "/timeline", "/navigation", "/videos", "/site", "/library", "/people", "/deleted", "/ai-settings", "/scholars", "/featuring", "/glossary"];
@@ -72,7 +73,15 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       assets: assetUrls(prefs.theme),
       tabIcons: tabIconLinks(c.env.ENVIRONMENT),
       ai: await aiReady(c.env).catch(() => false),
+      passkey: passkeyBanner(user, cfg, url, prefs.lang),
    };
+}
+
+/** The grace banner for a staff session signed in without a passkey (src/lib/passkeys.ts). */
+function passkeyBanner(user: { pkd?: unknown }, cfg: { issuer: string; publicUrl: string }, url: URL, lang: "en" | "ar"): View["passkey"] {
+   const deadline = sessionPasskeyDeadline(user);
+   if (deadline === null) return null;
+   return { deadline, setupUrl: passkeySetupUrl(cfg.issuer, cfg.publicUrl, url.pathname + url.search, lang) };
 }
 
 export function render(c: Ctx, v: View, title: string, body: Child, status: 200 | 403 | 404 = 200) {

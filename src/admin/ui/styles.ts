@@ -257,6 +257,8 @@ dialog.dlg::backdrop{background:rgb(4 8 12/.6);-webkit-backdrop-filter:blur(3px)
 .notice.bad{background:color-mix(in srgb,var(--fanous-color-error-fill) 14%,transparent);box-shadow:inset 0 0 0 1px var(--fanous-c-form-error)}
 .preview-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;padding:6px 12px;background:var(--m-primary);color:var(--fanous-c-button-primary-text);font-size:14px;font-weight:600}
 .preview-bar a{color:inherit}
+.passkey-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;padding:8px 12px;background:var(--m-primary);color:var(--fanous-c-button-primary-text);font-size:14px;font-weight:600;text-align:center}
+.passkey-bar a{color:inherit;text-decoration:underline}
 
 /* Editor */
 .md-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:6px;border-radius:var(--r-md) var(--r-md) 0 0;background:color-mix(in srgb,var(--fanous-color-surface) 70%,transparent);box-shadow:inset 0 0 0 1px var(--fanous-c-form-input-border)}

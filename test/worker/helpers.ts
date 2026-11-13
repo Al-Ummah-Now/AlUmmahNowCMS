@@ -12,8 +12,9 @@ const keys = await generateKeyPair("ES256");
 const jwk = { ...(await exportJWK(keys.publicKey)), kid: "k1", alg: "ES256", use: "sig" };
 export const jwks = createLocalJWKSet({ keys: [jwk] });
 
-export async function accessToken(props: { id: string; email: string; roles?: string[] }): Promise<string> {
-   return new SignJWT({ mode: "access", type: "user", properties: props })
+/** `claims`: extra top-level claims (amr, auth_time). */
+export async function accessToken(props: { id: string; email: string; roles?: string[]; passkey_deadline?: number }, claims: Record<string, unknown> = {}): Promise<string> {
+   return new SignJWT({ ...claims, mode: "access", type: "user", properties: props })
       .setProtectedHeader({ alg: "ES256", kid: "k1" })
       .setSubject(`user:${props.id}`)
       .setIssuer(ISSUER)
@@ -50,8 +51,15 @@ export function cookiesOf(res: Response): string {
 }
 
 /** Runs /sso/login → /sso/callback with a token carrying `roles`; returns the callback response. */
-export async function signIn(roles: string[] | undefined, who = { id: "u-1", email: "editor@example.com" }) {
-   const token = await accessToken({ ...who, roles });
+export async function signIn(
+   roles: string[] | undefined,
+   who = { id: "u-1", email: "editor@example.com" },
+   extra: { deadline?: number; amr?: string[]; returnPath?: string } = {},
+) {
+   const token = await accessToken(
+      { ...who, roles, ...(extra.deadline !== undefined ? { passkey_deadline: extra.deadline } : {}) },
+      extra.amr ? { amr: extra.amr, auth_time: Math.floor(Date.now() / 1000) } : {},
+   );
    let tokenRequest: URLSearchParams | undefined;
    const fetchCms = makeWorker((url, init) => {
       if (url.toString() === `${ISSUER}/token`) {
@@ -60,7 +68,7 @@ export async function signIn(roles: string[] | undefined, who = { id: "u-1", ema
       }
       return new Response("no", { status: 404 });
    });
-   const login = await fetchCms("/sso/login?return=%2Fdata%2Fentity%2Fposts");
+   const login = await fetchCms(`/sso/login?return=${encodeURIComponent(extra.returnPath ?? "/data/entity/posts")}`);
    const authorize = new URL(login.headers.get("location")!);
    const callback = await fetchCms(`/sso/callback?code=the-code&state=${authorize.searchParams.get("state")}`, {
       headers: { cookie: cookiesOf(login) },

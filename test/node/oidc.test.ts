@@ -17,8 +17,9 @@ beforeAll(async () => {
    jwks = createLocalJWKSet({ keys: [jwk] });
 });
 
-async function token(over: { iss?: string; aud?: string; exp?: number; key?: CryptoKey; props?: object; mode?: string } = {}) {
+async function token(over: { iss?: string; aud?: string; exp?: number; key?: CryptoKey; props?: object; mode?: string; claims?: object } = {}) {
    return new SignJWT({
+      ...over.claims,
       mode: over.mode ?? "access",
       type: "user",
       properties: over.props ?? { id: "u1", email: "Admin@Example.com", roles: ["Admin"] },
@@ -35,6 +36,23 @@ describe("verifyAccessToken (local JWKS)", () => {
    it("accepts a valid token and extracts the identity", async () => {
       const id = await verifyAccessToken(await token(), { issuer: ISSUER, clientId: CLIENT, jwks });
       expect(id).toEqual({ sub: "u1", email: "admin@example.com", roles: ["Admin"], name: null });
+   });
+   it("reads amr, auth_time and properties.passkey_deadline (AUTH-PASSKEYS token claims)", async () => {
+      const t = await token({
+         claims: { amr: ["pwd", 7], auth_time: 1_800_000_000 },
+         props: { id: "u1", email: "a@example.com", roles: ["Admin"], passkey_deadline: 1_800_600_000 },
+      });
+      const id = await verifyAccessToken(t, { issuer: ISSUER, clientId: CLIENT, jwks });
+      expect(id.amr).toEqual(["pwd"]);
+      expect(id.authTime).toBe(1_800_000_000);
+      expect(id.passkeyDeadline).toBe(1_800_600_000);
+   });
+   it("leaves the passkey claims out when the token has none, or they are malformed", async () => {
+      const t = await token({ claims: { amr: "passkey", auth_time: "soon" }, props: { id: "u1", email: "a@example.com", roles: [], passkey_deadline: "x" } });
+      const id = await verifyAccessToken(t, { issuer: ISSUER, clientId: CLIENT, jwks });
+      expect(id).not.toHaveProperty("amr");
+      expect(id).not.toHaveProperty("authTime");
+      expect(id).not.toHaveProperty("passkeyDeadline");
    });
    it.each([
       ["wrong issuer", { iss: "https://evil.test" }],

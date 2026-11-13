@@ -2,13 +2,14 @@
  * SSO (SPEC §3): /sso/login → auth /authorize (PKCE S256) → /sso/callback → bknd session cookie.
  */
 import { Hono } from "hono";
-import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
+import { deleteCookie, getCookie, getSignedCookie, setCookie, setSignedCookie } from "hono/cookie";
 import { pickLang } from "../lib/i18n.ts";
 import { buildAuthorizeUrl, exchangeCode, signInLang, OidcError, parsePrompt, verifyAccessToken, type Prompt } from "../lib/oidc.ts";
-import { statusPage } from "../lib/pages.ts";
+import { passkeyNeededPage, statusPage } from "../lib/pages.ts";
 import { createPkce, randomToken } from "../lib/pkce.ts";
 import { safeReturnPath } from "../lib/return-path.ts";
 import { mapRoles } from "../lib/roles.ts";
+import { passkeyNeededPath, passkeySetupUrl, passkeySignInPath, passkeyVerdict } from "../lib/passkeys.ts";
 import { upsertSsoUser } from "../lib/users.ts";
 import { accountName, fetchAccountProfile } from "../lib/account-name.ts";
 import { ensureScholar } from "../lib/scholars/profiles.ts";
@@ -184,6 +185,15 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
          return c.redirect("/sso/no-access", 303);
       }
 
+      // Staff passkeys (src/lib/passkeys.ts): past the deadline without a passkey sign-in there is no
+      // session, only the "Passkey needed" page; inside the grace period the session carries the
+      // deadline (pkd), so it lapses then even if its 8 h are not over.
+      const passkey = passkeyVerdict(identity);
+      if (passkey.kind === "required") {
+         await clearSession(c, deps);
+         return c.redirect(passkeyNeededPath(tx.r, signInLang(undefined, tx.r)), 303);
+      }
+
       // The auth tokens are not kept: the CMS only needs the identity and roles at sign-in time.
       // Everything after this runs on the bknd session (SESSION_TTL_SECONDS); the picker calls the
       // PUBLIC videos API server-side without any user token (src/lib/videos.ts). So there is no
@@ -209,7 +219,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       }
       const app = await deps.getApp(c);
       const authenticator = app.module.auth.authenticator;
-      const token = await authenticator.jwt({ id: user.id, email: user.email, role: user.role, strategy: "sso", sid: newSessionId(), name_en: names.en, name_ar: names.ar });
+      const token = await authenticator.jwt({ id: user.id, email: user.email, role: user.role, strategy: "sso", sid: newSessionId(), name_en: names.en, name_ar: names.ar, ...(passkey.kind === "grace" ? { pkd: passkey.deadline } : {}) });
       const headers = await authenticator.getAuthCookieHeader(token, new Headers());
       for (const cookie of headers.getSetCookie()) c.header("Set-Cookie", cookie, { append: true });
       return c.redirect(tx.r, 302);
@@ -241,6 +251,30 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       return c.redirect(target.toString(), 302);
    });
 
+   // Staff passkeys (src/lib/passkeys.ts): a page, not an error. Needs no CMS session (it has none).
+   sso.get("/passkey-needed", (c) => {
+      const cfg = c.get("cfg");
+      const url = new URL(c.req.url);
+      const returnPath = safeReturnPath(c.req.query("return"));
+      // Language and mode as on the staff screens (src/admin/prefs.ts): ?lang= / ?mode= saved per browser
+      const opts = { path: "/", sameSite: "Lax" as const, secure: !cfg.isLocal, httpOnly: true, maxAge: 365 * 24 * 60 * 60 };
+      const qLang = c.req.query("lang");
+      const savedLang = getCookie(c, "cms_lang");
+      const lang = qLang === "ar" || qLang === "en" ? qLang : savedLang === "ar" || savedLang === "en" ? savedLang : pickLang(url, c.req.header("Accept-Language") ?? null);
+      const qMode = c.req.query("mode");
+      if (qMode === "light" || qMode === "dark") setCookie(c, "cms_mode", qMode, opts);
+      const savedMode = getCookie(c, "cms_mode");
+      const mode = qMode === "light" || qMode === "dark" ? qMode : savedMode === "light" || savedMode === "dark" ? savedMode : null;
+      const html = passkeyNeededPage({
+         lang,
+         nonce: c.get("nonce"),
+         mode,
+         returnPath,
+         setupUrl: passkeySetupUrl(cfg.issuer, cfg.publicUrl, returnPath, lang),
+         signInPath: passkeySignInPath(returnPath, lang),
+      });
+      return c.html(html, 200);
+   });
    sso.get("/no-access", (c) => renderStatus(c, "no_access", 403, { returnPath: "/" }));
    // Account chooser (linked from the picker and the admin UI). Needs no CMS session: the list
    // is read by the browser straight from auth.

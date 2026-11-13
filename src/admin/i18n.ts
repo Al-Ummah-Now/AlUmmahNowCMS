@@ -64,6 +64,11 @@ const en = {
       toLight: "Switch to light mode",
       toDark: "Switch to dark mode",
    },
+   passkey: {
+      // {date}: the staff passkey deadline (AUTH-PASSKEYS grace period)
+      banner: "Add a passkey by {date}. After that, staff accounts sign in to the CMS with a passkey only.",
+      add: "Add a passkey",
+   },
    overview: {
       title: "Overview",
       greeting: "Welcome back",
@@ -1224,6 +1229,10 @@ const ar: Strings = {
       switchTo: "English",
       toLight: "التبديل إلى الوضع الفاتح",
       toDark: "التبديل إلى الوضع الداكن",
+   },
+   passkey: {
+      banner: "أضف مفتاح مرور قبل {date}. بعد ذلك تسجّل حسابات فريق العمل الدخول إلى نظام إدارة المحتوى بمفتاح مرور فقط.",
+      add: "إضافة مفتاح مرور",
    },
    overview: {
       title: "نظرة عامة",

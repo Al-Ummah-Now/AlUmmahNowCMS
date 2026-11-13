@@ -189,6 +189,8 @@ describe("callback", () => {
       expect(screen.status).toBe(302);
       expect(screen.headers.get("location")).toBe("/sso/login?return=%2Fposts");
       expect((await fetchCms("/picker/api/search?kind=video&q=ab", { headers: { cookie: copied } })).status).toBe(401);
+      // bknd's API too: the copy is a guest there (no data permissions), not the signed-out account
+      expect((await fetchCms("/api/data/entity/posts", { headers: { cookie: copied } })).status).toBe(403);
    });
 
    it("a sign-out ends only that browser's session: the account's other browsers stay signed in", async () => {

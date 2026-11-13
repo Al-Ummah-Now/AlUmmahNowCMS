@@ -37,18 +37,36 @@ export interface PageOptions {
    nonce: string;
    extraCss?: string;
    script?: string;
+   /**
+    * Light/Dark (no "System", owner 2026-11-13): the saved `cms_mode`, or null to follow the device
+    * (decided before paint). Absent: the page is light only, as before.
+    */
+   mode?: "light" | "dark" | null;
 }
 
+/** Dark tokens for pages with a mode (AA contrast: text #f1f3f5 on #121417 = 16:1, links #8ab4f8 = 9:1). */
+const DARK_CSS = `
+html.dark{color-scheme:dark;--fg:#f1f3f5;--muted:#c4c9d0;--bg:#121417;--panel:#1e2227;--border:#8a8f98;--accent:#8ab4f8;--accent-fg:#0b1a2e;--danger:#ff8a8a;--ok:#7ddc9a;--focus:#ffb366}
+body{background:var(--bg)}
+html.dark .mode-to-dark,html:not(.dark) .mode-to-light{display:none}
+`;
+/** Before paint: with no saved choice the device decides html.dark, and later changes follow. */
+const MODE_SCRIPT = `(function(){var h=document.documentElement;if(h.dataset.mode)return;var m=matchMedia("(prefers-color-scheme: dark)");var a=function(){h.classList.toggle("dark",m.matches)};a();m.addEventListener("change",a)})();`;
+
 export function page(o: PageOptions): string {
+   const moded = o.mode !== undefined;
+   const htmlAttrs = moded ? `${o.mode ? ` data-mode="${o.mode}"` : ""}${o.mode === "dark" ? ' class="dark"' : ""}` : "";
    return `<!doctype html>
-<html lang="${o.lang}" dir="${o.lang === "ar" ? "rtl" : "ltr"}">
+<html lang="${o.lang}" dir="${o.lang === "ar" ? "rtl" : "ltr"}"${htmlAttrs}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+${moded ? '<meta name="color-scheme" content="dark light">' : ""}
 <title>${esc(o.title)}</title>
+${moded ? `<script nonce="${o.nonce}">${MODE_SCRIPT}</script>` : ""}
 ${tabIconHtml("production") /* these pages have no environment: the plain set */}
-<style nonce="${o.nonce}">${BASE_CSS}${o.extraCss ?? ""}</style>
+<style nonce="${o.nonce}">${BASE_CSS}${moded ? DARK_CSS : ""}${o.extraCss ?? ""}</style>
 </head>
 <body>
 ${o.body}
