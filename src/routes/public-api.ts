@@ -335,7 +335,7 @@ function postSummaryOf(env: Env, r: Row, cover: MediaRef | null, slides: PublicS
               images: v2.images.map(mediaOf).filter((m): m is MediaRef => m !== null),
               image_count: v2.image_count,
               video_id: v2.video_id,
-              link: v2.link ? { url: v2.link.url, title: v2.link.title, description: v2.link.description, image: mediaOf(v2.link.image) } : null,
+              link: v2.link ? { url: v2.link.url, title: v2.link.title, description: v2.link.description, site_name: v2.link.siteName ?? null, image: mediaOf(v2.link.image) } : null,
               poll: v2.poll,
               quiz: v2.quiz,
               gif: mediaOf(v2.gif),
