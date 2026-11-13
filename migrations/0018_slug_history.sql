@@ -4,6 +4,7 @@
 --
 -- slug_history: one row per old address of a published post or page. It points at the row's id, so a
 -- second rename still leads to the current slug, and a deleted row leads nowhere (www answers 404/410).
+-- A row whose target has that very slug again (renamed back) leads nowhere either: the lookup checks it.
 -- Filled by triggers, so every write path (data API, editor, ops scripts) records it. Only renames of
 -- published rows are kept: a draft's earlier slug was never public.
 create table if not exists slug_history (
@@ -20,15 +21,14 @@ create trigger if not exists trg_posts_slug_history
 after update of slug on posts
 when old.slug is not null and new.slug is not null and old.slug <> new.slug and old.status = 'published'
 begin
-  insert or replace into slug_history (kind, locale, old_slug, target_id) values ('post', old.locale, old.slug, old.id);
-  -- the new address is live again: no history row may redirect it away
-  delete from slug_history where kind = 'post' and locale = new.locale and old_slug = new.slug;
+  insert into slug_history (kind, locale, old_slug, target_id) values ('post', old.locale, old.slug, old.id)
+    on conflict (kind, locale, old_slug) do update set target_id = excluded.target_id, renamed_at = excluded.renamed_at;
 end;
 
 create trigger if not exists trg_pages_slug_history
 after update of slug on pages
 when old.slug is not null and new.slug is not null and old.slug <> new.slug and old.status = 'published'
 begin
-  insert or replace into slug_history (kind, locale, old_slug, target_id) values ('page', old.locale, old.slug, old.id);
-  delete from slug_history where kind = 'page' and locale = new.locale and old_slug = new.slug;
+  insert into slug_history (kind, locale, old_slug, target_id) values ('page', old.locale, old.slug, old.id)
+    on conflict (kind, locale, old_slug) do update set target_id = excluded.target_id, renamed_at = excluded.renamed_at;
 end;
