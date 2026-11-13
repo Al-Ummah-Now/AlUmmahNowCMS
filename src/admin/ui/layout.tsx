@@ -141,7 +141,7 @@ function AccountMenu(props: { v: View }) {
                <span class="aun-avatar aun-avatar--lg" aria-hidden="true">{initial}</span>
                <span class="aun-menu-who-text">
                   <span class="aun-menu-who-name" dir="auto" title={v.user.email}>{label}</span>
-                  {label !== v.user.email ? <span class="aun-menu-who-sub" dir="auto">{v.user.email}</span> : null}
+                  {label !== v.user.email ? <EmailText email={v.user.email} class="aun-menu-who-sub" /> : null}
                   <span class="aun-menu-who-sub">{isAdmin(v) ? v.t.header.roleAdmin : isWriter(v) ? v.t.header.roleWriter : v.t.header.roleEditor}</span>
                </span>
             </div>
@@ -175,6 +175,21 @@ function AccountMenu(props: { v: View }) {
             </a>
          </div>
       </details>
+   );
+}
+
+/**
+ * An email that keeps its domain when it does not fit (AlUmmahNow docs/design/NAV.md): the local
+ * part shrinks with an ellipsis, "@domain" stays whole, and the full address is the tooltip.
+ */
+function EmailText(props: { email: string; class: string }) {
+   const at = props.email.lastIndexOf("@");
+   if (at <= 0) return <span class={props.class} dir="ltr" title={props.email}>{props.email}</span>;
+   return (
+      <span class={`${props.class} aun-email`} dir="ltr" title={props.email}>
+         <span class="aun-email-local">{props.email.slice(0, at)}</span>
+         <span class="aun-email-domain">{props.email.slice(at)}</span>
+      </span>
    );
 }
 
