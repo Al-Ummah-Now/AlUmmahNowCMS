@@ -29,6 +29,8 @@ export interface ScholarHelpers {
    postSummaries: (env: Env, rows: Row[]) => Promise<unknown[]>;
    HttpError: new (status: 400 | 404, message?: string) => Error;
    CACHE: string;
+   /** Per-IP search limit (SEARCH_LIMITER); a Response when refused */
+   searchLimited: (c: C, endpoint?: string) => Promise<Response | null>;
 }
 
 /** Columns of a post summary (the same as POST_SUMMARY_COLS in public-api.ts, kept local to avoid a cycle). */
@@ -113,6 +115,9 @@ export function scholarRoutes(api: Hono<{ Bindings: Env }>, h: ScholarHelpers): 
       const limit = h.intParam(c.req.query("limit"), 3, 1, 10, "limit");
       const q = (c.req.query("q") ?? "").trim().slice(0, 100);
       if (normalizeSearchText(q).length < 2) return h.json(c, [], h.CACHE);
+      // Every lookup reads D1 (no edge cache): the same per-IP limit as the post search
+      const limited = await h.searchLimited(c, "cms.search_scholars");
+      if (limited) return limited;
       const { items } = await listScholars(c.env.DB, { q, limit });
       const pics = await avatars(c.env, items);
       return h.json(

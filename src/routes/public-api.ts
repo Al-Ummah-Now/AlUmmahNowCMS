@@ -524,13 +524,23 @@ function searchLocale(c: Context): Locale {
  * CF-Connecting-IP, which Cloudflare always sets on public requests; a request without it came over
  * a service binding (www's search page), which passes the visitor's IP as X-Client-IP. Null = go on.
  */
-async function searchLimited(c: Context<{ Bindings: Env }>): Promise<Response | null> {
+export async function searchLimited(c: Context<{ Bindings: Env }>, endpoint = "cms.search"): Promise<Response | null> {
    const limiter = c.env.SEARCH_LIMITER;
    const ip = c.req.header("CF-Connecting-IP") ?? c.req.header("X-Client-IP");
    if (!limiter || !ip) return null;
    const { success } = await limiter.limit({ key: ip });
    if (success) return null;
+   recordAbuse(c.env, endpoint, "rate_limited");
    return c.json({ error: "rate_limited" }, 429, { "Retry-After": "60", "Cache-Control": "no-store", ...corsHeaders(c.env, c.req.header("Origin")) });
+}
+
+/** One abuse counter point (docs/features/bot-protection.md in AlUmmahNow): never personal data. */
+export function recordAbuse(env: Env, endpoint: string, kind: "rate_limited"): void {
+   try {
+      env.ABUSE_EVENTS?.writeDataPoint({ indexes: ["cms"], blobs: ["cms", endpoint, kind, env.ENVIRONMENT ?? "local"], doubles: [1] });
+   } catch (error) {
+      console.warn("abuse counter write failed", String(error));
+   }
 }
 
 /**
@@ -777,7 +787,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       return json(c, { items, scholars: scholars.results.map((r) => ({ slug: String(r.slug), updated_at: toIso(r.updated_at) ?? new Date(0).toISOString() })) });
    });
 
-   scholarRoutes(api, { json, locale, intParam, postSummaries, HttpError, CACHE });
+   scholarRoutes(api, { json, locale, intParam, postSummaries, HttpError, CACHE, searchLimited });
 
    api.get("/media/*", async (c) => {
       const prefix = "/api/public/v1/media/";

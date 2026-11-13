@@ -43,6 +43,8 @@
   "kv_namespaces": [{ "binding": "FEED", "id": "5f27cddf86c84bbdbb59445ad867253c" }],
   // Per-IP limit on the public search (src/routes/public-api.ts): 120 a minute. Not inherited by envs.
   "ratelimits": [{ "name": "SEARCH_LIMITER", "namespace_id": "1101", "simple": { "limit": 120, "period": 60 } }],
+  // Abuse counters: refused searches, read by the videos admin Abuse page (no IP or query). Not inherited by envs.
+  "analytics_engine_datasets": [{ "binding": "ABUSE_EVENTS", "dataset": "al_ummah_now_abuse" }],
   // Scholar articles → their channel's Community tab (src/lib/scholars/community.ts): api-videos'
   // service-to-service key (its /internal/* routes), from the shared Secrets Store. Not inherited by envs.
   "secrets_store_secrets": [{ "binding": "VIDEOS_INTERNAL_API_KEY", "store_id": "f8eddc9944d041919ed8dc7d08d32308", "secret_name": "internal-api-key" }],
@@ -96,6 +98,8 @@
       // www's home timeline (docs/FEED.md): written only by this Worker, read by www (binding FEED there too).
       "kv_namespaces": [{ "binding": "FEED", "id": "33ddf8bb7eae439c91fcc4af22797f42" }],
       "ratelimits": [{ "name": "SEARCH_LIMITER", "namespace_id": "1102", "simple": { "limit": 120, "period": 60 } }],
+      // Abuse counters: refused searches, read by the videos admin Abuse page (no IP or query). Not inherited by envs.
+      "analytics_engine_datasets": [{ "binding": "ABUSE_EVENTS", "dataset": "al_ummah_now_abuse_stage" }],
       "secrets_store_secrets": [{ "binding": "VIDEOS_INTERNAL_API_KEY", "store_id": "f8eddc9944d041919ed8dc7d08d32308", "secret_name": "internal-api-key-stage" }],
       "queues": {
         "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-stage" }, { "binding": "FEED_JOBS", "queue": "al-ummah-now-cms-feed-stage" }, { "binding": "AI_JOBS", "queue": "al-ummah-now-cms-ai-stage" }],
@@ -143,6 +147,8 @@
       // www's home timeline (docs/FEED.md): written only by this Worker, read by www (binding FEED there too).
       "kv_namespaces": [{ "binding": "FEED", "id": "6e459b34fb954cf4a199cfef57036a8c" }],
       "ratelimits": [{ "name": "SEARCH_LIMITER", "namespace_id": "1103", "simple": { "limit": 120, "period": 60 } }],
+      // Abuse counters: refused searches, read by the videos admin Abuse page (no IP or query). Not inherited by envs.
+      "analytics_engine_datasets": [{ "binding": "ABUSE_EVENTS", "dataset": "al_ummah_now_abuse_qa" }],
       "secrets_store_secrets": [{ "binding": "VIDEOS_INTERNAL_API_KEY", "store_id": "f8eddc9944d041919ed8dc7d08d32308", "secret_name": "internal-api-key-qa" }],
       "queues": {
         "producers": [{ "binding": "VARIANTS", "queue": "al-ummah-now-cms-variants-qa" }, { "binding": "FEED_JOBS", "queue": "al-ummah-now-cms-feed-qa" }, { "binding": "AI_JOBS", "queue": "al-ummah-now-cms-ai-qa" }],
