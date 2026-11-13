@@ -10,8 +10,8 @@
  *   and output check as the editor: one tiny call per Arabic title. A manual operation, never a test.
  *
  * - The new slug is unique in its table and locale (-2, -3, …), the same rule as the editor and API.
- * - www keeps no redirects from old slugs, so the old address stops working: on production, run it
- *   only with the owner's go-ahead.
+ * - The old address keeps working: migration 0018 records it and www answers 301 to the new one
+ *   (D-SEO-7). On production, still run it only with the owner's go-ahead.
  * - Each changed post is marked dirty for the home timeline (feed_dirty "p<id>"); the next build, or
  *   the 30-minute verifier, rewrites its card with the new address.
  * Uses the env's D1 through `wrangler d1 execute --remote` (the pipeline's Cloudflare credentials).

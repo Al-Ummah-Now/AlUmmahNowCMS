@@ -600,6 +600,24 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       return json(c, await postOf(c.env, row));
    });
 
+   // A renamed post's or page's old address (migration 0018, owner decision D-SEO-7): the current
+   // slug of the live row it now belongs to, so www can answer 301. 404 when the old slug is unknown or
+   // its row is no longer live (www then answers 404 / 410).
+   api.get("/redirects/:type/:slug", async (c) => {
+      const l = locale(c);
+      const type = c.req.param("type");
+      if (type !== "post" && type !== "page") throw new HttpError(404);
+      const table = type === "post" ? "posts" : "pages";
+      const row = await c.env.DB.prepare(
+         `SELECT t.slug FROM slug_history h JOIN ${table} t ON t.id = h.target_id
+          WHERE h.kind = ?1 AND h.locale = ?2 AND h.old_slug = ?3 AND t.locale = ?2 AND ${LIVE_SQL.replace(/\b(status|publish_at)\b/g, "t.$1")} LIMIT 1`,
+      )
+         .bind(type, l, c.req.param("slug"))
+         .first<{ slug: string }>();
+      if (!row?.slug || row.slug === c.req.param("slug")) throw new HttpError(404);
+      return json(c, { slug: String(row.slug) });
+   });
+
    // Card posts only, newest first, optionally by tag (the cards grid). `tags`: every tag used by a
    // live card post in this locale, for the filter.
    api.get("/cards", async (c) => {

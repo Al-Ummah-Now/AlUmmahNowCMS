@@ -109,6 +109,7 @@ interface CuratedSnapshot {
 | `/search/suggest` | `locale` (or `lang`), `q`, `limit` (1–10, default 6) | `SearchHit[]`: the best few live posts for `q` (see "Search"); empty `q` → `[]` |
 | `/search` | `locale` (or `lang`), `q`, `page`, `limit` (1–20, default 10) | `{ items: SearchHit[], page, limit, total }`: every match, best first |
 | `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string, translation_key: string \| null }[], scholars: { slug: string, updated_at: string }[] }` (pages with show_in_sitemap only; `scholars` added: every scholar page, both locales) |
+| `/redirects/:type/:slug` | `locale` | `{ slug }`: the current slug of the live post (`type=post`) or page (`type=page`) that once had this slug (migration 0018 `slug_history`, filled by triggers on renames of published rows); 404 when unknown or no longer live. www answers 301 with it (D-SEO-7) |
 | `/scholars` | `locale`, `page`, `limit` (1–48, default 24) | `{ items: ScholarSummary[], page, limit, total }` by name (see "Scholars") |
 | `/scholars/:slug` | `locale`, `page`, `limit` (1–24, default 12) | `{ scholar: Scholar, posts: { items: PostSummary[], page, limit, total }, post_counts: { en, ar } }` or 404 |
 | `/scholars/by-channel/:channelId` | — | `{ slug, name_en, name_ar }` of the scholar who linked that videos channel, or 404 |
