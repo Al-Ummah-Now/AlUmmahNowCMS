@@ -107,6 +107,7 @@ for (const mode of ["light", "dark"] as const) {
          await signIn(page, `${RUN}${info.project.name.slice(0, 1)}-${mode}-${lang}`);
          await theme(page, "fawanees", mode);
          checkedOnScreen = 0;
+         const diag: string[] = [];
          for (const path of [`/?lang=${lang}`, `/posts?lang=${lang}`]) {
             await page.goto(path);
             await expect(page.locator("html")).toHaveClass(/fanous-street/);
@@ -118,11 +119,16 @@ for (const mode of ["light", "dark"] as const) {
                const at = await page.evaluate((y) => { scrollTo(0, y); return Math.round(scrollY); }, y);
                if (y && at < y - 50) break;
                for (const c of await cutLanterns(page)) problems.push(`${path} @${at}: ${c}`);
+               diag.push(`${path} @${at}: ` + await page.evaluate(() => {
+                  const ls = Array.from(document.querySelectorAll('#fanous-street .fs-l use')).map((u: any) => { const r = u.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`; });
+                  const fixed = Array.from(document.querySelectorAll('body *')).filter((e: any) => ['fixed', 'sticky'].includes(getComputedStyle(e).position)).map((e: any) => { const r = e.getBoundingClientRect(); return `${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0]} ${Math.round(r.top)}-${Math.round(r.bottom)}`; });
+                  return `view ${innerWidth}x${innerHeight}, page ${document.documentElement.scrollHeight}, ${ls.length} lanterns [${ls.slice(0, 12).join('; ')}], fixed [${fixed.join('; ')}]`;
+               }));
             }
             expect(problems, problems.join("\n")).toEqual([]);
          }
          // The whole-lantern check must have looked at real lanterns
-         expect(checkedOnScreen, "lanterns checked on screen").toBeGreaterThan(0);
+         expect(checkedOnScreen, `lanterns checked on screen\n${diag.join("\n")}`).toBeGreaterThan(0);
       });
    }
 }
