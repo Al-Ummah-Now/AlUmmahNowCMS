@@ -3,7 +3,7 @@
   "refs": {
     "tokens": "7cba78a78807f0a6f570cc15866a1debb5644c63",
     "materials": "399086fcea954661bf720cb6d78832f7e09819a0",
-    "nav": "5f5c6d154324890620f1aa1b3efab697bdf6b8be"
+    "nav": "3bac491fa1d6671c91eeb808796acd651aaf697b"
   },
   "sources": {
     "399086fcea95:apps/web/src/theme/demo-graphics.json": "bff543163815040efc4ad100d0afd8a46de64716724f60589afb207b06fc32ae",
@@ -21,7 +21,7 @@
     "7cba78a78807:packages/fanous-tokens/themes/nahas/theme.json": "ec5e89700c1fdd5dadf2da5222553563ff99e03a883566e89f138685485bb23c",
     "7cba78a78807:packages/fanous-tokens/generated/nahas/web/tokens.css": "e8d7d9b5bed33cb0369aefcd31b82e596e457ce63a4ecc0f4baa9db20b22da3b",
     "399086fcea95:apps/web/src/theme/materials/nahas.css": "3bf03acace56f541a350c87dde57484737a489056438a16749d48735e0f443c1",
-    "5f5c6d154324:packages/fanous-tokens/nav/aun-nav.css": "20edb09d9bc96b66a2e668ca014c5439481528b5936dfee0693e927a636bf3e0"
+    "3bac491fa1d6:packages/fanous-tokens/nav/aun-nav.css": "39d5de9dbced7b66ffb82413ae814cdf4d99d67dc8c6958b564564226efa5d60"
   },
-  "output": "a40122a272ad912d9285839263d2f43aff497b338c7b6430f028f79c5456959a"
+  "output": "29dfe2ed0a66a7730498fcaf6b2a3e49cf2fe7342091bf8fadb228cec8db2eb5"
 }
