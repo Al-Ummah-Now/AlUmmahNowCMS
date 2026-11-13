@@ -32,12 +32,17 @@ async function theme(page: Page, id: string, mode: "light" | "dark") {
    await page.goto(`${ON}/?theme=${id}`);
 }
 
-/** Waits until the module has stopped re-measuring (layout settles after images and fonts). */
+/**
+ * Waits until the module has stopped re-measuring (layout settles after images and fonts). The module
+ * draws up to 1.4 s after a change (400 ms, then idle time up to 1 s), so the layer must stay the same
+ * for longer than that: on a cold browser two equal samples can both come before the first drawing.
+ */
 async function stable(page: Page) {
   let last = '';
-  for (let i = 0; i < 20; i++) {
+  let same = 0;
+  for (let i = 0; i < 40 && same < 5; i++) {
     const now = await page.evaluate(() => `${document.getElementById('fanous-street')?.innerHTML.length}:${document.documentElement.scrollHeight}`);
-    if (now === last) return;
+    same = now === last ? same + 1 : 0;
     last = now;
     await page.waitForTimeout(350);
   }
