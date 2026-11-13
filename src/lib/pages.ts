@@ -67,3 +67,48 @@ ${chooser?.html ?? ""}
 </main>`,
    });
 }
+
+/**
+ * "Passkey needed" (wiki AUTH-PASSKEYS): staff without a passkey sign-in after their deadline. Not
+ * an error page: it says why and offers Add a passkey (Auth's setup page) and Sign in with a
+ * passkey (the CMS's own sign-in with prompt=login). en/ar with RTL, Light/Dark.
+ */
+export function passkeyNeededPage(o: {
+   lang: Lang;
+   nonce: string;
+   /** Saved mode (cms_mode), or null: the device decides. */
+   mode: "light" | "dark" | null;
+   /** Where both buttons lead back to (a safe, relative CMS path). */
+   returnPath: string;
+   setupUrl: string;
+   signInPath: string;
+}): string {
+   const t = STRINGS[o.lang];
+   const other = t.switchLangCode as Lang;
+   const link = (key: string, value: string) => {
+      const q = new URLSearchParams({ return: o.returnPath, lang: o.lang });
+      q.set(key, value);
+      return `/sso/passkey-needed?${q.toString()}`;
+   };
+   return page({
+      lang: o.lang,
+      nonce: o.nonce,
+      mode: o.mode,
+      title: `${t.passkeyNeededTitle} · ${t.cms}`,
+      extraCss: CSS + ".prefs{display:flex;gap:1rem;flex-wrap:wrap;margin-top:2rem}.prefs .lang{margin:0}",
+      body: `<main id="main" data-testid="passkey-needed">
+<p>${esc(t.cms)}</p>
+<h1>${esc(t.passkeyNeededTitle)}</h1>
+<p>${esc(t.passkeyNeededBody)}</p>
+<div class="actions">
+<a class="btn" href="${esc(o.setupUrl)}" data-testid="passkey-add">${esc(t.addPasskey)}</a>
+<a class="btn secondary" href="${esc(o.signInPath)}" data-testid="passkey-sign-in">${esc(t.signInWithPasskey)}</a>
+</div>
+<p class="prefs">
+<a class="lang" href="${esc(link("lang", other))}" lang="${other}" hreflang="${other}">${esc(t.switchLang)}</a>
+<a class="mode-to-light" href="${esc(link("mode", "light"))}" data-testid="mode-to-light">${esc(t.toLight)}</a>
+<a class="mode-to-dark" href="${esc(link("mode", "dark"))}" data-testid="mode-to-dark">${esc(t.toDark)}</a>
+</p>
+</main>`,
+   });
+}

@@ -59,6 +59,7 @@ import { previewApi, previewRoutes } from "./routes/preview.ts";
 import { publicApi } from "./routes/public-api.ts";
 import { renderStatus, ssoRoutes } from "./routes/sso.ts";
 import { sessionEnded } from "./lib/sign-outs.ts";
+import { passkeyNeededPath, passkeySetupUrl, sessionPasskeyLapsed } from "./lib/passkeys.ts";
 import type { AppEnv, AuthUser, Ctx, Deps } from "./types.ts";
 
 async function multipartAllowed(request: Request): Promise<boolean> {
@@ -89,14 +90,40 @@ function withHeaders(res: Response, csp?: string, ownOrigin?: string): Response 
    return out;
 }
 
-async function sessionUser(c: Ctx, deps: Deps): Promise<AuthUser | undefined> {
-   if (!/(?:^|;\s*)auth=/.test(c.req.header("Cookie") ?? "")) return undefined;
+/**
+ * The request's CMS session. `passkeyLapsed`: a staff grace session (signed in without a passkey)
+ * whose passkey deadline has passed; it gives no access, and the browser gets the "Passkey
+ * needed" page (src/lib/passkeys.ts).
+ */
+async function resolveSession(c: Ctx, deps: Deps): Promise<{ user?: AuthUser; passkeyLapsed?: boolean }> {
+   if (!/(?:^|;\s*)auth=/.test(c.req.header("Cookie") ?? "")) return {};
    const app = await deps.getApp(c);
    const user = (await app.module.auth.authenticator.resolveAuthFromRequest(c.req.raw)) as AuthUser | undefined;
-   if (!user || !isCmsRole(user.role)) return undefined;
+   if (!user || !isCmsRole(user.role)) return {};
    // Single sign-out ended this session (copied cookies too); other browsers keep theirs
-   if (await sessionEnded(c.env.DB, user)) return undefined;
-   return user;
+   if (await sessionEnded(c.env.DB, user)) return {};
+   if (sessionPasskeyLapsed(user)) return { passkeyLapsed: true };
+   return { user };
+}
+
+/** The request without bknd's `auth` session cookie (other cookies kept). */
+function withoutSessionCookie(request: Request): Request {
+   const cookie = request.headers.get("Cookie");
+   if (!cookie || !/(?:^|;\s*)auth=/.test(cookie)) return request;
+   const headers = new Headers(request.headers);
+   const rest = cookie
+      .split(";")
+      .map((part) => part.trim())
+      .filter((part) => part && !part.startsWith("auth="));
+   if (rest.length) headers.set("Cookie", rest.join("; "));
+   else headers.delete("Cookie");
+   return new Request(request, { headers });
+}
+
+/** The JSON answer for an API call from a lapsed grace session (same shape as admin-api's). */
+function passkeyRequired(c: Ctx, returnPath = "/") {
+   const cfg = c.get("cfg");
+   return c.json({ error: "passkey_required", setup_url: passkeySetupUrl(cfg.issuer, cfg.publicUrl, returnPath) }, 403);
 }
 
 /**
@@ -240,7 +267,13 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       const p = c.req.path;
       const gated = isStaffScreen(p) || p === "/picker" || p.startsWith("/picker/") || p.startsWith("/preview/");
       if (!gated) return next();
-      const user = await sessionUser(c, deps);
+      const { user, passkeyLapsed } = await resolveSession(c, deps);
+      if (passkeyLapsed) {
+         if (p.startsWith("/picker/api/") || p.startsWith("/admin/api/")) return passkeyRequired(c);
+         const url = new URL(c.req.url);
+         const lang = url.searchParams.get("lang") === "ar" ? "ar" : undefined;
+         return c.redirect(passkeyNeededPath(url.pathname + url.search, lang), 302);
+      }
       if (!user) {
          if (p.startsWith("/picker/api/") || p.startsWith("/admin/api/")) return c.json({ error: "unauthorized" }, 401);
          const url = new URL(c.req.url);
@@ -279,7 +312,10 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
 
    app.all("/api/*", async (c) => {
       const p = c.req.path;
-      const signedIn = await sessionUser(c, deps);
+      const session = await resolveSession(c, deps);
+      // A lapsed passkey grace session gets nothing from bknd either (bknd reads the same cookie)
+      if (session.passkeyLapsed) return passkeyRequired(c);
+      const signedIn = session.user;
       // A writer (auth "Scholar") reaches only their own posts and media (docs/SCHOLARS.md §2).
       let writerRequest: Request | null = null;
       if (signedIn?.role === "writer") {
@@ -322,7 +358,9 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       const write = c.req.method === "POST" || c.req.method === "PATCH" || c.req.method === "PUT";
       const sent = write && p.startsWith("/api/data/entity/") ? await c.req.raw.clone().text() : null;
       const target = c.req.method === "POST" ? entityUploadTarget(p) : null;
-      let request = writerRequest ?? c.req.raw;
+      // bknd reads the session cookie itself: a cookie this Worker refused (ended by a sign-out) is
+      // not passed on, so bknd answers as for a guest instead of the signed-out account.
+      let request = writerRequest ?? (signedIn ? c.req.raw : withoutSessionCookie(c.req.raw));
       let replaced: number[] = [];
       if (target && new URL(c.req.url).searchParams.get("overwrite") === "true" && actor) {
          // Replace = the old file goes to the trash (soft), and bknd gets a plain upload (no hard delete).

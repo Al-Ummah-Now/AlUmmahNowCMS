@@ -16,6 +16,8 @@ export interface AuthUser {
    name_ar?: string;
    /** This session's id (minted at sign-in), revoked by its single sign-out. */
    sid?: string;
+   /** Staff signed in without a passkey during the grace period: the deadline (epoch seconds, src/lib/passkeys.ts). */
+   pkd?: number;
 }
 
 export type AppEnv = {

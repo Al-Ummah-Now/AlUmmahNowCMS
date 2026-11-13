@@ -45,7 +45,11 @@ export function initShell(): void {
       busy = true;
       try {
          const r = await fetch("/api/auth/me", { credentials: "same-origin", headers: { accept: "application/json" } });
-         if (r.status === 401 || r.status === 403) location.replace(`/sso/login?return=${encodeURIComponent(location.pathname + location.search)}`);
+         const back = encodeURIComponent(location.pathname + location.search);
+         // A staff passkey grace session past its deadline: the "Passkey needed" page (src/lib/passkeys.ts)
+         const passkey = r.status === 403 && ((await r.json().catch(() => null)) as { error?: unknown } | null)?.error === "passkey_required";
+         if (passkey) location.replace(`/sso/passkey-needed?return=${back}`);
+         else if (r.status === 401 || r.status === 403) location.replace(`/sso/login?return=${back}`);
       } catch {
          /* offline: try later */
       } finally {

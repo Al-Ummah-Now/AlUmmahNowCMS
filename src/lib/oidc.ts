@@ -99,6 +99,12 @@ export interface SsoIdentity {
    roles: string[];
    /** The account's display name, when auth has one (a new scholar profile starts from it). */
    name?: string | null;
+   /** How the user signed in (top-level `amr`: "pwd", "otp", "passkey", "fed"); absent on older tokens. */
+   amr?: string[];
+   /** When the user last really signed in (top-level `auth_time`, epoch seconds). */
+   authTime?: number;
+   /** `properties.passkey_deadline` (epoch seconds): staff only, while staff passkeys are enforced. */
+   passkeyDeadline?: number;
 }
 
 const jwksCache = new Map<string, JWTVerifyGetKey>();
@@ -131,11 +137,15 @@ export async function verifyAccessToken(
    if (payload.mode !== undefined && payload.mode !== "access") {
       throw new OidcError("invalid_token", "not an access token");
    }
-   const props = (payload.properties ?? {}) as { id?: unknown; email?: unknown; roles?: unknown; name?: unknown };
+   const props = (payload.properties ?? {}) as { id?: unknown; email?: unknown; roles?: unknown; name?: unknown; passkey_deadline?: unknown };
    const email = typeof props.email === "string" ? props.email.trim().toLowerCase() : "";
    if (!email) throw new OidcError("invalid_token", "token has no email");
    const sub = typeof props.id === "string" && props.id ? props.id : String(payload.sub);
    const roles = Array.isArray(props.roles) ? props.roles.filter((r): r is string => typeof r === "string") : [];
    const name = typeof props.name === "string" && props.name.trim() ? props.name.trim().slice(0, 120) : null;
-   return { sub, email, roles, name };
+   const identity: SsoIdentity = { sub, email, roles, name };
+   if (Array.isArray(payload.amr)) identity.amr = payload.amr.filter((m): m is string => typeof m === "string");
+   if (typeof payload.auth_time === "number" && Number.isFinite(payload.auth_time)) identity.authTime = payload.auth_time;
+   if (typeof props.passkey_deadline === "number" && Number.isFinite(props.passkey_deadline)) identity.passkeyDeadline = props.passkey_deadline;
+   return identity;
 }

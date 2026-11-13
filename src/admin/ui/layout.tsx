@@ -10,6 +10,7 @@ import { Icon, type IconName } from "./icons.tsx";
 import { Autocomplete, comboboxProps } from "./autocomplete.tsx";
 import { LeaveDialog, LinkDialog } from "./dialogs.tsx";
 import { appLinks, type AppLinkId } from "../../lib/app-links.ts";
+import { absolute } from "../format.ts";
 
 export interface View {
    prefs: Prefs;
@@ -30,6 +31,8 @@ export interface View {
    tabIcons: IconLink[];
    /** AI writing assist is configured in this env (docs/AI_ASSIST_SPEC.md §2). */
    ai: boolean;
+   /** Staff passkey grace (src/lib/passkeys.ts): the banner "Add a passkey by <date>" until the deadline. */
+   passkey?: { deadline: number; setupUrl: string } | null;
 }
 
 export const isAdmin = (v: View) => v.user.role === "admin";
@@ -277,6 +280,12 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                         {theme.name[prefs.lang]} · {t.overview.themePreview}
                      </span>
                      <a href={withParam(v, "theme", "site")}>{t.overview.themeReset}</a>
+                  </div>
+               ) : null}
+               {v.passkey ? (
+                  <div class="passkey-bar" role="status" data-testid="passkey-banner">
+                     <span>{t.passkey.banner.replace("{date}", absolute(v.passkey.deadline * 1000, prefs.lang))}</span>
+                     <a href={v.passkey.setupUrl}>{t.passkey.add}</a>
                   </div>
                ) : null}
                <header class="hd">

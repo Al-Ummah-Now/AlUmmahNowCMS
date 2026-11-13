@@ -9,6 +9,7 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
                       ├─ /preview/:kind/:id           staff: mint a 30-min token → 303 www/preview  ┐ session required
                       ├─ /sso/login|callback|logout   PKCE → auth.alummahnow.net, bknd session cookie
                       ├─ /sso/no-access, /sso/accounts account chooser (browser reads auth's accounts API)
+                      ├─ /sso/passkey-needed          staff without a passkey sign-in after their deadline (AUTH-PASSKEYS)
                       ├─ /picker, /picker/api/*       video picker → videos.api.alummahnow.net (server-side)
                       ├─ /bknd/*, /data/*, /media/*, … 302 → the matching staff screen (bknd's admin UI is retired, CMS#30)
                       ├─ /, /pages, /posts, /timeline, … staff admin screens (src/admin, server-rendered) ┐ session required
@@ -80,3 +81,22 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
   sign-in; the last account = `/sso/logout` (single sign-out). A switch to an account without a CMS
   role also clears the CMS session held for the previous account.
 - After single sign-out, auth has no browser session, so the next CMS visit shows auth's sign-in form.
+- bknd reads the `auth` cookie itself, so `/api/*` forwards a cookie the Worker refused (a session
+  ended by a sign-out) without it: bknd answers as for a guest.
+
+## Staff passkeys (wiki AUTH-PASSKEYS)
+
+`src/lib/passkeys.ts` applies the consumer rule at `/sso/callback`. Auth's access token carries
+`amr` (top level), `auth_time` and, for staff while enforcement is on, `properties.passkey_deadline`
+(epoch seconds). Staff = any Auth role Super Admin, Admin, Moderator, Writer, Content Reviewer or
+Senior Reviewer (Scholar and Member are not staff). For staff with a deadline whose `amr` lacks
+`passkey` (no `amr` = no passkey):
+
+- **Deadline passed:** no CMS session and no user row; 303 to `/sso/passkey-needed` (200, en/ar,
+  Light/Dark). **Add a passkey** → `{AUTH}/passkeys/setup?return_to={CMS}/sso/login?prompt=login…`;
+  **Sign in with a passkey** → `/sso/login?prompt=login`. Both come back through a fresh sign-in,
+  because silent single sign-on keeps the original `amr`.
+- **Grace (deadline ahead):** a normal session whose JWT also holds `pkd` (the deadline), and the
+  admin shows the banner "Add a passkey by <date>". From `pkd` on, the gate sends screens to the
+  page and APIs (`/admin/api`, `/picker/api`, `/api`) answer `403 { error: "passkey_required",
+  setup_url }`; the session watcher follows that to the page. The 8 h session never outlives it.

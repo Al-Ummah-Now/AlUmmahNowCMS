@@ -31,6 +31,13 @@ export const STRINGS = {
       accountsTitle: "Accounts",
       accountsBody: "These are the Al Ummah Now accounts signed in on this browser. Switch to another account, add one, or sign out.",
       backToCms: "Back to the CMS",
+      passkeyNeededTitle: "Passkey needed",
+      passkeyNeededBody:
+         "Staff accounts sign in to the CMS with a passkey. Add a passkey to your account, then sign in with it. If you already have one, sign in with your passkey.",
+      addPasskey: "Add a passkey",
+      signInWithPasskey: "Sign in with a passkey",
+      toLight: "Switch to light mode",
+      toDark: "Switch to dark mode",
       accounts: {
          heading: "Accounts on this browser",
          nav: "Accounts",
@@ -99,6 +106,13 @@ export const STRINGS = {
       accountsTitle: "الحسابات",
       accountsBody: "هذه حسابات الأمة الآن المسجّل دخولها على هذا المتصفح. يمكنك التبديل إلى حساب آخر أو إضافة حساب أو تسجيل الخروج.",
       backToCms: "العودة إلى نظام إدارة المحتوى",
+      passkeyNeededTitle: "يلزم مفتاح مرور",
+      passkeyNeededBody:
+         "تسجّل حسابات فريق العمل الدخول إلى نظام إدارة المحتوى بمفتاح مرور. أضف مفتاح مرور إلى حسابك، ثم سجّل الدخول به. وإن كان لديك مفتاح مرور، فسجّل الدخول به.",
+      addPasskey: "إضافة مفتاح مرور",
+      signInWithPasskey: "تسجيل الدخول بمفتاح مرور",
+      toLight: "التبديل إلى الوضع الفاتح",
+      toDark: "التبديل إلى الوضع الداكن",
       accounts: {
          heading: "الحسابات على هذا المتصفح",
          nav: "الحسابات",
