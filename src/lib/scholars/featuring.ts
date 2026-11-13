@@ -66,7 +66,10 @@ export interface Candidate {
    title: string;
    slug: string;
    locale: "en" | "ar";
-   kind: "article" | "cards";
+   /** Any PostV2 kind for references; staff-written scholar posts are article or cards. */
+   kind: string;
+   /** A scholar post reference (docs/SCHOLARS.md §7): the community post it stands for. */
+   ref: { post_id: string; channel_id: string } | null;
    published_at: string | null;
    featured_at: string | null;
    featured_by: string | null;
@@ -85,7 +88,7 @@ export async function articleCandidates(env: Env, opts: { q?: string; state?: "a
    const where = `p.author_sub IS NOT NULL AND ${live} ${state} AND (?1 = '%%' OR p.title LIKE ?1 ESCAPE '\\' OR p.slug LIKE ?1 ESCAPE '\\')`;
    const [rows, count] = await Promise.all([
       env.DB.prepare(
-         `SELECT p.id, p.title, p.slug, p.locale, p.kind, p.published_at, p.featured_at, p.featured_by, s.id AS s_id, s.slug AS s_slug, s.name_en AS s_name_en, s.name_ar AS s_name_ar
+         `SELECT p.id, p.title, p.slug, p.locale, p.kind, p.ref_post_id, p.ref_channel_id, p.published_at, p.featured_at, p.featured_by, s.id AS s_id, s.slug AS s_slug, s.name_en AS s_name_en, s.name_ar AS s_name_ar
           FROM posts p LEFT JOIN scholars s ON s.sso_sub = p.author_sub WHERE ${where}
           ORDER BY coalesce(p.published_at, p.created_at) DESC, p.id DESC LIMIT ?2 OFFSET ?3`,
       )
@@ -101,7 +104,8 @@ export async function articleCandidates(env: Env, opts: { q?: string; state?: "a
          title: String(r.title ?? ""),
          slug: String(r.slug ?? ""),
          locale: r.locale === "ar" ? "ar" : "en",
-         kind: r.kind === "cards" ? "cards" : "article",
+         kind: typeof r.kind === "string" && r.kind ? r.kind : "article",
+         ref: typeof r.ref_post_id === "string" && r.ref_post_id ? { post_id: r.ref_post_id, channel_id: String(r.ref_channel_id ?? "") } : null,
          published_at: iso(r.published_at),
          featured_at: iso(r.featured_at),
          featured_by: typeof r.featured_by === "string" ? r.featured_by : null,

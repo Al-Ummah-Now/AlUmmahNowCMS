@@ -119,7 +119,9 @@ export async function contentList(v: View, data: Data, kind: ContentKind, p: Lis
    // A writer lists only their own posts (docs/SCHOLARS.md §2); data.list reads bknd directly.
    const writer = isWriter(v);
    if (writer && (kind !== "posts" || !v.user.sub)) return <Empty icon="pen" title={t.common.notFound} />;
-   const res = await searchList(data, kind, p, select, writer ? { author_sub: v.user.sub } : {});
+   // Scholar post references are not edited here (docs/SCHOLARS.md §7): they are on the Featuring screen.
+   const scope: Record<string, unknown> = { ...(writer ? { author_sub: v.user.sub } : {}), ...(kind === "posts" ? { ref_post_id: { $isnull: true } } : {}) };
+   const res = await searchList(data, kind, p, select, scope);
    const pages = Math.max(1, Math.ceil(res.total / PAGE_SIZE));
    const base = `/${kind}`;
    // Open translation flags per row (docs/TRANSLATION_FLAGS.md): a badge on the list.
@@ -312,6 +314,23 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
    if (id && !row) return null;
    // A writer edits only their own posts (docs/SCHOLARS.md §2): someone else's is "not found".
    if (writer && row && (!v.user.sub || row.author_sub !== v.user.sub)) return null;
+   // A scholar post reference: written in Studio, featured on the Featuring screen (docs/SCHOLARS.md §7).
+   if (kind === "posts" && row && typeof row.ref_post_id === "string" && row.ref_post_id) {
+      const www = `${v.wwwUrl}/${String(row.locale)}/${WWW_POSTS}/${encodeURIComponent(String(row.slug))}/`;
+      const studio = row.ref_channel_id ? `${v.videosWebUrl ?? ""}/${v.prefs.lang}/settings/channel/${encodeURIComponent(String(row.ref_channel_id))}/community` : null;
+      return (
+         <>
+            <PageHead title={String(row.title ?? "")} intro={t.refs.intro} back={{ href: "/featuring", label: t.nav.featuring }} />
+            <section class="card" style="max-width:640px" data-ref-post={String(row.ref_post_id)}>
+               <p style="display:flex;gap:16px;flex-wrap:wrap">
+                  <a href={www}>{t.refs.viewOnWww}</a>
+                  {studio ? <a href={studio}>{t.refs.openInStudio}</a> : null}
+                  <a href={`/featuring?q=${encodeURIComponent(String(row.title ?? "").slice(0, 100))}`}>{t.nav.featuring}</a>
+               </p>
+            </section>
+         </>
+      );
+   }
    const scholarPost = kind === "posts" && !!(row?.author_sub || writer);
    const scholar = scholarPost && db ? await scholarOfSub(db, writer ? v.user.sub ?? null : String(row?.author_sub ?? "")) : null;
    const locale = (row?.locale as "en" | "ar") ?? newLocale;

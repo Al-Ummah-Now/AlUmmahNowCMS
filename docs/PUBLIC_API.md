@@ -122,8 +122,30 @@ arrays and `settings: null`, never an error.
 
 ## Scholars
 
-Scholars write their own posts in the CMS (docs/SCHOLARS.md). Their posts are live at their own
-address like any post, and listed on their scholar page, but `/posts`, `/home`, `/cards`, the timeline
+Scholars write their posts in Studio as community posts on their primary channel; the CMS keeps a
+hidden **reference** per post (docs/SCHOLARS.md §7). A reference is served like any post (same
+`/posts/:slug` address), with these additive fields:
+
+```ts
+// On every PostSummary and Post (null for staff posts)
+ref: { post_id: string; channel_id: string; videos_url: string } | null;   // the community post (likes, votes, comments live there)
+kind: 'article' | 'cards' | 'text' | 'image' | 'poll' | 'quiz' | 'video' | 'gif' | 'link';  // refs: any PostV2 kind
+v2: {                                     // refs only: the kind-specific summary (AlUmmahNow post-schema postSummary)
+  images: MediaRef[]; image_count: number; video_id: string | null;
+  link: { url: string; title: string | null; description: string | null; image: MediaRef | null } | null;
+  poll: { question: string; options: { id: string; text: string }[] } | null;
+  quiz: { question: string; options: { id: string; text: string }[] } | null;   // never the answer
+  gif: MediaRef | null; text: string | null;
+} | null;
+// On Post only: the community post's public fields, read live from api-videos (cached 60 s); null for
+// staff posts or when api-videos did not answer (body is then the summary's excerpt).
+community: Record<string, unknown> | null;
+```
+
+`/posts/:slug` answers 404 for a reference whose community post is gone or no longer public. `body`
+is the article's markdown for article refs, and `slides` every card for cards refs.
+
+Their posts are live at their own address like any post, and listed on their scholar page, but `/posts`, `/home`, `/cards`, the timeline
 and "latest / by tag" post blocks only include a scholar's post once an editor featured it. Search and
 the sitemap include every live post.
 

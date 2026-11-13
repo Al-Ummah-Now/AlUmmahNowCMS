@@ -1,23 +1,17 @@
 /**
  * Which staff screens and Worker endpoints a writer (auth "Scholar") may open (docs/SCHOLARS.md §2).
- * Everything else answers 403 for them. Ownership of a single post is checked by each route.
+ * Everything else answers 403 for them. Scholars write in Studio (§7, SS18): the CMS gives them
+ * "Write in Studio" and their profile; their old post screens redirect there.
  */
 const WRITER_PATHS: RegExp[] = [
    /^\/$/,
-   /^\/posts\/?$/,
-   /^\/posts\/new\/?$/,
-   /^\/posts\/\d{1,12}\/?$/,
-   /^\/posts\/\d{1,12}\/history\/?$/,
+   /^\/write\/?$/,
+   // Old bookmarks: /posts… redirect to /write
+   /^\/posts(\/.*)?$/,
    /^\/scholars\/me\/?$/,
    /^\/admin\/api\/scholars\/me(\/.*)?$/,
    /^\/admin\/api\/suggest\/?$/,
-   /^\/admin\/api\/ai(\/.*)?$/,
-   // Translation flags on their own posts (create and list; the routes refuse resolving to writers).
-   /^\/admin\/api\/translation-flags(\/.*)?$/,
-   /^\/admin\/api\/revisions\/\d{1,12}\/restore\/?$/,
    /^\/admin\/api\/media\/\d{1,12}\/alt\/?$/,
-   /^\/picker\/api\/.+$/,
-   /^\/preview\/posts\/\d{1,12}\/?$/,
 ];
 
 /** Pure; unit-tested. Per-method rules live in the routes themselves. */

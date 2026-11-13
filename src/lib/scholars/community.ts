@@ -40,9 +40,15 @@ export async function noteCommunityChange(env: Env, postIds: number[]): Promise<
       const at = new Date().toISOString();
       for (const id of ids) {
          const [row, link] = await Promise.all([
-            env.DB.prepare(`SELECT id, author_sub, (${LIVE_SQL}) AS live FROM posts WHERE id = ?1`).bind(id).first<Row>(),
+            env.DB.prepare(`SELECT id, author_sub, ref_post_id, (${LIVE_SQL}) AS live FROM posts WHERE id = ?1`).bind(id).first<Row>(),
             env.DB.prepare("SELECT post_id, author_sub, want, state FROM community_links WHERE post_id = ?1").bind(id).first<Row>(),
          ]);
+         // A reference (docs/SCHOLARS.md §7): the community post is the source now, this sync is retired
+         // for it. Never hide or re-post it from here.
+         if (typeof row?.ref_post_id === "string" && row.ref_post_id) {
+            if (link && link.state !== "retired") await env.DB.prepare("UPDATE community_links SET state = 'retired', next_attempt_at = NULL, updated_at = ?2 WHERE post_id = ?1").bind(id, at).run();
+            continue;
+         }
          const sub = typeof row?.author_sub === "string" && row.author_sub ? row.author_sub : null;
          const want = row && sub && Number(row.live) === 1 ? "show" : "hide";
          // Nothing went out and nothing should: no row, no call.
@@ -138,7 +144,12 @@ async function done(env: Env, link: Row, fields: { channel_id?: string | null; c
 async function syncOne(env: Env, link: Row, fetchImpl: typeof fetch): Promise<"shown" | "hidden" | "waiting"> {
    const postId = Number(link.post_id);
    const sub = String(link.author_sub ?? "");
-   const row = link.want === "show" ? await env.DB.prepare(`SELECT *, (${LIVE_SQL}) AS live FROM posts WHERE id = ?1`).bind(postId).first<Row>() : null;
+   const row = await env.DB.prepare(`SELECT *, (${LIVE_SQL}) AS live FROM posts WHERE id = ?1`).bind(postId).first<Row>();
+   // Converted to a reference meanwhile (docs/SCHOLARS.md §8): nothing to post or hide any more.
+   if (typeof row?.ref_post_id === "string" && row.ref_post_id) {
+      await done(env, link, { state: "retired" });
+      return "waiting";
+   }
    if (link.want === "show" && row && Number(row.live) === 1 && sub) {
       const scholar = await scholarOfSub(env.DB, sub);
       const channelId = scholar?.channel_ids[0] ?? null;

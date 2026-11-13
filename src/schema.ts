@@ -67,7 +67,9 @@ export const schema = em(
             author_name: text(),
             tags: json<string[]>({ default_value: [] }),
             // "article" (markdown body) or "cards" (ordered slides, src/lib/blocks.ts). NULL reads as article.
-            kind: enumm({ enum: ["article", "cards"], default_value: "article" }),
+            // Scholar post references (ref_post_id set) carry their community post's kind, any PostV2 kind
+            // (src/lib/post-schema.generated.ts); staff posts stay article or cards.
+            kind: enumm({ enum: ["article", "cards", "text", "image", "poll", "quiz", "video", "gif", "link"], default_value: "article" }),
             slides: json<unknown[]>({ description: "Card post slides (src/lib/blocks.ts)." }),
             // On www's home timeline once live (src/lib/feed). NULL reads as true: every post is on by default.
             show_on_timeline: boolean({ default_value: true }),
@@ -80,6 +82,12 @@ export const schema = em(
             featured_at: datetime({ hidden: ["create", "update"] }),
             featured_by: text({ hidden: ["create", "update"] }),
             community_post_id: text({ hidden: ["create", "update"] }),
+            // Scholar post references (migrations/0019, docs/SCHOLARS.md §7): a hidden row that points at a
+            // community post on the scholar's primary channel. www reads the post itself; this row holds
+            // only www's address, editorial state and a summary cache. Worker-only, like author_sub.
+            ref_post_id: text({ hidden: ["create", "update"] }),
+            ref_channel_id: text({ hidden: ["create", "update"] }),
+            summary_json: json<unknown>({ hidden: ["create", "update"], description: "PostV2 summary cache (refs only)." }),
             ...timestamps(),
          },
          { primary_format: "integer" },
@@ -139,6 +147,7 @@ export const schema = em(
       index(e.posts).on(["status", "locale", "published_at"]);
       index(e.posts).on(["kind", "status", "locale", "published_at"]);
       index(e.posts).on(["author_sub", "status", "locale", "published_at"]);
+      index(e.posts).on(["ref_post_id"], true);
       index(e.curated_videos).on(["placement", "status"]);
       // One row per video per placement and locale (migrations/0002): the picker inserts ON CONFLICT DO NOTHING.
       index(e.curated_videos).on(["kind", "ref_id", "placement", "locale"], true);

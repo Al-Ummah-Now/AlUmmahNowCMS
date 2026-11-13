@@ -14,7 +14,7 @@ import { Exception } from "bknd";
 import { currentActor } from "../revisions.ts";
 
 /** Set by the Worker only (featuring, the community sync, ownership). Never from a data API write. */
-export const PROTECTED_POST_FIELDS = ["author_sub", "featured_at", "featured_by", "community_post_id"] as const;
+export const PROTECTED_POST_FIELDS = ["author_sub", "featured_at", "featured_by", "community_post_id", "ref_post_id", "ref_channel_id", "summary_json"] as const;
 
 /** 404 for a writer touching a post that is not theirs (bknd serializes an Exception with its code). */
 export class NotOwnerError extends Exception {
@@ -78,16 +78,11 @@ export function writerApiVerdict(method: string, path: string): WriterVerdict {
    const read = method === "GET" || method === "HEAD";
    if (path === "/api/auth/me" || path === "/api/auth/strategies") return read ? { kind: "allow" } : { kind: "deny" };
    if (path === "/api/system/schema" || path.startsWith("/api/system/schema/")) return read ? { kind: "allow" } : { kind: "deny" };
-   if (/^\/api\/data\/entity\/posts\/?$/.test(path)) {
-      if (read) return { kind: "scope-list" };
-      if (method === "POST") return { kind: "create-post" };
-      return { kind: "deny" };
-   }
+   // Scholars write in Studio (docs/SCHOLARS.md §7, SS18): a writer reads their own posts here, never writes.
+   if (/^\/api\/data\/entity\/posts\/?$/.test(path)) return read ? { kind: "scope-list" } : { kind: "deny" };
    if (/^\/api\/data\/entity\/posts\/fn\/count\/?$/.test(path)) return method === "POST" || read ? { kind: "scope-count" } : { kind: "deny" };
    const one = /^\/api\/data\/entity\/posts\/(\d{1,12})\/?$/.exec(path);
-   if (one && (read || method === "PATCH" || method === "PUT" || method === "DELETE")) return { kind: "own-post", id: Number(one[1]) };
-   const cover = /^\/api\/media\/entity\/posts\/(\d{1,12})\/cover\/?$/.exec(path);
-   if (cover && method === "POST") return { kind: "own-post", id: Number(cover[1]) };
+   if (one && read) return { kind: "own-post", id: Number(one[1]) };
    if (/^\/api\/data\/entity\/media(\/\d{1,12})?\/?$/.test(path) && read) return { kind: "allow" };
    if (path.startsWith("/api/media/upload") && method === "POST") return { kind: "allow" };
    if (/^\/api\/media\/file\/[^/]+$/.test(path) && read) return { kind: "allow" };

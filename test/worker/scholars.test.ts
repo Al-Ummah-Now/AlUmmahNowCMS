@@ -91,6 +91,16 @@ async function post(call: ReturnType<typeof client>["call"], slug: string, extra
    return ((await r.json()) as { data: { id: number } }).data.id;
 }
 
+/**
+ * A scholar post written in the CMS before scholars moved to Studio (docs/SCHOLARS.md §8): created by
+ * staff, then given its author the way the old writer screens did.
+ */
+async function legacyPost(call: ReturnType<typeof client>["call"], sub: string, slug: string, extra: Record<string, unknown> = {}): Promise<number> {
+   const id = await post(call, slug, extra);
+   await env.DB.prepare("UPDATE posts SET author_sub = ?2 WHERE id = ?1").bind(id, sub).run();
+   return id;
+}
+
 const row = (id: number) => env.DB.prepare("SELECT * FROM posts WHERE id = ?1").bind(id).first<Record<string, unknown>>();
 
 beforeEach(async () => {
@@ -137,9 +147,9 @@ describe("a scholar signs in", () => {
       expect(user?.role).toBe("writer");
       const s = await env.DB.prepare("SELECT * FROM scholars WHERE sso_sub = 'sch-a'").first<Record<string, unknown>>();
       expect(s).toMatchObject({ slug: "aisha-rahman", name_en: "Aisha Rahman", channel_ids: '["ch-a1"]' });
-      // Their home is their articles; the profile screen is theirs.
+      // Their home is "Write in Studio" (docs/SCHOLARS.md §7, SS18); the profile screen is theirs.
       const { f } = client(v, cookie);
-      expect((await f("/", { headers: { cookie } })).headers.get("location")).toBe("/posts");
+      expect((await f("/", { headers: { cookie } })).headers.get("location")).toBe("/write");
       const me = await f("/scholars/me", { headers: { cookie } });
       expect(me.status).toBe(200);
       expect(await me.text()).toContain("Aisha&#39;s lessons");
@@ -155,66 +165,49 @@ describe("a scholar signs in", () => {
    });
 });
 
-describe("the writer role: their own posts only", () => {
-   it("stamps the author, refuses protected fields, scopes lists, hides others' posts", async () => {
+describe("the writer role: Write in Studio (SS18)", () => {
+   it("gets Write in Studio and their profile; never writes posts; staff screens stay staff's", async () => {
       const v = fresh();
-      const a = client(v, await session(v, ["Scholar"], "sch-own-a"));
-      const b = client(v, await session(v, ["Scholar"], "sch-own-b"));
-      const mine = await post(a.call, `own-a-${Date.now()}`, { featured_at: new Date().toISOString(), author_sub: "someone-else", show_on_timeline: true });
-      const theirs = await post(b.call, `own-b-${Date.now()}`);
-      expect(await row(mine)).toMatchObject({ author_sub: "sch-own-a", featured_at: null });
+      v.channels["sch-own-a"] = [{ id: "ch-own-a", name: "Own A" }];
+      const cookie = await session(v, ["Scholar"], "sch-own-a");
+      const a = client(v, cookie);
+      const ed = client(v, await session(v, ["Admin"], "ad-own"));
+      const mine = await legacyPost(ed.call, "sch-own-a", `own-a-${Date.now()}`);
+      const theirs = await legacyPost(ed.call, "sch-own-b", `own-b-${Date.now()}`);
 
-      // Lists and counts: only their own rows, whatever filter they send.
-      const list = (await (await a.call("GET", `/api/data/entity/posts?where=${encodeURIComponent(JSON.stringify({ author_sub: "sch-own-b" }))}&limit=50`)).json()) as { data: { id: number }[] };
-      expect(list.data.map((r) => r.id)).toEqual([mine]);
-      const or = (await (await a.call("GET", `/api/data/entity/posts?where=${encodeURIComponent(JSON.stringify({ $or: [{ id: theirs }, { id: mine }] }))}`)).json()) as { data: { id: number }[] };
-      expect(or.data.map((r) => r.id)).toEqual([mine]);
-      const count = (await (await a.call("POST", "/api/data/entity/posts/fn/count", {})).json()) as { count: number };
-      expect(count.count).toBe(1);
+      // Write in Studio: a link to their channel's composer on the videos site.
+      const write = await a.f("/write", { headers: { cookie } });
+      expect(write.status).toBe(200);
+      const html = await write.text();
+      expect(html).toContain("data-write-in-studio");
+      expect(html).toContain("https://videos.test/en/settings/channel/ch-own-a/community/new");
+      // The old post screens lead there.
+      for (const path of ["/posts", "/posts/new", `/posts/${mine}`]) expect((await a.f(path, { headers: { cookie } })).headers.get("location"), path).toBe("/write");
 
-      // Someone else's post: not found, for reads, edits and deletes.
+      // No writes through the data API, even to their own posts; reads stay scoped.
+      expect((await a.call("POST", "/api/data/entity/posts", { slug: "x", locale: "en", title: "x" })).status).toBe(403);
+      expect((await a.call("PATCH", `/api/data/entity/posts/${mine}`, { title: "edited" })).status).toBe(403);
+      expect((await a.call("DELETE", `/api/data/entity/posts/${mine}`)).status).toBe(403);
       expect((await a.call("GET", `/api/data/entity/posts/${theirs}`)).status).toBe(404);
-      expect((await a.call("PATCH", `/api/data/entity/posts/${theirs}`, { title: "hijack" })).status).toBe(404);
-      expect((await a.call("DELETE", `/api/data/entity/posts/${theirs}`)).status).toBe(404);
-      expect((await a.f(`/posts/${theirs}`, { headers: { cookie: (await session(v, ["Scholar"], "sch-own-a")) } })).status).toBe(404);
-      expect((await row(theirs))!.title).toBe(`Title ${(await row(theirs))!.slug}`);
-
-      // Their own post's editor: no timeline switch, no free-text author, a "Main site" card without the feature button.
-      const page = await (await a.call("GET", `/posts/${mine}`)).text();
-      expect(page).toContain("data-main-site");
-      expect(page).not.toContain('name="show_on_timeline"');
-      expect(page).not.toContain('name="author_name"');
-      expect(page).not.toContain("data-feature-post");
-      expect((await a.call("GET", "/posts")).status).toBe(200);
-
-      // Their own: edit, unpublish, featuring fields still refused.
-      expect((await a.call("PATCH", `/api/data/entity/posts/${mine}`, { title: "Mine, edited", featured_at: new Date().toISOString() })).status).toBe(200);
-      expect(await row(mine)).toMatchObject({ title: "Mine, edited", featured_at: null });
+      const list = (await (await a.call("GET", "/api/data/entity/posts?limit=50")).json()) as { data: { id: number }[] };
+      expect(list.data.map((r) => r.id)).toEqual([mine]);
 
       // Everything else is staff's.
       expect((await a.call("POST", "/api/data/entity/pages", { slug: "x", locale: "en", title: "x" })).status).toBe(403);
-      expect((await a.call("GET", "/api/data/entity/nav_items")).status).toBe(403);
       expect((await a.call("POST", `/admin/api/featuring/posts/${mine}`, { on: true })).status).toBe(403);
-      expect((await a.call("POST", "/admin/api/timeline/videos", { kind: "video", ref_id: "v1", locale: "all" })).status).toBe(403);
       for (const path of ["/pages", "/timeline", "/navigation", "/site", "/featuring", "/scholars/1"]) {
          expect((await a.call("GET", path)).status, path).toBe(403);
       }
-      // Search suggestions only find their own posts.
-      const sug = (await (await a.call("GET", "/admin/api/suggest?kind=content&q=Title")).json()) as { items: { id: string }[] };
-      expect(sug.items.map((i) => Number(i.id))).not.toContain(theirs);
-
-      // Delete their own: a soft delete, restorable by an admin.
-      expect((await a.call("DELETE", `/api/data/entity/posts/${mine}`)).status).toBe(200);
-      expect(await env.DB.prepare("SELECT kind FROM trash WHERE kind = 'posts' AND item_id = ?1").bind(mine).first()).toMatchObject({ kind: "posts" });
    });
 });
 
 describe("the main site and featuring", () => {
    it("a scholar post is on their page, not on the main lists, until an editor features it (audit-logged)", async () => {
       const v = fresh();
-      const writer = client(v, await session(v, ["Scholar"], "sch-feat", "Feat Scholar"));
+      await session(v, ["Scholar"], "sch-feat", "Feat Scholar");
+      const staffer = client(v, await session(v, ["Admin"], "ad-feat"));
       const slug = `feat-${Date.now()}`;
-      const id = await post(writer.call, slug);
+      const id = await legacyPost(staffer.call, "sch-feat", slug);
       const pub = makeWorker();
       const listed = async (path: string) => JSON.stringify(await (await pub(path)).json()).includes(slug);
 
@@ -248,28 +241,33 @@ describe("the main site and featuring", () => {
 
    it("featuring an article features its translations by the same scholar", async () => {
       const v = fresh();
-      const w = client(v, await session(v, ["Scholar"], "sch-tr"));
-      const key = `tk-${Date.now()}`;
-      const en = await post(w.call, `tr-en-${Date.now()}`, { translation_key: key });
-      const ar = await post(w.call, `tr-ar-${Date.now()}`, { translation_key: key, locale: "ar" });
+      await session(v, ["Scholar"], "sch-tr");
       const ed = client(v, await session(v, ["Admin"], "ad-tr"));
+      const key = `tk-${Date.now()}`;
+      const en = await legacyPost(ed.call, "sch-tr", `tr-en-${Date.now()}`, { translation_key: key });
+      const ar = await legacyPost(ed.call, "sch-tr", `tr-ar-${Date.now()}`, { translation_key: key, locale: "ar" });
       const res = (await (await ed.call("POST", `/admin/api/featuring/posts/${en}`, { on: true })).json()) as { data: { changed: number[] } };
       expect(res.data.changed.sort()).toEqual([en, ar].sort());
    });
 });
 
-describe("community posts follow the article", () => {
+describe("community posts follow the article (legacy CMS scholar posts, until converted)", () => {
+   const fetchOf = (v: Videos) => (async (u: RequestInfo | URL, i?: RequestInit) => videosApi(v)(new URL(String(u)), i)) as typeof fetch;
+
    it("publish → posted to the first channel; edit → updated (same post); unpublish and delete → hidden", async () => {
       const v = fresh();
       v.channels["sch-com"] = [{ id: "ch-com", name: "Com" }];
-      const w = client(v, await session(v, ["Scholar"], "sch-com", "Com Scholar"));
+      await session(v, ["Scholar"], "sch-com", "Com Scholar");
+      const w = client(v, await session(v, ["Admin"], "ad-com"));
       const slug = `com-${Date.now()}`;
-      const id = await post(w.call, slug);
-      // The save already synced (waitUntil after the write).
+      const id = await legacyPost(w.call, "sch-com", slug);
+      await noteCommunityChange(E, [id]);
+      await syncCommunity(E, { fetch: fetchOf(v) });
       expect(v.puts).toHaveLength(1);
       expect(v.puts[0]).toMatchObject({ userId: "sch-com", externalId: `cms-${id}`, body: { channelId: "ch-com", title: `Title ${slug}`, excerpt: "An excerpt", url: `https://www.test/en/articles/${slug}/`, locale: "en" } });
       expect(await row(id)).toMatchObject({ community_post_id: `post-cms-${id}` });
 
+      // A save syncs at once (waitUntil after the write).
       await w.call("PATCH", `/api/data/entity/posts/${id}`, { title: "Edited" });
       expect(v.puts).toHaveLength(2);
       expect(v.puts[1].externalId).toBe(`cms-${id}`);
@@ -280,33 +278,44 @@ describe("community posts follow the article", () => {
       await w.call("PATCH", `/api/data/entity/posts/${id}`, { status: "published" });
       expect(v.puts).toHaveLength(3);
       await w.call("DELETE", `/api/data/entity/posts/${id}`);
-      await syncCommunity(E, { fetch: (async (u: RequestInfo | URL, i?: RequestInit) => videosApi(v)(new URL(String(u)), i)) as typeof fetch });
+      await syncCommunity(E, { fetch: fetchOf(v) });
       expect(v.deletes).toHaveLength(2);
    });
 
-   it("a draft never posts; a failure backs off and is retried; no channel waits", async () => {
+   it("a draft never posts; a failure backs off and is retried; no channel waits; a reference is never synced", async () => {
       const v = fresh();
       v.channels["sch-retry"] = [{ id: "ch-r", name: "R" }];
-      const w = client(v, await session(v, ["Scholar"], "sch-retry"));
-      const draft = await post(w.call, `draft-${Date.now()}`, { status: "draft" });
+      await session(v, ["Scholar"], "sch-retry");
+      const w = client(v, await session(v, ["Admin"], "ad-retry"));
+      const draft = await legacyPost(w.call, "sch-retry", `draft-${Date.now()}`, { status: "draft" });
+      await noteCommunityChange(E, [draft]);
       expect(v.puts).toHaveLength(0);
       expect(await env.DB.prepare("SELECT 1 FROM community_links WHERE post_id = ?1").bind(draft).first()).toBeNull();
 
       v.down = true;
-      const id = await post(w.call, `retry-${Date.now()}`);
+      const id = await legacyPost(w.call, "sch-retry", `retry-${Date.now()}`);
+      await noteCommunityChange(E, [id]);
+      await syncCommunity(E, { fetch: fetchOf(v) });
       const link = await env.DB.prepare("SELECT state, attempts, next_attempt_at, last_error FROM community_links WHERE post_id = ?1").bind(id).first<Record<string, unknown>>();
       expect(link).toMatchObject({ state: "pending", attempts: 1, last_error: "busy" });
       v.down = false;
       const later = Date.parse(String(link!.next_attempt_at)) + 1000;
-      const fetchV = (async (u: RequestInfo | URL, i?: RequestInit) => videosApi(v)(new URL(String(u)), i)) as typeof fetch;
-      expect(await syncCommunity(E, { now: later, fetch: fetchV })).toMatchObject({ shown: 1 });
+      expect(await syncCommunity(E, { now: later, fetch: fetchOf(v) })).toMatchObject({ shown: 1 });
       expect(await env.DB.prepare("SELECT state FROM community_links WHERE post_id = ?1").bind(id).first()).toMatchObject({ state: "ok" });
 
+      // Once the post is a reference (converted), the old sync is retired for it: no hide, no re-post.
+      await env.DB.prepare("UPDATE posts SET ref_post_id = 'cp-ret', ref_channel_id = 'ch-r', status = 'draft' WHERE id = ?1").bind(id).run();
+      await noteCommunityChange(E, [id]);
+      expect(await env.DB.prepare("SELECT state FROM community_links WHERE post_id = ?1").bind(id).first()).toMatchObject({ state: "retired" });
+      await syncCommunity(E, { now: later + 60_000, fetch: fetchOf(v) });
+      expect(v.deletes).toHaveLength(0);
+
       // A scholar without a channel: nothing is posted until they link one.
-      const n = client(v, await session(v, ["Scholar"], "sch-nochan"));
-      const lone = await post(n.call, `lone-${Date.now()}`);
-      expect(await env.DB.prepare("SELECT state FROM community_links WHERE post_id = ?1").bind(lone).first()).toMatchObject({ state: "no_channel" });
+      await session(v, ["Scholar"], "sch-nochan");
+      const lone = await legacyPost(w.call, "sch-nochan", `lone-${Date.now()}`);
       await noteCommunityChange(E, [lone]);
+      await syncCommunity(E, { now: later + 120_000, fetch: fetchOf(v) });
+      expect(await env.DB.prepare("SELECT state FROM community_links WHERE post_id = ?1").bind(lone).first()).toMatchObject({ state: "no_channel" });
    });
 });
 

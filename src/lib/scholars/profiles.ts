@@ -188,17 +188,17 @@ export async function ensureScholar(
    const at = new Date().toISOString();
    await db
       .prepare(
-         `INSERT INTO scholars (sso_sub, slug, name_en, name_ar, channel_ids, created_at, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7)
+         `INSERT INTO scholars (sso_sub, slug, name_en, name_ar, channel_ids, primary_channel_id, created_at, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?8, ?6, ?6, ?7)
           ON CONFLICT (sso_sub) DO NOTHING`,
       )
-      .bind(who.sub, slug, en, ar, JSON.stringify(channelIds.slice(0, CHANNELS_MAX)), at, who.email)
+      .bind(who.sub, slug, en, ar, JSON.stringify(channelIds.slice(0, CHANNELS_MAX)), at, who.email, channelIds[0] ?? null)
       .run()
       .catch(async (error: unknown) => {
          // The slug was taken between the check and the insert: one more try with a fresh one.
          if (!/UNIQUE/i.test(String(error))) throw error;
          await db
-            .prepare(`INSERT INTO scholars (sso_sub, slug, name_en, name_ar, channel_ids, created_at, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7) ON CONFLICT (sso_sub) DO NOTHING`)
-            .bind(who.sub, `${slugify(name ?? who.email).slice(0, 40)}-${crypto.randomUUID().slice(0, 6)}`, en, ar, JSON.stringify(channelIds.slice(0, CHANNELS_MAX)), at, who.email)
+            .prepare(`INSERT INTO scholars (sso_sub, slug, name_en, name_ar, channel_ids, primary_channel_id, created_at, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?8, ?6, ?6, ?7) ON CONFLICT (sso_sub) DO NOTHING`)
+            .bind(who.sub, `${slugify(name ?? who.email).slice(0, 40)}-${crypto.randomUUID().slice(0, 6)}`, en, ar, JSON.stringify(channelIds.slice(0, CHANNELS_MAX)), at, who.email, channelIds[0] ?? null)
             .run();
       });
    return scholarOfSub(db, who.sub);
@@ -261,6 +261,8 @@ export function validateScholarInput(input: ScholarInput, allowedChannels: strin
       if (allowedChannels === null) throw new ScholarError(409, "channels_unavailable");
       if (unique.some((x) => !allowedChannels.includes(x))) throw new ScholarError(403, "not_your_channel");
       out.channel_ids = JSON.stringify(unique);
+      // The first linked channel is the primary one: its community posts are the scholar's posts (§7).
+      out.primary_channel_id = unique[0] ?? null;
    }
    return out;
 }

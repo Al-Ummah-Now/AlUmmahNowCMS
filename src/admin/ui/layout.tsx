@@ -50,7 +50,8 @@ interface NavItem {
 const CONTENT: NavItem[] = [
    { href: "/", label: "overview", icon: "home" },
    { href: "/pages", label: "pages", icon: "file" },
-   { href: "/posts", label: "posts", icon: "pen", writer: true },
+   { href: "/posts", label: "posts", icon: "pen" },
+   { href: "/write", label: "write", icon: "pen", writer: true, writerOnly: true },
    { href: "/scholars/me", label: "myProfile", icon: "user", writer: true, writerOnly: true },
    { href: "/timeline", label: "timeline", icon: "timeline" },
    { href: "/featuring", label: "featuring", icon: "star" },

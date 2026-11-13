@@ -110,20 +110,13 @@ describe("flagging", () => {
 });
 
 describe("roles", () => {
-   it("a scholar flags their own post but cannot resolve; someone else's post is not found", async () => {
+   it("scholars write in Studio (docs/SCHOLARS.md §7): translation flags are staff's", async () => {
       const worker = makeWorker();
       const sch = caller(worker, await session(["Scholar"], "trf-sch-1"));
       const sub = (await env.DB.prepare("SELECT sso_sub FROM users WHERE email = 'trf-sch-1@example.com'").first<{ sso_sub: string }>())!.sso_sub;
       const mine = await pair({ authorSub: sub });
-      const theirs = await pair({ authorSub: "someone-else" });
-      const res = await sch("POST", "/admin/api/translation-flags", sel(mine.en, TARGET_BODY, "endurance"));
-      expect(res.status).toBe(201);
-      const { flag } = (await res.json()) as { flag: { id: string } };
-      expect((await sch("POST", `/admin/api/translation-flags/${flag.id}/resolve`, { resolution: "fixed" })).status).toBe(403);
-      expect((await sch("POST", `/admin/api/translation-flags/${flag.id}/dismiss`, {})).status).toBe(403);
-      expect(((await (await sch("GET", `/admin/api/translation-flags?kind=posts&id=${mine.en}`)).json()) as { canResolve: boolean }).canResolve).toBe(false);
-      expect((await sch("POST", "/admin/api/translation-flags", sel(theirs.en, TARGET_BODY, "endurance"))).status).toBe(404);
-      expect((await sch("GET", `/admin/api/translation-flags?kind=posts&id=${theirs.en}`)).status).toBe(404);
+      expect((await sch("POST", "/admin/api/translation-flags", sel(mine.en, TARGET_BODY, "endurance"))).status).toBe(403);
+      expect((await sch("GET", `/admin/api/translation-flags?kind=posts&id=${mine.en}`)).status).toBe(403);
       expect((await sch("GET", "/admin/api/glossary")).status).toBe(403);
    });
 
