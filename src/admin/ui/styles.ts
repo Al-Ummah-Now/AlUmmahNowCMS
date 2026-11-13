@@ -594,4 +594,7 @@ html.fanous-street .row{background:color-mix(in srgb,var(--fanous-color-surface)
 html.fanous-street .blk{background:color-mix(in srgb,var(--fanous-color-surface) 78%,var(--fanous-color-background))}
 html.fanous-street .drop{background:color-mix(in srgb,var(--fanous-color-primary) 9%,var(--fanous-color-background))}
 html.fanous-street .drop:hover,html.fanous-street .drop.over{background:color-mix(in srgb,var(--fanous-color-primary) 18%,var(--fanous-color-background))}
+/* Phones have no side margins for garlands: every fourth list item opens a gap tall enough for one (the street module needs 48px), so the
+   street shows while scrolling and the lists stay dense. */
+@media(max-width:639px){html.fanous-street :is(.list,.rows)>:nth-child(4n+1):not(:first-child){margin-block-start:48px}}
 `;
