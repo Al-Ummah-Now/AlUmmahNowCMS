@@ -9,6 +9,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
 
+// Browser globals used inside page.evaluate / addInitScript (the CMS typechecks e2e without the DOM lib)
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare const document: any, window: any, MutationObserver: any;
+
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
 const RUN = `vp${Date.now().toString(36)}`;
@@ -34,7 +38,7 @@ async function recordDarkAtBody(page: Page) {
    await page.addInitScript(() => {
       const seen: boolean[] = [];
       (window as unknown as { __darkAtBody: boolean[] }).__darkAtBody = seen;
-      new MutationObserver((_, obs) => {
+      new MutationObserver((_: unknown, obs: any) => {
          if (document.body) {
             seen.push(document.documentElement.classList.contains("dark"));
             obs.disconnect();
