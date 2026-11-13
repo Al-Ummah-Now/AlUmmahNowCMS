@@ -162,7 +162,8 @@ function AccountMenu(props: { v: View }) {
                      <span class="aun-menu-label" id="account-apps-label">{v.t.header.apps}</span>
                      {apps.map((a) => (
                         <a class="aun-menu-item" role="menuitem" href={a.href} data-app={a.id}>
-                           <span class="aun-app-icon" data-app={a.id} aria-hidden="true" />
+                           {/* The app's own favicon: a separate file (never inlined in the CSS), loaded when the menu shows it */}
+                           <img class="aun-app-icon" data-app={a.id} src={`/aun-nav/icons/${a.id}.webp`} width="32" height="32" alt="" loading="lazy" decoding="async" />
                            <span class="aun-menu-text">{appLabel[a.id]}</span>
                         </a>
                      ))}

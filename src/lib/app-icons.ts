@@ -4,11 +4,13 @@
  */
 import { Hono } from "hono";
 import { APP_ICONS } from "./app-icons.generated.ts";
+import { NAV_ICONS } from "./nav-icons.generated.ts";
 
 /** Fixed names, so not immutable: a day fresh, then a week stale-while-revalidate. */
 const CACHE = "public, max-age=86400, stale-while-revalidate=604800";
 
-const bodies = new Map(Object.entries(APP_ICONS).map(([path, f]) => [path, { type: f.type, body: Uint8Array.from(atob(f.body), (ch) => ch.charCodeAt(0)) }]));
+// This app's icons, and the account menu's app icons (every app's favicon, /aun-nav/icons/<id>.webp)
+const bodies = new Map(Object.entries({ ...APP_ICONS, ...NAV_ICONS }).map(([path, f]) => [path, { type: f.type, body: Uint8Array.from(atob(f.body), (ch) => ch.charCodeAt(0)) }]));
 
 /** Request paths the icons are served at (public, before the session and config checks). */
 export const ICON_PATHS = [...bodies.keys()];
