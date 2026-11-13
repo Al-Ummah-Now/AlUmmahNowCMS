@@ -62,7 +62,7 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       user: {
          email: user.email,
          name: ((prefs.lang === "ar" ? user.name_ar : user.name_en) ?? "").trim(),
-         role: user.role === "admin" ? "admin" : user.role === "writer" ? "writer" : "editor",
+         role: user.role === "admin" ? "admin" : user.role === "writer" ? "writer" : user.role === "staff_writer" ? "staff_writer" : "editor",
          sub: user.role === "writer" ? await subOfUser(c.env.DB, user.id) : null,
       },
       wwwUrl: cfg.wwwUrl,
@@ -93,6 +93,8 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    r.get("/", async (c) => {
       // A scholar's home is "Write in Studio" (docs/SCHOLARS.md §7, SS18).
       if (c.get("user")?.role === "writer") return c.redirect("/write", 302);
+      // A staff writer's home is the posts list (Al Ummah Now's own posts)
+      if (c.get("user")?.role === "staff_writer") return c.redirect("/posts", 302);
       const v = await buildView(c, deps);
       const failures = v.user.role === "admin" ? await flaggedFailures(c.env.DB).catch(() => null) : null;
       return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps), c.env.DB, failures));

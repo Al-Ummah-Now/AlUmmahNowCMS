@@ -34,6 +34,7 @@ screen's Videos tab, or "Search all videos").
 | Super Admin, Admin | `admin` | everything |
 | Moderator | `editor` | all content, timeline, featuring; no deletes, no settings |
 | **Scholar** (`role_scholar`, AlUmmahNowAuth 0029) | **`writer`** | create, edit, publish, unpublish, schedule and delete (soft) **their own posts**; media upload and the library; the video embed picker; AI assist (same per-user budget); their own profile |
+| **Writer** (`role_writer`, AlUmmahNowAuth, staff) | **`staff_writer`** | write, edit, publish and unpublish **Al Ummah Now's own posts** (no scholar author) in the full CMS editor; media, AI assist, translation flags, history, preview. No pages, navigation, settings, timeline, featuring, scholars or deletes (SS18, 2026-11-13: the staff writer role stays) |
 
 The strongest role wins (a Scholar who is also a Moderator is an editor). A writer can't open pages,
 navigation, site settings, the timeline, featuring, other scholars' profiles or anyone else's posts.
@@ -160,9 +161,12 @@ recommendations and still await the owner's explicit confirmation.
   **Add to page**: an in-page dialog (one per language) with a live autocomplete of that language's
   curated list pages (suggest kind `list-pages`, opens with them before typing); choosing one adds the
   post through the list's own `POST /admin/api/lists/:id/posts/:postId`. Remove it on the page's screen.
-- **Writers (SS18):** a writer's CMS home is **Write in Studio** (`/write`): links to their channel's
+- **Scholars (SS18):** a scholar's (CMS role `writer`) CMS home is **Write in Studio** (`/write`): links to their channel's
   composer and Community management on the videos site, their www page and their profile. The data API
-  refuses their post writes; their old post screens redirect to `/write`.
+  refuses their post writes; their old post screens redirect to `/write`. Staff writers (auth
+  "Writer", CMS role `staff_writer`, `src/lib/staff-writer.ts`) keep the full CMS editor for Al Ummah
+  Now's own posts: lists and reads scoped to `author_sub IS NULL`, a scholar post or reference is
+  "not found", no deletes and no editorial screens.
 - **Nightly check** (#1217, `src/lib/scholars/reconcile.ts`): at 03:00 UTC, for each scholar's primary
   channel (≤ 50), api-videos' digest of its newest ≤ 200 posts (`GET /internal/posts/:channelId`) is
   compared with that channel's refs (one indexed query, migration 0020). Missing or stale refs are

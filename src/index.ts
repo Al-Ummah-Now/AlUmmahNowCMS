@@ -49,6 +49,8 @@ import { errText, log } from "./lib/log.ts";
 import { isCmsRole } from "./lib/roles.ts";
 import { postAuthor, scopeListUrl, scopeWhere, subOfUser, writerApiVerdict } from "./lib/scholars/ownership.ts";
 import { writerScreenAllowed } from "./lib/scholars/access.ts";
+import { isStaffPost, scopeStaffListUrl, staffWriterApiVerdict, staffWriterScreenAllowed } from "./lib/staff-writer.ts";
+import { scopeWhereStaff } from "./lib/scholars/ownership.ts";
 import { applyPrivateHeaders, contentSecurityPolicy, nonce, sameOriginOk } from "./lib/security.ts";
 import { robotsTxtResponse, withCrawlerRules } from "./lib/crawlers.ts";
 import { pingIndexNow } from "./lib/indexnow.ts";
@@ -125,6 +127,33 @@ async function scopeWriterRequest(c: Ctx, user: AuthUser): Promise<Request | Res
    }
    const owner = await postAuthor(c.env.DB, verdict.id);
    if (owner !== sub) return c.json({ error: "not_found" }, 404);
+   return c.req.raw;
+}
+
+/**
+ * A staff writer's bknd API call (src/lib/staff-writer.ts): Al Ummah Now's own posts only; a scholar
+ * post or reference answers 404, anything else they may not use 403.
+ */
+async function scopeStaffWriterRequest(c: Ctx): Promise<Request | Response> {
+   const verdict = staffWriterApiVerdict(c.req.method, c.req.path);
+   if (verdict.kind === "allow") return c.req.raw;
+   if (verdict.kind === "deny") return c.json({ error: "forbidden" }, 403);
+   if (verdict.kind === "scope-list") return new Request(scopeStaffListUrl(new URL(c.req.url)), c.req.raw);
+   if (verdict.kind === "scope-count") {
+      const text = c.req.method === "POST" ? await c.req.raw.clone().text() : "";
+      let where: Record<string, unknown> = {};
+      try {
+         const parsed = text ? (JSON.parse(text) as unknown) : {};
+         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) where = parsed as Record<string, unknown>;
+      } catch {
+         where = {};
+      }
+      const headers = new Headers(c.req.raw.headers);
+      headers.set("content-type", "application/json");
+      headers.delete("content-length");
+      return new Request(c.req.url, { method: "POST", headers, body: JSON.stringify(scopeWhereStaff(where)) });
+   }
+   if ((await isStaffPost(c.env.DB, verdict.id)) !== true) return c.json({ error: "not_found" }, 404);
    return c.req.raw;
 }
 
@@ -217,6 +246,10 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          const url = new URL(c.req.url);
          return c.redirect(`/sso/login?return=${encodeURIComponent(url.pathname + url.search)}`, 302);
       }
+      if (user.role === "staff_writer" && !staffWriterScreenAllowed(c.req.method, p)) {
+         if (p.startsWith("/picker/api/") || p.startsWith("/admin/api/")) return c.json({ error: "forbidden" }, 403);
+         return renderStatus(c, "no_access", 403);
+      }
       if (user.role === "writer" && !writerScreenAllowed(c.req.method, p)) {
          if (p.startsWith("/picker/api/") || p.startsWith("/admin/api/")) return c.json({ error: "forbidden" }, 403);
          if (p === "/scholars") return c.redirect("/scholars/me", 302);
@@ -251,6 +284,11 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       let writerRequest: Request | null = null;
       if (signedIn?.role === "writer") {
          const scoped = await scopeWriterRequest(c, signedIn);
+         if (scoped instanceof Response) return scoped;
+         writerRequest = scoped;
+      }
+      if (signedIn?.role === "staff_writer") {
+         const scoped = await scopeStaffWriterRequest(c);
          if (scoped instanceof Response) return scoped;
          writerRequest = scoped;
       }

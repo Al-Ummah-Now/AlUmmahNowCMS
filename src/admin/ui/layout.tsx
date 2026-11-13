@@ -19,7 +19,7 @@ export interface View {
    nonce: string;
    /** `sub` is the writer's auth user id (writers only: they see their own posts, docs/SCHOLARS.md). */
    /** `name` is the account's name in the admin language ('' when it has none: show the email). */
-   user: { email: string; name: string; role: "admin" | "editor" | "writer"; sub?: string | null };
+   user: { email: string; name: string; role: "admin" | "editor" | "staff_writer" | "writer"; sub?: string | null };
    wwwUrl: string;
    adminWebUrl: string;
    /** For the account menu's "Al Ummah Now apps" links (src/lib/app-links.ts). */
@@ -35,6 +35,8 @@ export interface View {
 export const isAdmin = (v: View) => v.user.role === "admin";
 /** A scholar (auth "Scholar"): their own posts and profile only. */
 export const isWriter = (v: View) => v.user.role === "writer";
+/** A staff writer (auth "Writer", SS18): Al Ummah Now's own posts in the CMS editor. */
+export const isStaffWriter = (v: View) => v.user.role === "staff_writer";
 
 interface NavItem {
    href: string;
@@ -45,12 +47,14 @@ interface NavItem {
    writer?: boolean;
    /** Shown to writers only. */
    writerOnly?: boolean;
+   /** Shown to staff writers (auth "Writer"). */
+   staffWriter?: boolean;
 }
 
 const CONTENT: NavItem[] = [
    { href: "/", label: "overview", icon: "home" },
    { href: "/pages", label: "pages", icon: "file" },
-   { href: "/posts", label: "posts", icon: "pen" },
+   { href: "/posts", label: "posts", icon: "pen", staffWriter: true },
    { href: "/write", label: "write", icon: "pen", writer: true, writerOnly: true },
    { href: "/scholars/me", label: "myProfile", icon: "user", writer: true, writerOnly: true },
    { href: "/timeline", label: "timeline", icon: "timeline" },
@@ -74,7 +78,7 @@ function NavLinks(props: { v: View; items: NavItem[] }) {
    return (
       <>
          {props.items
-            .filter((i) => (isWriter(props.v) ? !!i.writer : !i.writerOnly && (!i.admin || isAdmin(props.v))))
+            .filter((i) => (isWriter(props.v) ? !!i.writer : isStaffWriter(props.v) ? !!i.staffWriter : !i.writerOnly && (!i.admin || isAdmin(props.v))))
             .map((i) => (
                <a class="ri" href={i.href} aria-current={current(props.v.path, i.href) ? "page" : undefined}>
                   <Icon name={i.icon} />
@@ -145,7 +149,7 @@ function AccountMenu(props: { v: View }) {
                <span class="aun-menu-who-text">
                   <span class="aun-menu-who-name" dir="auto" title={v.user.email}>{label}</span>
                   {label !== v.user.email ? <EmailText email={v.user.email} class="aun-menu-who-sub" /> : null}
-                  <span class="aun-menu-who-sub">{isAdmin(v) ? v.t.header.roleAdmin : isWriter(v) ? v.t.header.roleWriter : v.t.header.roleEditor}</span>
+                  <span class="aun-menu-who-sub">{isAdmin(v) ? v.t.header.roleAdmin : isWriter(v) ? v.t.header.roleWriter : isStaffWriter(v) ? v.t.header.roleStaffWriter : v.t.header.roleEditor}</span>
                </span>
             </div>
             <div class="aun-menu-sep" role="separator" />
@@ -200,9 +204,17 @@ function EmailText(props: { email: string; class: string }) {
 function CreateMenu(props: { v: View }) {
    const { t } = props.v;
    if (isWriter(props.v)) {
+      // Scholars write in Studio (SS18)
+      return (
+         <a class="btn primary sm" href="/write">
+            <Icon name="pen" size={18} /> <span>{t.write.title}</span>
+         </a>
+      );
+   }
+   if (isStaffWriter(props.v)) {
       return (
          <a class="btn primary sm" href="/posts/new">
-            <Icon name="pen" size={18} /> <span>{t.scholars.writeArticle}</span>
+            <Icon name="pen" size={18} /> <span>{t.content.newPost}</span>
          </a>
       );
    }

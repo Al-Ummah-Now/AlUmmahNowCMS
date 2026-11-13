@@ -40,9 +40,11 @@ import { postAuthor, subOfUser } from "../lib/scholars/ownership.ts";
 import { FEATURES, type Feature, type Locale } from "../lib/ai/prompts.ts";
 import { fallbackBase, freeSlug } from "../lib/slug.ts";
 import { suggestSlug } from "../lib/slug-suggest.ts";
+import { isStaffPost } from "../lib/staff-writer.ts";
 
-// Writers (auth "Scholar") use AI assist on their own posts, under the same per-user budget.
-const isStaff = (role?: string) => role === "admin" || role === "editor" || role === "writer";
+// Writers (auth "Scholar") use AI assist on their own posts, staff writers (auth "Writer") on Al Ummah
+// Now's own posts, under the same per-user budget.
+const isStaff = (role?: string) => role === "admin" || role === "editor" || role === "staff_writer" || role === "writer";
 
 /** What the browser sees of a job (never the input text back, never provider errors). */
 export function publicJob(j: Job) {
@@ -98,6 +100,10 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
          if (parsed.job.kind !== "posts") return c.json({ error: "forbidden" }, 403);
          if (parsed.job.rowId !== null && (await postAuthor(c.env.DB, parsed.job.rowId)) !== (await subOfUser(c.env.DB, user.id))) return c.json({ error: "not_found" }, 404);
       }
+      if (user.role === "staff_writer") {
+         if (parsed.job.kind !== "posts") return c.json({ error: "forbidden" }, 403);
+         if (parsed.job.rowId !== null && (await isStaffPost(c.env.DB, parsed.job.rowId)) !== true) return c.json({ error: "not_found" }, 404);
+      }
       const userId = Number(user.id);
       const now = Date.now();
       const j: NewJob = { ...parsed.job, userId };
@@ -134,6 +140,10 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
       if (user.role === "writer") {
          if (kind !== "posts") return c.json({ error: "forbidden" }, 403);
          if (id !== null && (await postAuthor(c.env.DB, id)) !== (await subOfUser(c.env.DB, user.id))) return c.json({ error: "not_found" }, 404);
+      }
+      if (user.role === "staff_writer") {
+         if (kind !== "posts") return c.json({ error: "forbidden" }, 403);
+         if (id !== null && (await isStaffPost(c.env.DB, id)) !== true) return c.json({ error: "not_found" }, 404);
       }
       // The English title: this row's when it is English, else its linked English version's.
       let englishTitle: string | null = locale === "en" ? title : null;
