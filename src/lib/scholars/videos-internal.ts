@@ -148,3 +148,20 @@ export async function convertedPost(env: Env, userId: string, externalId: string
       throw error;
    }
 }
+
+/** A channel's newest posts and whether each may have a www reference (the nightly check, #1217). */
+export interface ChannelDigest {
+   posts: { id: string; live: boolean; updatedAt: string | null }[];
+   complete: boolean;
+}
+
+/** Null when the channel is gone (404). */
+export async function channelDigest(env: Env, channelId: string, fetchImpl: typeof fetch = fetch): Promise<ChannelDigest | null> {
+   try {
+      const body = await call<Partial<ChannelDigest>>(env, fetchImpl, "GET", `/internal/posts/${enc(channelId)}?limit=200`);
+      return { posts: Array.isArray(body.posts) ? body.posts.filter((p) => p && typeof p.id === "string") : [], complete: body.complete === true };
+   } catch (error) {
+      if (error instanceof VideosInternalError && error.status === 404) return null;
+      throw error;
+   }
+}

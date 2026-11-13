@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../../src/env.ts";
 import { POST_FIXTURES } from "../../src/lib/post-schema.generated.ts";
 import { checkConversion, planConversion, runConversion } from "../../src/lib/scholars/convert.ts";
+import { isReconcileSlot, reconcileRefs } from "../../src/lib/scholars/reconcile.ts";
 import { feedItems } from "../../src/lib/feed/source.ts";
 import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
 
@@ -22,10 +23,15 @@ function videos(store: Map<string, Record<string, unknown>>) {
    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input instanceof Request ? input.url : input));
       if ((init?.headers as Record<string, string> | undefined)?.["X-API-Key"] !== KEY) return Response.json({ error: "unauthorized" }, { status: 401 });
+      const digest = /^\/internal\/posts\/([^/]+)$/.exec(url.pathname);
+      if (digest) {
+         const posts = [...store.entries()].filter(([k]) => k.startsWith(`${digest[1]}/`)).map(([, p]) => ({ id: String(p.id), live: p.status === "published" && (p.visibility ?? "public") === "public", updatedAt: (p.updatedAt as string) ?? null }));
+         return Response.json({ posts, complete: true });
+      }
       const read = /^\/internal\/posts\/([^/]+)\/([^/]+)$/.exec(url.pathname);
       if (read) {
          const p = store.get(`${read[1]}/${read[2]}`);
-         return p ? Response.json({ post: p }) : Response.json({ error: "not_found" }, { status: 404 });
+         return p && p.status === "published" ? Response.json({ post: p }) : Response.json({ error: "not_found" }, { status: 404 });
       }
       const c = /^\/internal\/scholars\/([^/]+)\/posts\/([^/]+)$/.exec(url.pathname);
       if (c && init?.method === "PUT") {
@@ -207,5 +213,51 @@ describe("staff screens", () => {
       const editor = await (await w(`/posts/${id}`, { headers: { cookie } })).text();
       expect(editor).toContain('data-ref-post="p-list"');
       expect(editor).toContain("https://videos.test/en/settings/channel/ch-list/community");
+   });
+});
+
+describe("the nightly reference check (#1217)", () => {
+   it("creates missing refs, refreshes stale ones, drafts refs of gone or hidden posts; nothing else", async () => {
+      await scholar("sch-rec", "rec-scholar", "ch-rec");
+      const store = new Map<string, Record<string, unknown>>();
+      const v = videos(store);
+      const f = refs(store);
+      const old = "2026-11-01T00:00:00.000Z";
+      const mk = (id: string, extra: Record<string, unknown> = {}) => ({ ...POST_FIXTURES.text, id, channelId: "ch-rec", content: `Post ${id}`, updatedAt: old, ...extra });
+      // In step: a ref exists and is newer than the post.
+      store.set("ch-rec/r-ok", mk("r-ok"));
+      await put(f, mk("r-ok"));
+      // Missed by the outbox: no ref yet.
+      store.set("ch-rec/r-missing", mk("r-missing"));
+      // Edited after its ref was written (the edit's message was lost).
+      await put(f, mk("r-stale", { content: "Old text" }));
+      await new Promise((r) => setTimeout(r, 5));
+      store.set("ch-rec/r-stale", mk("r-stale", { content: "New text", updatedAt: new Date().toISOString() }));
+      // Made members-only, and deleted outright: their refs must leave www.
+      await put(f, mk("r-members"));
+      store.set("ch-rec/r-members", mk("r-members", { visibility: "members" }));
+      await put(f, mk("r-gone"));
+
+      // (Other tests' scholars share this database: only this channel's outcome is asserted.)
+      const r = await reconcileRefs(E, { fetch: v.fetchImpl });
+      expect(r.upserted).toBeGreaterThanOrEqual(2);
+      expect(r.removed).toBeGreaterThanOrEqual(2);
+      expect(r.capped).toBe(false);
+      const st = async (id: string) => (await env.DB.prepare("SELECT status, excerpt FROM posts WHERE ref_post_id = ?1").bind(id).first<{ status: string; excerpt: string }>()) ?? null;
+      expect((await st("r-missing"))?.status).toBe("published");
+      expect((await st("r-stale"))?.excerpt).toBe("New text");
+      expect((await st("r-members"))?.status).toBe("draft");
+      expect((await st("r-gone"))?.status).toBe("draft");
+      expect((await st("r-ok"))?.status).toBe("published");
+      // In step now: a second run changes nothing here.
+      const before = await env.DB.prepare("SELECT ref_post_id, status, updated_at FROM posts WHERE ref_channel_id = 'ch-rec' ORDER BY ref_post_id").all();
+      await reconcileRefs(E, { fetch: v.fetchImpl });
+      expect((await env.DB.prepare("SELECT ref_post_id, status, updated_at FROM posts WHERE ref_channel_id = 'ch-rec' ORDER BY ref_post_id").all()).results).toEqual(before.results);
+   });
+
+   it("runs once a night: the 03:00 UTC run of the 30-minute cron", () => {
+      expect(isReconcileSlot(Date.parse("2026-11-14T03:00:00Z"))).toBe(true);
+      expect(isReconcileSlot(Date.parse("2026-11-14T03:30:00Z"))).toBe(false);
+      expect(isReconcileSlot(Date.parse("2026-11-14T15:00:00Z"))).toBe(false);
    });
 });

@@ -35,6 +35,7 @@ import { checkFeedFormat } from "./lib/feed/auto-rebuild.ts";
 import { releaseApi } from "./routes/release-api.ts";
 import { internalRefsApi } from "./routes/internal-refs.ts";
 import { fillPrimaryChannels } from "./lib/scholars/refs.ts";
+import { isReconcileSlot, reconcileRefs } from "./lib/scholars/reconcile.ts";
 import { pruneJobs } from "./lib/ai/jobs.ts";
 import { handleAiQueue, isAiQueue } from "./lib/ai/runner.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
@@ -348,6 +349,14 @@ export default {
       }
       // Scholars' primary channels (docs/SCHOLARS.md §7): filled from channel_ids[0] where missing.
       ctx.waitUntil(fillPrimaryChannels(env.DB).catch((error) => log.warn("primary channel fill failed", { error: errText(error) })));
+      // Once a night (03:00 UTC): scholar references vs their community posts (#1217, reconcile.ts)
+      if (isReconcileSlot(event.scheduledTime)) {
+         ctx.waitUntil(
+            reconcileRefs(env)
+               .then((r) => console.log(JSON.stringify({ msg: "scholar ref check", ...r })))
+               .catch((error) => log.error("scholar ref check failed", { error: errText(error) })),
+         );
+      }
       // IndexNow: changed and newly live posts and pages (production only; src/lib/indexnow.ts)
       ctx.waitUntil(pingIndexNow(env).catch((error) => log.warn("indexnow ping failed", { error: errText(error) })));
       ctx.waitUntil(
