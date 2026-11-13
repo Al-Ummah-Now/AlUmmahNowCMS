@@ -161,7 +161,8 @@ export async function channelDigest(env: Env, channelId: string, fetchImpl: type
       const body = await call<Partial<ChannelDigest>>(env, fetchImpl, "GET", `/internal/posts/${enc(channelId)}?limit=200`);
       return { posts: Array.isArray(body.posts) ? body.posts.filter((p) => p && typeof p.id === "string") : [], complete: body.complete === true };
    } catch (error) {
-      if (error instanceof VideosInternalError && error.status === 404) return null;
+      // Only api-videos' own "channel gone" answer; a bare 404 (an api-videos without this route) is an error.
+      if (error instanceof VideosInternalError && error.status === 404 && error.code === "not_found") return null;
       throw error;
    }
 }
