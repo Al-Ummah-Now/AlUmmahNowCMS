@@ -56,7 +56,7 @@ shared one: sign-out ends the account's sessions in every app. `npm test` enforc
 
 ## Deploy
 
-- **QA:** every push to `main` → `deploy-qa.yml` (migrate QA D1, deploy, smoke, secrets check, E2E).
+- **QA:** every push to `main` → `deploy-qa.yml` (migrate QA D1, deploy, smoke, secrets check). No E2E against QA on a push: tests run against QA only on numbered releases (owner rule 2026-11-13); the release's stage E2E is the gate, and `e2e-qa.yml` runs on QA by hand.
 - **Production:** push a tag `vYYYY.MM.DD` (`vYYYY.MM.DD.N`, N ≥ 2, for a later release that day) on a
   commit on `main` → `release.yml`: resolve (valid tag on `main`?) → build once → stage (migrate, 0 % +
   override smoke, 100 %, E2E) → production (tag still on that commit?, migrate, 0 % smoke, 100 %,

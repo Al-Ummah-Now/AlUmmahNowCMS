@@ -19,7 +19,7 @@ prod only via stage-then-promote; out-of-scope work becomes `queue` issues.
 5. **Secrets:** `BKND_JWT_SECRET` (openssl) per CMS Worker (no `CMS_CLIENT_SECRET`: the CMS is a public
    PKCE client, SPEC §3); `SESSION_SECRET` per www Worker. GitHub: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `QA_SEED_PASSWORD`,
    `STAGE_SEED_PASSWORD` in both repos.
-6. **QA** deploys on merge to main (`deploy-qa.yml`) → QA E2E.
+6. **QA** deploys on merge to main (`deploy-qa.yml`); no E2E against QA on a push (owner rule 2026-11-13: tests run against QA only on numbered releases). The release's stage E2E is the gate.
 7. **Release** (`release.yml`): stage → prod for both. www before CMS is fine (www falls back).
    Verify that the apex and www resolve over HTTPS.
 
