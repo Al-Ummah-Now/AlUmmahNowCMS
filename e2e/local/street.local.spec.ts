@@ -121,15 +121,22 @@ test("other themes draw no street", async ({ page }, info) => {
    await theme(page, "fawanees", "light");
 });
 
-test("the distant lights stand still with reduced motion", async ({ browser }, info) => {
-   test.skip(info.project.name !== "desktop", "one viewport is enough");
-   const context = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1280, height: 800 } });
-   const page = await context.newPage();
-   await signIn(page, `${RUN}-motion`);
-   await theme(page, "fawanees", "light");
-   await expect(page.locator("html")).toHaveClass(/fanous-street/);
-   await page.evaluate(() => window.scrollTo(0, 700));
-   await page.waitForTimeout(300);
-   expect(await page.evaluate(() => getComputedStyle(document.documentElement).animationName)).toBe("none");
-   await context.close();
-});
+for (const motion of ["reduce", "no-preference"] as const) {
+   test(`the distant lights ${motion === "reduce" ? "stand still with reduced motion" : "drift at 0.2x the scroll"}; no animations`, async ({ browser }, info) => {
+      test.skip(info.project.name !== "desktop", "one viewport is enough");
+      const context = await browser.newContext({ reducedMotion: motion, viewport: { width: 1280, height: 700 } });
+      const page = await context.newPage();
+      await signIn(page, `${RUN}-motion-${motion}`);
+      await theme(page, "fawanees", "light");
+      await page.goto(`${ON}/posts`);
+      await expect(page.locator("#fanous-street-lights")).toHaveCount(1);
+      const pos = () => page.evaluate(() => getComputedStyle(document.getElementById("fanous-street-lights")).backgroundPositionY);
+      const max = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+      const y = Math.min(500, max);
+      await page.evaluate((to: number) => window.scrollTo(0, to), y);
+      await expect.poll(pos).toBe(motion === "reduce" || y === 0 ? "0px" : `${-Math.round(0.2 * y)}px`);
+      const ours = await page.evaluate(() => document.getAnimations().filter((a: any) => { const t = a.effect?.target; return !!t && (t === document.documentElement || !!t.closest("#fanous-street, #fanous-street-lights")); }).length);
+      expect(ours, "the street runs no animations").toBe(0);
+      await context.close();
+   });
+}
