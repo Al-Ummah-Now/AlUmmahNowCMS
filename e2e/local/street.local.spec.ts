@@ -10,7 +10,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Browser globals used inside page.evaluate (the CMS typechecks e2e without the DOM lib)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const document: any, window: any, Image: any, getComputedStyle: any, innerHeight: number, innerWidth: number;
+declare const document: any, window: any, Image: any, getComputedStyle: any, innerHeight: number, innerWidth: number, scrollY: number, scrollTo: (x: number, y: number) => void;
 
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
@@ -108,7 +108,12 @@ for (const mode of ["light", "dark"] as const) {
             await stable(page);
             const problems: string[] = [];
             for (const s of await seeThrough(page)) problems.push(`${path} see-through: ${s}`);
-            for (const c of await cutLanterns(page)) problems.push(`${path} ${c}`);
+            // Several scroll depths: what lands on the first screen depends on the run's other data
+            for (const y of [0, 700, 1400]) {
+               const at = await page.evaluate((y) => { scrollTo(0, y); return Math.round(scrollY); }, y);
+               if (y && at < y - 50) break;
+               for (const c of await cutLanterns(page)) problems.push(`${path} @${at}: ${c}`);
+            }
             expect(problems, problems.join("\n")).toEqual([]);
          }
          // The whole-lantern check must have looked at real lanterns
