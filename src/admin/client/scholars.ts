@@ -18,6 +18,8 @@ interface S {
    videoAdded: string;
    videoAlready: string;
    videoRemoved: string;
+   addedToPage: string;
+   addToPageNone: string;
 }
 
 const T = (): S => strings<{ sch: S }>("i18n-shell").sch;
@@ -110,7 +112,50 @@ function initProfile(): void {
    }
 }
 
+/**
+ * "Add to page" (docs/SCHOLARS.md §7): the row's button opens the in-page dialog of the post's
+ * language; the chosen curated list page (its autocomplete records the id) gets the post through the
+ * list's own endpoint (src/admin/lists-api.ts).
+ */
+function initAddToPage(): void {
+   let postId = "";
+   for (const b of $$<HTMLButtonElement>("[data-add-to-page]")) {
+      b.addEventListener("click", () => {
+         const dlg = $<HTMLDialogElement>(`#add-to-page-${b.dataset.locale === "ar" ? "ar" : "en"}`);
+         if (!dlg) return;
+         postId = String(b.dataset.addToPage);
+         const input = dlg.querySelector<HTMLInputElement>("[data-add-to-page-input]");
+         if (input) {
+            input.value = "";
+            delete input.dataset.acId;
+         }
+         dlg.showModal();
+         input?.focus();
+      });
+   }
+   for (const dlg of $$<HTMLDialogElement>("[data-add-to-page-dialog]")) {
+      const input = dlg.querySelector<HTMLInputElement>("[data-add-to-page-input]");
+      dlg.querySelector<HTMLButtonElement>("[data-add-to-page-ok]")?.addEventListener("click", async (ev) => {
+         ev.preventDefault();
+         const pageId = input?.dataset.acId ?? "";
+         if (!/^\d{1,12}$/.test(pageId)) {
+            toast(T().addToPageNone, "bad");
+            input?.focus();
+            return;
+         }
+         try {
+            await api("POST", `/admin/api/lists/${pageId}/posts/${postId}`, { on: true });
+            dlg.close("ok");
+            toast(T().addedToPage);
+         } catch (e) {
+            toast(messageOf(e), "bad");
+         }
+      });
+   }
+}
+
 function initFeaturing(): void {
+   initAddToPage();
    for (const b of $$<HTMLButtonElement>("[data-feature-post]")) {
       b.addEventListener("click", async () => {
          const on = b.dataset.on === "true";

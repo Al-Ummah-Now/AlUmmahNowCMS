@@ -371,7 +371,12 @@ export async function featuringScreen(v: View, env: Env, p: FeaturingParams, vid
                               ) : null}
                            </div>
                         </div>
-                        <FeatureButton v={v} id={a.id} featured={!!a.featured_at} title={a.title} />
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:end">
+                           <button class="btn sm" type="button" data-add-to-page={String(a.id)} data-locale={a.locale} aria-label={`${tf.addToPage}: ${a.title}`}>
+                              <Icon name="list" size={16} /> {tf.addToPage}
+                           </button>
+                           <FeatureButton v={v} id={a.id} featured={!!a.featured_at} title={a.title} />
+                        </div>
                      </li>
                   ))}
                </ul>
@@ -397,6 +402,8 @@ export async function featuringScreen(v: View, env: Env, p: FeaturingParams, vid
                   )}
                </nav>
             ) : null}
+            <AddToPageDialog v={v} locale="en" />
+            <AddToPageDialog v={v} locale="ar" />
             <I18nScript nonce={v.nonce} strings={clientStrings(v)} />
          </>
       );
@@ -506,6 +513,46 @@ export async function featuringScreen(v: View, env: Env, p: FeaturingParams, vid
          <PickerDialog v={v} kinds={["video"]} />
          <I18nScript nonce={v.nonce} strings={clientStrings(v)} />
       </>
+   );
+}
+
+/**
+ * "Add to page" (docs/SCHOLARS.md §7): an in-page dialog per language with a live autocomplete of
+ * that language's curated list pages; the client adds the post with POST /admin/api/lists/:id/posts/:postId.
+ */
+function AddToPageDialog(props: { v: View; locale: "en" | "ar" }) {
+   const { t } = props.v;
+   const tf = t.featuring;
+   const id = `add-to-page-${props.locale}`;
+   return (
+      <dialog class="dlg sm" id={id} aria-labelledby={`${id}-h`} aria-describedby={`${id}-p`} data-add-to-page-dialog={props.locale}>
+         <form method="dialog">
+            <div class="dlg-h">
+               <h2 id={`${id}-h`}>{tf.addToPageTitle}</h2>
+            </div>
+            <div class="dlg-b" style="display:grid;gap:14px">
+               <p id={`${id}-p`} style="margin:0">
+                  {tf.addToPageBody}
+               </p>
+               <Autocomplete kind="list-pages" listId={`${id}-list`} label={tf.addToPagePick} locale={props.locale} fill initial>
+                  <div class="field">
+                     <label for={`${id}-q`}>
+                        {tf.addToPagePick} · {t.locales[props.locale]}
+                     </label>
+                     <input id={`${id}-q`} class="input" type="search" maxlength={100} data-add-to-page-input {...comboboxProps(`${id}-list`)} />
+                  </div>
+               </Autocomplete>
+            </div>
+            <div class="dlg-f">
+               <button class="btn" value="cancel">
+                  {t.common.cancel}
+               </button>
+               <button class="btn primary" value="ok" data-add-to-page-ok>
+                  <Icon name="list" size={16} /> {tf.addToPage}
+               </button>
+            </div>
+         </form>
+      </dialog>
    );
 }
 

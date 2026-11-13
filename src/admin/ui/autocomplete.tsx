@@ -17,7 +17,7 @@ export function comboboxProps(listId: string) {
 }
 
 export function Autocomplete(props: {
-   kind: "content" | "pages" | "posts" | "scholars" | "scholar-posts" | "library" | "tags";
+   kind: "content" | "pages" | "posts" | "scholars" | "scholar-posts" | "library" | "tags" | "list-pages";
    listId: string;
    label: string;
    locale?: string;

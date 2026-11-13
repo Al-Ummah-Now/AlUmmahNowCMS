@@ -86,6 +86,9 @@ function attach(root: HTMLElement, T: Strings): void {
       set(closed(state));
       if (fill) {
          input.value = o.type === "searchAll" ? o.query : o.suggestion.label;
+         // The chosen item's id, for fields that need it (Featuring's "Add to page"); typed text clears it
+         if (o.type === "searchAll") delete input.dataset.acId;
+         else input.dataset.acId = o.suggestion.id;
          set(initialState(input.value));
          input.dispatchEvent(new Event("change", { bubbles: true }));
          return;
@@ -138,6 +141,7 @@ function attach(root: HTMLElement, T: Strings): void {
    };
 
    input.addEventListener("input", () => {
+      delete input.dataset.acId;
       // Typing past the first letter replaces the opening list: a stale option must never stay clickable.
       const next = typed(showingInitial ? { ...state, options: [] } : state, input.value);
       showingInitial = false;

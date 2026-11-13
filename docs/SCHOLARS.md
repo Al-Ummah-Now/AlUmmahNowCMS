@@ -156,7 +156,10 @@ recommendations and still await the owner's explicit confirmation.
   community post from api-videos (`GET /internal/posts/:channelId/:postId`, Cache API 60 s). See
   docs/PUBLIC_API.md "Scholars". `FEED_FORMAT` 4.
 - **Staff screens:** refs are not in the Posts list; opening one shows links to www and Studio. The
-  Featuring screen's "Scholar posts" tab lists refs of every kind with Feature and Open in Studio.
+  Featuring screen's "Scholar posts" tab lists refs of every kind with Feature, Open in Studio and
+  **Add to page**: an in-page dialog (one per language) with a live autocomplete of that language's
+  curated list pages (suggest kind `list-pages`, opens with them before typing); choosing one adds the
+  post through the list's own `POST /admin/api/lists/:id/posts/:postId`. Remove it on the page's screen.
 - **Writers (SS18):** a writer's CMS home is **Write in Studio** (`/write`): links to their channel's
   composer and Community management on the videos site, their www page and their profile. The data API
   refuses their post writes; their old post screens redirect to `/write`.

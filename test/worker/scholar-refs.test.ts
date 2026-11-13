@@ -273,3 +273,52 @@ describe("the nightly reference check (#1217)", () => {
       expect(isReconcileSlot(Date.parse("2026-11-14T15:00:00Z"))).toBe(false);
    });
 });
+
+describe("Add to page from the Scholar posts list", () => {
+   it("suggests curated list pages per language (with content before typing), adds a ref to one, and the page lists it", async () => {
+      await scholar("sch-atp", "atp-scholar", "ch-atp");
+      const at = new Date().toISOString();
+      const mkPage = (slug: string, locale: string, kind: string | null) =>
+         env.DB.prepare("INSERT INTO pages (slug, locale, title, body, status, published_at, list_kind, created_at, updated_at) VALUES (?1, ?2, ?3, '', 'published', ?4, ?5, ?4, ?4) RETURNING id")
+            .bind(slug, locale, `Page ${slug}`, at, kind)
+            .first<{ id: number }>();
+      const en = (await mkPage("atp-list-en", "en", "curated"))!.id;
+      await mkPage("atp-list-ar", "ar", "curated");
+      await mkPage("atp-content-en", "en", null);
+      const f = refs(new Map());
+      await put(f, { ...POST_FIXTURES.poll, id: "p-atp", channelId: "ch-atp" });
+      const refId = (await env.DB.prepare("SELECT id FROM posts WHERE ref_post_id = 'p-atp'").first<{ id: number }>())!.id;
+
+      const { callback } = await signIn(["Moderator"], { id: "ed-atp", email: "ed-atp@example.com" });
+      const cookie = cookiesOf(callback);
+      const w = makeWorker();
+      const call = (method: string, path: string, body?: unknown) =>
+         w(path, { method, headers: { cookie, origin: ORIGIN, ...(body !== undefined ? { "content-type": "application/json" } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+
+      // The picker: curated list pages of the post's language only, before anything is typed too
+      const sug = (await (await call("GET", "/admin/api/suggest?kind=list-pages&locale=en")).json()) as { items: { id: string; secondary: string }[] };
+      expect(sug.items.map((i) => i.secondary)).toContain("/atp-list-en");
+      expect(sug.items.map((i) => i.secondary)).not.toContain("/atp-list-ar");
+      expect(sug.items.map((i) => i.secondary)).not.toContain("/atp-content-en");
+      const typed = (await (await call("GET", "/admin/api/suggest?kind=list-pages&locale=en&q=atp-list")).json()) as { items: { id: string }[] };
+      expect(typed.items.map((i) => Number(i.id))).toContain(en);
+
+      // The Featuring screen: an "Add to page" button per post and a dialog per language
+      const screen = await (await w("/featuring?q=Which%20day", { headers: { cookie } })).text();
+      expect(screen).toContain(`data-add-to-page="${refId}"`);
+      expect(screen).toContain('id="add-to-page-en"');
+      expect(screen).toContain('id="add-to-page-ar"');
+      expect(screen).toContain('data-ac="list-pages"');
+
+      // What the dialog does: the list's own endpoint; the public list then has the scholar post
+      expect((await call("POST", `/admin/api/lists/${en}/posts/${refId}`, { on: true })).status).toBe(200);
+      const list = (await (await makeWorker()("/api/public/v1/lists/atp-list-en?locale=en")).json()) as { items: { post?: { kind?: string; ref?: { post_id: string } } }[] };
+      expect(list.items.some((i) => i.post?.ref?.post_id === "p-atp" && i.post.kind === "poll")).toBe(true);
+   });
+
+   it("a writer gets no list-page suggestions", async () => {
+      const { callback } = await signIn(["Scholar"], { id: "wr-atp", email: "wr-atp@example.com" });
+      const res = await makeWorker()("/admin/api/suggest?kind=list-pages&locale=en", { headers: { cookie: cookiesOf(callback) } });
+      expect(res.status).toBe(403);
+   });
+});
