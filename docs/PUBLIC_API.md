@@ -108,7 +108,7 @@ interface CuratedSnapshot {
 | `/timeline` | `locale`, `limit` (1–40, default 20), `before` (cursor from `next`) | `{ pinned: TimelineItem[], items: TimelineItem[], next: string \| null }`: the home timeline (see "Timeline"); `pinned` only on the first page; bad `before` → 400 |
 | `/search/suggest` | `locale` (or `lang`), `q`, `limit` (1–10, default 6) | `SearchHit[]`: the best few live posts for `q` (see "Search"); empty `q` → `[]` |
 | `/search` | `locale` (or `lang`), `q`, `page`, `limit` (1–20, default 10) | `{ items: SearchHit[], page, limit, total }`: every match, best first |
-| `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string, translation_key: string \| null }[], scholars: { slug: string, updated_at: string }[] }` (pages with show_in_sitemap only; `scholars` added: every scholar page, both locales) |
+| `/sitemap` | — | `{ items: { type: 'page' \| 'post', locale: Locale, slug: string, updated_at: string, translation_key: string \| null, ref_post_id?: string, ref_channel_id?: string \| null }[], scholars: { slug: string, updated_at: string, primary_channel_id: string \| null }[] }` (pages with show_in_sitemap only; `scholars` added: every scholar page, both locales). `ref_post_id`/`ref_channel_id` only on references to a scholar's community post; with `primary_channel_id` they let www leave out the URLs whose canonical is a live scholar site (AlUmmahNow#1215) |
 | `/redirects/:type/:slug` | `locale` | `{ slug }`: the current slug of the live post (`type=post`) or page (`type=page`) that once had this slug (migration 0018 `slug_history`, filled by triggers on renames of published rows); 404 when unknown or no longer live. www answers 301 with it (D-SEO-7) |
 | `/scholars` | `locale`, `page`, `limit` (1–48, default 24) | `{ items: ScholarSummary[], page, limit, total }` by name (see "Scholars") |
 | `/scholars/:slug` | `locale`, `page`, `limit` (1–24, default 12) | `{ scholar: Scholar, posts: { items: PostSummary[], page, limit, total }, post_counts: { en, ar } }` or 404 |
@@ -161,6 +161,7 @@ interface Scholar extends ScholarSummary {
   bio: string | null;                     // plain text (line breaks kept), in the asked locale with the same fallback
   bio_en: string | null; bio_ar: string | null;
   channel_ids: string[];                  // their own videos channels; www lists the public videos from the videos API
+  primary_channel_id: string | null;      // the primary channel (SS6; stored, else channel_ids[0]); www asks the videos API for its scholar site
   created_at: string;
 }
 ```

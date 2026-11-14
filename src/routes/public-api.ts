@@ -9,7 +9,7 @@ import { trimSlash, type Env } from "../env.ts";
 import { LIVE_SQL } from "../lib/schedule.ts";
 import { stableSnapshot } from "../lib/stable-thumb.ts";
 import { MAIN_SITE_SQL, mainSiteSql } from "../lib/scholars/main-site.ts";
-import { scholarName, scholarsBySubs, type Scholar } from "../lib/scholars/profiles.ts";
+import { primaryChannelOf, scholarName, scholarsBySubs, type Scholar } from "../lib/scholars/profiles.ts";
 import { scholarRoutes } from "./public-scholars.ts";
 import { bodyImagePaths } from "../lib/variants/body-images.ts";
 import { enqueueVariants } from "../lib/variants/jobs.ts";
@@ -767,14 +767,14 @@ export function publicApi(): Hono<{ Bindings: Env }> {
             `SELECT slug, locale, translation_key, show_in_sitemap, updated_at, published_at, created_at FROM pages WHERE ${LIVE_SQL} ORDER BY locale, slug`,
          ).all<Row>(),
          c.env.DB.prepare(
-            `SELECT slug, locale, translation_key, updated_at, published_at, created_at FROM posts WHERE ${LIVE_SQL} ORDER BY locale, published_at DESC`,
+            `SELECT slug, locale, translation_key, updated_at, published_at, created_at, ref_post_id, ref_channel_id FROM posts WHERE ${LIVE_SQL} ORDER BY locale, published_at DESC`,
          ).all<Row>(),
       ]);
       const updated = (r: Row) => toIso(r.updated_at) ?? toIso(r.published_at) ?? toIso(r.created_at) ?? new Date(0).toISOString();
       // Scholar pages (docs/SCHOLARS.md §3), in both languages. A separate list: additive for readers
       // that only know pages and posts. Their newest live post moves updated_at too.
       const scholars = await c.env.DB.prepare(
-         `SELECT s.slug, max(s.updated_at, coalesce((SELECT max(p.updated_at) FROM posts p WHERE p.author_sub = s.sso_sub AND ${LIVE_SQL.replace(/\b(status|publish_at)\b/g, "p.$1")}), '')) AS updated_at
+         `SELECT s.slug, s.primary_channel_id, s.channel_ids, max(s.updated_at, coalesce((SELECT max(p.updated_at) FROM posts p WHERE p.author_sub = s.sso_sub AND ${LIVE_SQL.replace(/\b(status|publish_at)\b/g, "p.$1")}), '')) AS updated_at
           FROM scholars s ORDER BY s.slug`,
       ).all<Row>();
       const items = [
@@ -782,9 +782,21 @@ export function publicApi(): Hono<{ Bindings: Env }> {
             .filter((r) => truthy(r.show_in_sitemap, true))
             .map((r) => ({ type: "page" as const, locale: r.locale as Locale, slug: String(r.slug), updated_at: updated(r), translation_key: r.translation_key ? String(r.translation_key) : null })),
          // translation_key pairs the languages of one item (www's sitemap hreflang, wiki AUN-SEO)
-         ...posts.results.map((r) => ({ type: "post" as const, locale: r.locale as Locale, slug: String(r.slug), updated_at: updated(r), translation_key: r.translation_key ? String(r.translation_key) : null })),
+         // A reference to a scholar's community post carries it (ref_*), so www can leave out the ones
+         // whose channel has a live scholar site: their canonical is the site (AlUmmahNow#1215)
+         ...posts.results.map((r) => ({
+            type: "post" as const,
+            locale: r.locale as Locale,
+            slug: String(r.slug),
+            updated_at: updated(r),
+            translation_key: r.translation_key ? String(r.translation_key) : null,
+            ...(r.ref_post_id ? { ref_post_id: String(r.ref_post_id), ref_channel_id: r.ref_channel_id ? String(r.ref_channel_id) : null } : {}),
+         })),
       ];
-      return json(c, { items, scholars: scholars.results.map((r) => ({ slug: String(r.slug), updated_at: toIso(r.updated_at) ?? new Date(0).toISOString() })) });
+      return json(c, {
+         items,
+         scholars: scholars.results.map((r) => ({ slug: String(r.slug), updated_at: toIso(r.updated_at) ?? new Date(0).toISOString(), primary_channel_id: primaryChannelOf(r) })),
+      });
    });
 
    scholarRoutes(api, { json, locale, intParam, postSummaries, HttpError, CACHE, searchLimited });

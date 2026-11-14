@@ -345,6 +345,14 @@ describe("profiles", () => {
       expect(JSON.stringify(await (await pub("/api/public/v1/scholars?locale=en&limit=48")).json())).toContain("prof-scholar");
       expect(await (await pub("/api/public/v1/search/scholars?locale=ar&q=prof")).json()).toEqual([expect.objectContaining({ type: "scholar", slug: "prof-scholar", href: "/ar/scholars/prof-scholar/" })]);
       expect(((await (await pub("/api/public/v1/sitemap")).json()) as { scholars: { slug: string }[] }).scholars.map((s) => s.slug)).toContain("prof-scholar");
+      // The primary channel (stored, else the first linked one) on the page and in the sitemap (AlUmmahNow#1215)
+      const stored = await env.DB.prepare("SELECT primary_channel_id FROM scholars WHERE slug = 'prof-scholar'").first<{ primary_channel_id: string | null }>();
+      const primary = stored?.primary_channel_id ?? "ch-p2";
+      expect(await (await pub("/api/public/v1/scholars/prof-scholar?locale=en")).json()).toMatchObject({ scholar: { primary_channel_id: primary } });
+      const listed = ((await (await pub("/api/public/v1/sitemap")).json()) as { scholars: { slug: string; primary_channel_id: string | null }[] }).scholars.find((s) => s.slug === "prof-scholar");
+      expect(listed?.primary_channel_id).toBe(primary);
+      await env.DB.prepare("UPDATE scholars SET primary_channel_id = NULL WHERE slug = 'prof-scholar'").run();
+      expect(await (await pub("/api/public/v1/scholars/prof-scholar?locale=en")).json()).toMatchObject({ scholar: { primary_channel_id: "ch-p2" } });
 
       // An admin deletes it (soft): gone from www, restorable.
       const admin = client(v, await session(v, ["Admin"], "ad-prof"));
