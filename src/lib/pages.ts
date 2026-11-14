@@ -2,6 +2,7 @@
 import { ACCOUNTS_CSS, accountsSection } from "./accounts.ts";
 import { esc, page } from "./html.ts";
 import { STRINGS, type Lang } from "./i18n.ts";
+import { modeIconSvg } from "./mode-toggle.ts";
 
 export type StatusPageKind = "no_access" | "error" | "sign_in_failed" | "not_found" | "logged_out" | "accounts";
 
@@ -97,7 +98,9 @@ export function passkeyNeededPage(o: {
       nonce: o.nonce,
       mode: o.mode,
       title: `${t.passkeyNeededTitle} · ${t.cms}`,
-      extraCss: CSS + ".prefs{display:flex;gap:1rem;flex-wrap:wrap;margin-top:2rem}.prefs .lang{margin:0}",
+      extraCss: CSS + ".prefs{display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-top:2rem}.prefs .lang{margin:0}" +
+         // Light / Dark: the videos site's icon toggle (src/lib/mode-toggle.ts), 44px target, 18px icon
+         ".mode-ic{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid var(--border);border-radius:999px;color:var(--fg)}.mode-ic svg{width:18px;height:18px}",
       body: `<main id="main" data-testid="passkey-needed">
 <p>${esc(t.cms)}</p>
 <h1>${esc(t.passkeyNeededTitle)}</h1>
@@ -108,8 +111,8 @@ export function passkeyNeededPage(o: {
 </div>
 <p class="prefs">
 <a class="lang" href="${esc(link("lang", other))}" lang="${other}" hreflang="${other}">${esc(t.switchLang)}</a>
-<a class="mode-to-light" href="${esc(link("mode", "light"))}" data-testid="mode-to-light">${esc(t.toLight)}</a>
-<a class="mode-to-dark" href="${esc(link("mode", "dark"))}" data-testid="mode-to-dark">${esc(t.toDark)}</a>
+<a class="mode-to-light mode-ic" href="${esc(link("mode", "light"))}" data-testid="mode-to-light" aria-label="${esc(t.toLight)}" title="${esc(t.toLight)}">${modeIconSvg("sun")}</a>
+<a class="mode-to-dark mode-ic" href="${esc(link("mode", "dark"))}" data-testid="mode-to-dark" aria-label="${esc(t.toDark)}" title="${esc(t.toDark)}">${modeIconSvg("moon")}</a>
 </p>
 </main>`,
    });

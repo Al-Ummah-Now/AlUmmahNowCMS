@@ -52,6 +52,9 @@ describe("staff shell", () => {
       expect(html).toContain('data-mode-toggle="dark"');
       expect(html).toContain('aria-label="Switch to light mode"');
       expect(html).toContain('aria-label="Switch to dark mode"');
+      // the videos site's icons, exact Lucide markup (src/lib/mode-toggle.ts), 18px
+      expect(html).toContain('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>');
+      expect(html).toMatch(/<svg [^>]*width="18" height="18"[^>]*class="lucide lucide-sun icon"/);
       expect(html).not.toMatch(/mode=system|>System<|Device/);
       expect(first.headers.getSetCookie().join("\n")).not.toMatch(/cms_mode/);
       // ?mode=system is not a mode any more: ignored, nothing saved

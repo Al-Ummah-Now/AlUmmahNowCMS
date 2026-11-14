@@ -100,6 +100,19 @@ describe("Passkey needed page", () => {
       expect(saved).toContain('data-mode="light"');
    });
 
+   it("Light/Dark is the videos site's icon toggle: Lucide sun/moon, named for the other mode, no text", async () => {
+      const f = makeWorker();
+      for (const [lang, toLight, toDark] of [["en", "Switch to light mode", "Switch to dark mode"], ["ar", "التبديل إلى الوضع الفاتح", "التبديل إلى الوضع الداكن"]] as const) {
+         const html = await (await f(`/sso/passkey-needed?lang=${lang}`)).text();
+         const light = html.match(/<a class="mode-to-light mode-ic"[^>]*>([^]*?)<\/a>/);
+         const dark = html.match(/<a class="mode-to-dark mode-ic"[^>]*>([^]*?)<\/a>/);
+         expect(light?.[0]).toContain(`aria-label="${toLight}" title="${toLight}"`);
+         expect(dark?.[0]).toContain(`aria-label="${toDark}" title="${toDark}"`);
+         expect(light?.[1]).toMatch(/^<svg [^>]*class="lucide lucide-sun"[^>]*>[^]*<\/svg>$/);
+         expect(dark?.[1]).toMatch(/^<svg [^>]*class="lucide lucide-moon"[^>]*>[^]*<\/svg>$/);
+      }
+   });
+
    it("only a safe return path is used", async () => {
       const html = await (await makeWorker()("/sso/passkey-needed?return=%2F%2Fevil.example")).text();
       expect(html).toContain("/sso/login?prompt=login&amp;return=%2F\"");
