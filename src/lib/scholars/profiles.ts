@@ -16,6 +16,8 @@ export interface Scholar {
    bio_ar: string | null;
    avatar_media_id: number | null;
    channel_ids: string[];
+   /** The primary channel (SS6): its community posts are the scholar's posts. Falls back to channel_ids[0]. */
+   primary_channel_id: string | null;
    created_at: string;
    updated_at: string;
    updated_by: string | null;
@@ -34,14 +36,22 @@ type Row = Record<string, unknown>;
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 
-export function scholarOf(r: Row): Scholar {
-   let channels: string[] = [];
+function channelIdsOf(r: Row): string[] {
    try {
       const parsed = typeof r.channel_ids === "string" ? (JSON.parse(r.channel_ids) as unknown) : r.channel_ids;
-      if (Array.isArray(parsed)) channels = parsed.filter((x): x is string => typeof x === "string" && CHANNEL_ID_RE.test(x));
+      return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string" && CHANNEL_ID_RE.test(x)) : [];
    } catch {
-      channels = [];
+      return [];
    }
+}
+
+/** A row's primary channel: `primary_channel_id`, else its first channel (SS6; the backfill rule). */
+export function primaryChannelOf(r: Row): string | null {
+   return typeof r.primary_channel_id === "string" && CHANNEL_ID_RE.test(r.primary_channel_id) ? r.primary_channel_id : (channelIdsOf(r)[0] ?? null);
+}
+
+export function scholarOf(r: Row): Scholar {
+   const channels = channelIdsOf(r);
    return {
       id: Number(r.id),
       sso_sub: String(r.sso_sub),
@@ -52,6 +62,7 @@ export function scholarOf(r: Row): Scholar {
       bio_ar: str(r.bio_ar),
       avatar_media_id: r.avatar_media_id === null || r.avatar_media_id === undefined ? null : Number(r.avatar_media_id),
       channel_ids: channels,
+      primary_channel_id: primaryChannelOf(r),
       created_at: String(r.created_at),
       updated_at: String(r.updated_at),
       updated_by: str(r.updated_by),

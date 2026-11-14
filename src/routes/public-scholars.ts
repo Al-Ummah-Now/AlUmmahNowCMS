@@ -102,6 +102,8 @@ export function scholarRoutes(api: Hono<{ Bindings: Env }>, h: ScholarHelpers): 
             bio_ar: s.bio_ar,
             // Their own channels on the videos platform (www lists their public videos from there).
             channel_ids: s.channel_ids,
+            // The primary channel: www asks the videos API whether it has a live scholar site (AlUmmahNow#1215)
+            primary_channel_id: s.primary_channel_id,
             created_at: s.created_at,
          },
          posts: { items: await h.postSummaries(c.env, rows.results), page, limit, total: count(l) },

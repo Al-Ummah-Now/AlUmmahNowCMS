@@ -168,6 +168,18 @@ describe("public API: shapes (docs/PUBLIC_API.md)", () => {
       expect(keys).toContain("post:en:p1");
       expect(keys).not.toContain("post:en:draft");
    });
+   it("/sitemap carries a reference's community post and channel, and each scholar's primary channel (AlUmmahNow#1215)", async () => {
+      await env.DB.prepare("UPDATE posts SET ref_post_id = 'cp-site', ref_channel_id = 'ch-site' WHERE slug = 'p1' AND locale = 'en'").run();
+      try {
+         const body = (await (await api("/sitemap")).json()) as { items: Record<string, unknown>[]; scholars: Record<string, unknown>[] };
+         expect(body.items.find((i) => i.type === "post" && i.slug === "p1" && i.locale === "en")).toMatchObject({ ref_post_id: "cp-site", ref_channel_id: "ch-site" });
+         // Not a reference, not a page: no ref_* keys at all (additive for old readers)
+         expect(body.items.find((i) => i.type === "page" && i.slug === "about")).not.toHaveProperty("ref_post_id");
+         for (const s of body.scholars) expect(s).toHaveProperty("primary_channel_id");
+      } finally {
+         await env.DB.prepare("UPDATE posts SET ref_post_id = NULL, ref_channel_id = NULL WHERE slug = 'p1' AND locale = 'en'").run();
+      }
+   });
 });
 
 describe("public API: HTTP", () => {
