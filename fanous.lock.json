@@ -1,7 +1,7 @@
 {
   "repo": "Al-Ummah-Now/AlUmmahNow",
   "refs": {
-    "tokens": "7f1bf3e9f01780c2e2c9359e73c03ec4e4435f83",
+    "tokens": "a44fbed0fe2a8740fc74aadc58b024aadd6fdc94",
     "materials": "399086fcea954661bf720cb6d78832f7e09819a0",
     "nav": "8d3ccc8b9918d12a85d9e878d9301f6df3a13bde"
   },
@@ -9,29 +9,39 @@
     "399086fcea95:apps/web/src/theme/demo-graphics.json": "bff543163815040efc4ad100d0afd8a46de64716724f60589afb207b06fc32ae",
     "399086fcea95:apps/web/src/theme/demo-backdrops.json": "18aeccd38e0ce6b58c37d93d20e5cbbecc0e1a1696d423e8a06983948b985888",
     "399086fcea95:apps/web/src/theme/demo-motion.css": "f69bd7c05b3858a4d1b43a7a666e77c418045ca4752d97b6f0c46c0fd29b28cc",
-    "7f1bf3e9f017:apps/web/src/theme/site-themes.css": "30ac8ed9967af9c3acccbe02021369e9f378686a3ad972eab3126925e3d6d654",
-    "7f1bf3e9f017:apps/web/src/theme/materials.css": "2087a88de3601447f8f2c6a781ebb58bd3318a35129fa621221dda30e8651c6d",
-    "7f1bf3e9f017:packages/fanous-tokens/street/fanous-street.css": "4c357de2e2763f8dcd56baa4cf26f8f1e5df227ba02536b86a6105e38c3b6347",
-    "7f1bf3e9f017:packages/fanous-tokens/street/fanous-street.js": "587f93b558d49cedc5f1cf228cd0c1c6babf4bd82372402a049b1bff529b7704",
-    "7f1bf3e9f017:packages/fanous-tokens/street/fanous-street.d.ts": "ecf39ee928049a5bac79658ca70d99f8e16c83d64d83314085d6297623bd12a0",
-    "7f1bf3e9f017:packages/fanous-tokens/themes/fawanees/theme.json": "464919645abff0622969dfba3e6eaaa1260f35fd696720fe73fde327f9ab0d56",
-    "7f1bf3e9f017:packages/fanous-tokens/generated/fawanees/web/tokens.css": "7e56a334cbb2bbb4656c5060cb76eb6be2a29d28b9f59729766c248785088dd9",
+    "a44fbed0fe2a:apps/web/src/theme/site-themes.css": "600d369f9ab157c3c1c7a5ed99095394e2d57c6dc1313742221c8eff00ce9eb9",
+    "a44fbed0fe2a:apps/web/src/theme/materials.css": "2087a88de3601447f8f2c6a781ebb58bd3318a35129fa621221dda30e8651c6d",
+    "a44fbed0fe2a:packages/fanous-tokens/street/fanous-street.css": "7bf41039fb0579f181681f9b7d0fed4f4476d5fe8c85b3e0f1b6140860bae1c6",
+    "a44fbed0fe2a:packages/fanous-tokens/street/fanous-street.js": "708c06f94b1e80b08b36a1d72182c62723cac141cc36ad95fcbb36986102a0f3",
+    "a44fbed0fe2a:packages/fanous-tokens/street/fanous-street.d.ts": "7b22ae1f7c30fc95339450bed78be4d51a0355c0724a307a15b065df0f6c57e6",
+    "a44fbed0fe2a:packages/fanous-tokens/themes/fawanees/theme.json": "26d73c914c440ff82c377b373d14e243743318c39766c8ceb9c302d993cd4741",
+    "a44fbed0fe2a:packages/fanous-tokens/generated/fawanees/web/tokens.css": "0a8a3d588bcbd82967a097c9d1be8d790de528f73e7ae227a9b342ffaf7484ec",
     "399086fcea95:apps/web/src/theme/materials/fawanees.css": "94c0abdd8c8b908863276ea4ad803453a387077f5cd52bcafe66a9b4a0d4e702",
-    "7f1bf3e9f017:packages/fanous-tokens/themes/lantern/theme.json": "a968e75f4dd082f400f363eb054c88cae8dfdb103aea2e573cd687ed0d6aeb8d",
-    "7f1bf3e9f017:packages/fanous-tokens/generated/lantern/web/tokens.css": "539ea70f418aff4f8b854ddee3c1f879de8584f742e245c8b18dd6b9e5895807",
+    "a44fbed0fe2a:packages/fanous-tokens/themes/lantern/theme.json": "a968e75f4dd082f400f363eb054c88cae8dfdb103aea2e573cd687ed0d6aeb8d",
+    "a44fbed0fe2a:packages/fanous-tokens/generated/lantern/web/tokens.css": "539ea70f418aff4f8b854ddee3c1f879de8584f742e245c8b18dd6b9e5895807",
     "399086fcea95:apps/web/src/theme/materials/lantern.css": "540750b0ae18fa58caaf3dd7e830b3246e8f021d995da409abbe7198857517d0",
-    "7f1bf3e9f017:packages/fanous-tokens/themes/zujaj/theme.json": "e3332e8ef2243eb9a4fdc6bfea92ffd62875f6b499b254915c15de5d4370159c",
-    "7f1bf3e9f017:packages/fanous-tokens/generated/zujaj/web/tokens.css": "65f20e7cc3a4d17b1a5a02c9413a3605d14e2fd52799b4b4f286507e6122fb0e",
+    "a44fbed0fe2a:packages/fanous-tokens/themes/zujaj/theme.json": "e3332e8ef2243eb9a4fdc6bfea92ffd62875f6b499b254915c15de5d4370159c",
+    "a44fbed0fe2a:packages/fanous-tokens/generated/zujaj/web/tokens.css": "65f20e7cc3a4d17b1a5a02c9413a3605d14e2fd52799b4b4f286507e6122fb0e",
     "399086fcea95:apps/web/src/theme/materials/zujaj.css": "0e6530f330e98459bae3bb6ff8e844d30cedc8b97c77dd0c3929ce53205bedca",
-    "7f1bf3e9f017:packages/fanous-tokens/themes/nahas/theme.json": "ec5e89700c1fdd5dadf2da5222553563ff99e03a883566e89f138685485bb23c",
-    "7f1bf3e9f017:packages/fanous-tokens/generated/nahas/web/tokens.css": "e8d7d9b5bed33cb0369aefcd31b82e596e457ce63a4ecc0f4baa9db20b22da3b",
+    "a44fbed0fe2a:packages/fanous-tokens/themes/nahas/theme.json": "ec5e89700c1fdd5dadf2da5222553563ff99e03a883566e89f138685485bb23c",
+    "a44fbed0fe2a:packages/fanous-tokens/generated/nahas/web/tokens.css": "e8d7d9b5bed33cb0369aefcd31b82e596e457ce63a4ecc0f4baa9db20b22da3b",
     "399086fcea95:apps/web/src/theme/materials/nahas.css": "3bf03acace56f541a350c87dde57484737a489056438a16749d48735e0f443c1",
     "8d3ccc8b9918:packages/fanous-tokens/nav/aun-nav.css": "177502970e17c06280f749f82ff0357db2cee41d51b09c14d172dcf25736d247"
   },
-  "output": "d241a894c8285ccd31193fd57b161ea53269549aac08099eaaf53a09b5422d4d",
+  "output": "d6334f18b8d8e078644b56c7764c5770d835ebcc7b55d3e9926025513b10d843",
   "navIconsOutput": "dcb37d480c731da8a0bb1c6f98f00a9bcb933e5df771781d511640d924682aa8",
   "street": {
-    "src/admin/client/fanous-street.generated.js": "89d10b4fd2b09237891365c231916997a3ac7a180dc6e2a53cdebeb5ba12a552",
-    "src/admin/client/fanous-street.generated.d.ts": "c66b19686e04dd83086f5c700389b82d222f922c9ff568a10866893d246484c1"
+    "src/admin/client/fanous-street.generated.js": "855ab6b172fc8fc18f384581105624777dc3c692b578228832672410666778d5",
+    "src/admin/client/fanous-street.generated.d.ts": "ed4a4a15929f45f89756084dd972b3a3be74c0aa307a3f13e57edd5b2d9c8ab5"
+  },
+  "streetTiles": {
+    "public/fanous/street/street-tile-1.webp": "d62101b86da164cb50f58403fbfe0194e3d4246b460dd0ac4b6ca9d4adeb1763",
+    "public/fanous/street/street-tile-2.webp": "47a917ca92fafbf56dbd66b19e6d9a2378e701b41c9b93d23190c5020d4dd640",
+    "public/fanous/street/street-tile-3.webp": "fc887c674e0abf0790c69e6ae05ca614cf2b6b1decd77cd05afb6c44a814874d",
+    "public/fanous/street/street-tile-4.webp": "d09b83294a6004478e0c7a915337a56cf72858783b5e4cd591f4a71e8d295e2d",
+    "public/fanous/street/street-tile-dark-1.webp": "14038513312cae9f458a3001fc26fc00ed5109d1e7c92aab33284f15a39db9fc",
+    "public/fanous/street/street-tile-dark-2.webp": "0ed0ddd31856bf7b0292de884eb38b03dbe2f3d39745228aee0611a1504ee314",
+    "public/fanous/street/street-tile-dark-3.webp": "0159e90c112ebcaa246db06a4512d3b78e45c43ce199951f2d6d5cd4d8d66fb9",
+    "public/fanous/street/street-tile-dark-4.webp": "0fdb66b60892780cea9d0415f0bac4ef9c65139bf85e5ccccc98da4ead64fcc5"
   }
 }

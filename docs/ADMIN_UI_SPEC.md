@@ -227,7 +227,14 @@ same-origin `Origin`.
     main), rescopes `:root` to `html[data-theme=<id>]` and the mode selectors to `[data-mode]`, and
     writes `src/admin/theme/vendor.generated.ts` with `fanous.lock.json` (`{ repo, refs, files: { path:
     sha256 } }`).
-  - CI (`npm run check:fanous`) recomputes the hashes offline; a mismatch or a hand edit fails.
+  - The lantern street (Fawanees): the shared street module (`src/admin/client/fanous-street.generated.*`),
+    its tokens, and the tile images the tokens name (`apps/web/public/fanous/street/*.webp`, 4 variants
+    per mode, each ≤300 KB) into `public/fanous/street/`, served by the Worker's static assets
+    (`assets.directory` in `wrangler.jsonc`) at the same paths as on the videos site. The tile variant is
+    picked per request on the server (`pickStreetVariant` in `buildView`) and sent as
+    `<html data-fanous-street-variant>`; the `aun_street_variant` cookie pins it for tests. Staff pages
+    are `private, no-store`, so no edge cache is involved.
+  - CI (`npm run check:fanous`) recomputes the hashes offline; a mismatch, a hand edit or a stray tile fails.
   - Pins today: tokens and assets `AlUmmahNow@b225ea5a` (main), materials `AlUmmahNow@399086fc`
     (proto/theme-demos).
 - **Per response:** only the active theme's CSS is sent (`/admin-assets/theme-<id>.<hash>.css`).

@@ -589,6 +589,9 @@ html.seq-dragging,html.seq-dragging *{cursor:grabbing!important;user-select:none
    tinted against the page colour instead of see-through, so the street never shows through them
    (the same look over the page). */
 html.fanous-street body{background:var(--fanous-color-background)}
+/* The staff screens' content spans the page width, so the street's lanterns lie behind headings and text: the street stays at the
+   theme's faint opacity, at which every text colour keeps 4.5:1 over it (as in the videos admin). */
+html.fanous-street{--fanous-street-opacity:var(--fanous-street-faint)}
 html.fanous-street .empty{background:color-mix(in srgb,var(--fanous-color-surface) 60%,var(--fanous-color-background))}
 html.fanous-street .notice{background:color-mix(in srgb,var(--fanous-color-primary) 12%,var(--fanous-color-background))}
 html.fanous-street .notice.bad{background:color-mix(in srgb,var(--fanous-color-error-fill) 14%,var(--fanous-color-background))}

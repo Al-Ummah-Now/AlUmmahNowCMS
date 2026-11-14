@@ -16,6 +16,8 @@ delete config.$schema;
 delete config.ai;
 delete config.env;
 config.main = resolve(root, String(config.main));
+const assets = config.assets as { directory?: string } | undefined;
+if (assets?.directory) assets.directory = resolve(root, assets.directory);
 for (const d of (config.d1_databases as { migrations_dir?: string }[]) ?? []) if (d.migrations_dir) d.migrations_dir = resolve(root, d.migrations_dir);
 const out = resolve(process.argv[2]);
 writeFileSync(`${out}.tmp`, JSON.stringify(config, null, 2));

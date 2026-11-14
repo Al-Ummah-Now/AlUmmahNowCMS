@@ -22,6 +22,7 @@ interface EnvConfig {
    r2_buckets?: { binding: string; bucket_name: string }[];
    kv_namespaces?: { binding: string; id: string }[];
    ai?: { binding?: string };
+   assets?: { directory?: string; binding?: string; run_worker_first?: boolean | string[] };
    ratelimits?: { name: string; namespace_id: string; simple?: { limit: number; period: number } }[];
    triggers?: { crons?: string[] };
    queues?: {
@@ -57,6 +58,8 @@ export function checkWranglerConfig(config: WranglerConfig): string[] {
       if (routes.length !== 1 || routes[0].pattern !== host || routes[0].custom_domain !== true) {
          errors.push(`${where}: routes must be exactly [{ pattern: "${host}", custom_domain: true }]`);
       }
+      // The street tiles (public/fanous/street, scripts/sync-fanous.ts) are static assets served before the Worker
+      if (c.assets?.directory !== "./public" || c.assets.run_worker_first) errors.push(`${where}: assets must be { directory: "./public" } (the street tiles), served before the Worker`);
       const v = c.vars ?? {};
       if (v.PUBLIC_URL !== want.url) errors.push(`${where}: PUBLIC_URL ${v.PUBLIC_URL} ≠ ${want.url}`);
       if (v.AUTH_ISSUER !== want.authIssuer) errors.push(`${where}: AUTH_ISSUER ${v.AUTH_ISSUER} ≠ ${want.authIssuer}`);
