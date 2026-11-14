@@ -80,6 +80,12 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
   `/sso/login?prompt=none`; sign out of one account = `DELETE /session/accounts/:id` then a silent
   sign-in; the last account = `/sso/logout` (single sign-out). A switch to an account without a CMS
   role also clears the CMS session held for the previous account.
+- `/sso/no-access` is shown once per refusal: the callback sets a signed 5-minute marker
+  (`__Host-cms_denied`, the refused email and return path) and the page consumes it, naming the
+  refused account. Without a marker (a reload, the back button, an old tab) it goes to
+  `/sso/login` instead, so it retries with auth's current account and never shows a stale page.
+- Access tokens are verified with the algorithm pinned to ES256 (`ACCESS_TOKEN_ALGORITHMS`), the
+  only one Auth signs with.
 - After single sign-out, auth has no browser session, so the next CMS visit shows auth's sign-in form.
 - bknd reads the `auth` cookie itself, so `/api/*` forwards a cookie the Worker refused (a session
   ended by a sign-out) without it: bknd answers as for a guest.

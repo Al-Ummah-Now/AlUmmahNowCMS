@@ -26,6 +26,9 @@ const defaultAccount = (cmsE2e: string, seed: string) =>
    ON_STAGE ? `${seed}@${SEED_EMAIL_DOMAIN}` : `delivered+cms-e2e-${cmsE2e}@resend.dev`;
 
 export const ACCOUNTS = {
+   // Auth Super Admin -> CMS admin: the role the owner holds (AlUmmahNow seed `superadmin`, QA and stage).
+   // Never used by a session-ending spec.
+   superAdmin: { email: process.env.E2E_SUPERADMIN_EMAIL || `qa-superadmin@${SEED_EMAIL_DOMAIN}`, password: SEED_PASSWORD },
    // Auth Admin -> CMS admin
    admin: { email: process.env.E2E_ADMIN_EMAIL || defaultAccount("admin", "qa-admin"), password: SEED_PASSWORD },
    // Auth Moderator -> CMS editor

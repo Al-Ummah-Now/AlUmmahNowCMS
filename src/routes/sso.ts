@@ -23,6 +23,23 @@ const TX_TTL_SECONDS = 600;
 
 export const txCookieName = (secure: boolean) => (secure ? "__Host-cms_sso" : "cms_sso");
 
+/**
+ * The refusal marker: set by /sso/callback when the signed-in account has no CMS role, read ONCE
+ * by /sso/no-access. Without it, /sso/no-access does not show the page: it signs in again (silent
+ * while auth has a browser session). So reloading the page, going back to it or reopening an old
+ * tab retries the sign-in with auth's CURRENT account instead of showing a stale "No access"
+ * (2026-11-14: the owner kept getting the page in a tab from a refusal of another account). It
+ * cannot loop: every render of the page needs a fresh refusal by the callback.
+ */
+export const deniedCookieName = (secure: boolean) => (secure ? "__Host-cms_denied" : "cms_denied");
+const DENIED_TTL_SECONDS = 300;
+
+interface Denied {
+   m: string; // the refused account's email
+   r: string; // the return path of the refused sign-in
+   e: number; // expiry (epoch seconds)
+}
+
 export interface Tx {
    s: string; // state
    v: string; // PKCE verifier
@@ -36,6 +53,8 @@ export function renderStatus(
    kind: Parameters<typeof statusPage>[0]["kind"],
    status: 200 | 400 | 403 | 404 | 500 | 502 | 503,
    accounts?: { returnPath: string },
+   /** no_access: the refused account's email, named on the page. */
+   account?: string,
 ) {
    const cfg = c.get("cfg");
    const url = new URL(c.req.url);
@@ -46,6 +65,7 @@ export function renderStatus(
       wwwUrl: cfg?.wwwUrl ?? "https://www.alummahnow.net",
       path: url.pathname,
       accounts: accounts && cfg ? { issuer: cfg.issuer, returnPath: accounts.returnPath } : undefined,
+      account,
    });
    return c.html(html, status);
 }
@@ -182,6 +202,14 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
          // this one) is dropped too, so the CMS never keeps acting as an account auth no longer
          // has active. Redirect to a stable URL so a reload does not replay the spent code.
          await clearSession(c, deps);
+         const denied: Denied = { m: identity.email, r: tx.r, e: Math.floor(Date.now() / 1000) + DENIED_TTL_SECONDS };
+         await setSignedCookie(c, deniedCookieName(secure), encodeURIComponent(JSON.stringify(denied)), cfg.jwtSecret, {
+            path: "/",
+            secure,
+            httpOnly: true,
+            sameSite: "Lax",
+            maxAge: DENIED_TTL_SECONDS,
+         });
          return c.redirect("/sso/no-access", 303);
       }
 
@@ -275,7 +303,26 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       });
       return c.html(html, 200);
    });
-   sso.get("/no-access", (c) => renderStatus(c, "no_access", 403, { returnPath: "/" }));
+   // Shown once per refusal (deniedCookieName); otherwise it signs in again with auth's current account.
+   sso.get("/no-access", async (c) => {
+      const cfg = c.get("cfg");
+      const secure = !cfg.isLocal;
+      const name = deniedCookieName(secure);
+      const raw = await getSignedCookie(c, cfg.jwtSecret, name);
+      if (raw !== undefined) deleteCookie(c, name, { path: "/", secure });
+      let denied: Denied | null = null;
+      try {
+         const d = raw ? (JSON.parse(decodeURIComponent(raw)) as Partial<Denied>) : null;
+         if (d && typeof d.m === "string" && typeof d.r === "string" && typeof d.e === "number" && d.e >= Date.now() / 1000) denied = d as Denied;
+      } catch {
+         denied = null;
+      }
+      if (!denied) {
+         const lang = c.req.query("lang");
+         return c.redirect(`/sso/login?return=%2F${lang === "ar" || lang === "en" ? `&lang=${lang}` : ""}`, 302);
+      }
+      return renderStatus(c, "no_access", 403, { returnPath: safeReturnPath(denied.r) }, denied.m);
+   });
    // Account chooser (linked from the picker and the admin UI). Needs no CMS session: the list
    // is read by the browser straight from auth.
    sso.get("/accounts", (c) => renderStatus(c, "accounts", 200, { returnPath: safeReturnPath(c.req.query("return")) }));

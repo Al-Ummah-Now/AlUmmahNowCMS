@@ -8,13 +8,18 @@ const CLIENT = "client-1";
 let privateKey: CryptoKey;
 let otherKey: CryptoKey;
 let jwks: ReturnType<typeof createLocalJWKSet>;
+let rsaKey: CryptoKey;
 
 beforeAll(async () => {
    const pair = await generateKeyPair("ES256");
    privateKey = pair.privateKey as CryptoKey;
    otherKey = (await generateKeyPair("ES256")).privateKey as CryptoKey;
    const jwk = { ...(await exportJWK(pair.publicKey)), kid: "k1", alg: "ES256", use: "sig" };
-   jwks = createLocalJWKSet({ keys: [jwk] });
+   // A published RS256 key: a token signed with it finds its key, so only the algorithm pin refuses it
+   const rsa = await generateKeyPair("RS256");
+   rsaKey = rsa.privateKey as CryptoKey;
+   const rsaJwk = { ...(await exportJWK(rsa.publicKey)), kid: "k2", use: "sig" };
+   jwks = createLocalJWKSet({ keys: [jwk, rsaJwk] });
 });
 
 async function token(over: { iss?: string; aud?: string; exp?: number; key?: CryptoKey; props?: object; mode?: string; claims?: object } = {}) {
@@ -62,6 +67,19 @@ describe("verifyAccessToken (local JWKS)", () => {
       ["no email", { props: { id: "u1", roles: ["Admin"] } }],
    ])("rejects %s", async (_n, over) => {
       await expect(verifyAccessToken(await token(over), { issuer: ISSUER, clientId: CLIENT, jwks })).rejects.toBeInstanceOf(OidcError);
+   });
+   it("rejects a token signed with any algorithm but ES256, even with a matching published key", async () => {
+      const rs256 = await new SignJWT({ mode: "access", type: "user", properties: { id: "u1", email: "a@example.com", roles: ["Super Admin"] } })
+         .setProtectedHeader({ alg: "RS256", kid: "k2" })
+         .setSubject("user:u1")
+         .setIssuer(ISSUER)
+         .setAudience(CLIENT)
+         .setExpirationTime(Math.floor(Date.now() / 1000) + 600)
+         .sign(rsaKey);
+      const err = await verifyAccessToken(rs256, { issuer: ISSUER, clientId: CLIENT, jwks }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(OidcError);
+      expect((err as OidcError).kind).toBe("invalid_token");
+      expect((err as Error).message).toMatch(/"alg"/);
    });
    it("rejects a token signed by an unknown key", async () => {
       await expect(verifyAccessToken(await token({ key: otherKey }), { issuer: ISSUER, clientId: CLIENT, jwks })).rejects.toThrow(/rejected/);

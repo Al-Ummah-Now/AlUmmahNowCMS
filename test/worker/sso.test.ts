@@ -86,10 +86,12 @@ describe("callback", () => {
       const { callback } = await signIn(["Viewer"], { id: "viewer-1", email: "viewer@example.com" });
       expect(callback.status).toBe(303);
       expect(callback.headers.get("location")).toBe("/sso/no-access");
-      const denied = await makeWorker()("/sso/no-access");
+      const denied = await makeWorker()("/sso/no-access", { headers: { cookie: cookiesOf(callback) } });
       expect(denied.status).toBe(403);
       const html = await denied.text();
       expect(html).toContain("No access");
+      // The page names the refused account, so a wrong active account is obvious
+      expect(html).toContain("You are signed in as <bdi><strong>viewer@example.com</strong></bdi>.");
       expect(callback.headers.getSetCookie().some((c) => c.startsWith("auth="))).toBe(false);
       expect(await usersCount()).toBe(before);
    });
@@ -305,9 +307,62 @@ describe("prompt handling", () => {
    });
 });
 
+describe("no-access is never a dead end (2026-11-14: a super admin kept getting a stale No access)", () => {
+   it("is shown once per refusal: a reload, the back button or an old tab signs in again", async () => {
+      const { callback } = await signIn(["Member"], { id: "na-member", email: "na-member@example.com" });
+      const marker = callback.headers.getSetCookie().find((c) => c.startsWith("__Host-cms_denied="));
+      expect(marker).toMatch(/HttpOnly/i);
+      expect(marker).toMatch(/Secure/i);
+      expect(marker).toMatch(/Max-Age=300/i);
+      const f = makeWorker();
+      const first = await f("/sso/no-access", { headers: { cookie: cookiesOf(callback) } });
+      expect(first.status).toBe(403);
+      // Consumed: the browser drops it
+      expect(first.headers.getSetCookie().some((c) => c.startsWith("__Host-cms_denied=") && /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c))).toBe(true);
+      // The same URL again, without a fresh refusal: a new sign-in (silent while auth has a session)
+      const again = await f("/sso/no-access");
+      expect(again.status).toBe(302);
+      expect(again.headers.get("location")).toBe("/sso/login?return=%2F");
+      expect((await f("/sso/no-access?lang=ar")).headers.get("location")).toBe("/sso/login?return=%2F&lang=ar");
+   });
+
+   it("a stale no-access tab reaches the dashboard once auth's active account is a super admin", async () => {
+      const refused = await signIn(["Member"], { id: "stale-member", email: "stale@example.com" }, { returnPath: "/" });
+      const shown = await makeWorker()("/sso/no-access", { headers: { cookie: cookiesOf(refused.callback) } });
+      expect(shown.status).toBe(403);
+      // The user switches auth to their Super Admin account elsewhere, then reloads the old tab
+      const reload = await makeWorker()("/sso/no-access");
+      expect(reload.headers.get("location")).toBe("/sso/login?return=%2F");
+      const admin = await signIn(["Member", "Super Admin", "Admin"], { id: "stale-owner", email: "owner@example.com" }, { returnPath: "/" });
+      expect(admin.callback.status).toBe(302);
+      expect(admin.callback.headers.get("location")).toBe("/");
+      const home = await admin.fetchCms("/", { headers: { cookie: cookiesOf(admin.callback) } });
+      expect(home.status).toBe(200);
+   });
+
+   it("a forged, tampered or expired marker never shows the page", async () => {
+      const f = makeWorker();
+      const forged = `__Host-cms_denied=${encodeURIComponent(JSON.stringify({ m: "x@example.com", r: "/", e: 9e9 }))}`;
+      expect((await f("/sso/no-access", { headers: { cookie: forged } })).status).toBe(302);
+      const { callback } = await signIn(["Member"], { id: "tamper", email: "tamper@example.com" });
+      const real = cookiesOf(callback).split("; ").find((c) => c.startsWith("__Host-cms_denied="))!;
+      const tampered = real.replace("tamper", "evilxx");
+      expect(tampered).not.toBe(real);
+      expect((await f("/sso/no-access", { headers: { cookie: tampered } })).status).toBe(302);
+   });
+
+   it("the refused account's email is escaped on the page", async () => {
+      const { callback } = await signIn(["Member"], { id: "esc", email: "a<b>@example.com" });
+      const html = await (await makeWorker()("/sso/no-access", { headers: { cookie: cookiesOf(callback) } })).text();
+      expect(html).not.toContain("a<b>@example.com");
+      expect(html).toContain("a&lt;b&gt;@example.com");
+   });
+});
+
 describe("account chooser", () => {
    it("the no-access page lists auth's accounts from the browser: switch, add account, sign out", async () => {
-      const res = await makeWorker()("/sso/no-access");
+      const { callback } = await signIn(["Viewer"], { id: "ch-viewer", email: "ch-viewer@example.com" }, { returnPath: "/" });
+      const res = await makeWorker()("/sso/no-access", { headers: { cookie: cookiesOf(callback) } });
       expect(res.status).toBe(403);
       const html = await res.text();
       expect(html).toContain('id="accounts-list"');
