@@ -84,6 +84,67 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Owner rule (2026-11-14): every feature goes into the wiki and its feature registry
+  # (AlUmmahNowWiki features/README.md). Lists the merged PRs since the previous release tag that
+  # no wiki commit, wiki PR or registry entry mentions. A warning in the run summary, never a failure.
+  wiki-registry:
+    name: PRs not in the wiki or feature registry (warning only)
+    needs: resolve
+    if: needs.resolve.outputs.production == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: List them
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ needs.resolve.outputs.tag }}
+          BASE_REF: ''
+        run: |
+          set -u
+          name=${REPO#*/}
+          if [ -z "${BASE_REF:-}" ] || [ "${BASE_REF}" = "0000000000000000000000000000000000000000" ]; then
+            BASE_REF=$(git ls-remote --tags --refs "https://github.com/$REPO.git" 'v*' | sed 's#.*refs/tags/##' | sort -V | awk -v t="$HEAD_REF" '$0 == t { print p; exit } { p = $0 }')
+          fi
+          [ -n "$BASE_REF" ] || { echo "No earlier release to compare with."; exit 0; }
+          cmp=$(gh api "repos/$REPO/compare/$BASE_REF...$HEAD_REF")
+          base_date=$(jq -r '.base_commit.commit.committer.date' <<<"$cmp")
+          since=$(date -u -d "$base_date - 7 days" +%Y-%m-%dT%H:%M:%SZ)
+          prs=$(jq -r '.commits[].sha' <<<"$cmp" | while read -r sha; do
+            gh api "repos/$REPO/commits/$sha/pulls" --jq '.[] | select(.merged_at != null) | "\(.number)\t\(.title)"'
+          done | sort -u -n)
+          [ -n "$prs" ] || { echo "No merged PRs in this release."; exit 0; }
+          # Everything in the wiki that can mention a PR: the registry, wiki commits and wiki PRs since then
+          wiki=$({
+            curl -fsS https://raw.githubusercontent.com/Al-Ummah-Now/AlUmmahNowWiki/main/features/registry.json
+            gh api "repos/Al-Ummah-Now/AlUmmahNowWiki/commits?since=$since&per_page=100" --paginate --jq '.[].commit.message'
+            gh pr list -R Al-Ummah-Now/AlUmmahNowWiki --state all --search "updated:>=${since%%T*}" --limit 300 --json title,body --jq '.[] | .title + "\n" + .body'
+          } 2>/dev/null || true)
+          missing=""
+          count=0
+          while IFS=$'\t' read -r n title; do
+            if ! grep -qE "($name#$n|$name/pull/$n)([^0-9]|\$)" <<<"$wiki"; then
+              missing+="- [$name#$n](https://github.com/$REPO/pull/$n) ${title//|/\\|}"$'\n'
+              count=$((count + 1))
+            fi
+          done <<<"$prs"
+          total=$(wc -l <<<"$prs" | tr -d ' ')
+          {
+            echo "### Wiki and feature registry"
+            if [ "$count" -eq 0 ]; then
+              echo "All $total merged PRs since \`$BASE_REF\` are mentioned in the wiki or the feature registry."
+            else
+              echo "$count of $total merged PRs since \`$BASE_REF\` aren't mentioned in the wiki or the [feature registry](https://github.com/Al-Ummah-Now/AlUmmahNowWiki/blob/main/features/README.md). If they change what users see, add them (as \`$name#N\`):"
+              echo
+              printf '%s' "$missing"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$count" -eq 0 ] || echo "::warning title=Wiki / feature registry::$count merged PR(s) since $BASE_REF aren't in the wiki or the feature registry (see the run summary)."
+
   build:
     name: Build once
     needs: resolve
