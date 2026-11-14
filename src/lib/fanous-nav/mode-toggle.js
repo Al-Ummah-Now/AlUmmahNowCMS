@@ -1,14 +1,16 @@
 /**
- * The Light / Dark control, the same in every Al Ummah Now app (AlUmmahNow docs/design/NAV.md;
- * source of truth: AlUmmahNow packages/fanous-tokens/nav/mode-toggle.js, copied here exactly).
- * It is the videos site's header toggle: one icon button that switches to the other mode.
+ * The Light / Dark control, the same in every app (docs/design/NAV.md "Header", Light/dark): one icon
+ * button that switches to the other mode, as in the videos site's header (apps/web
+ * ThemeDemo/AppShell `theme-toggle`).
  *
  * - Light mode on screen: the Moon icon, named "Switch to dark mode".
  * - Dark mode on screen: the Sun icon, named "Switch to light mode".
- * - The name is the action, so there is no aria-pressed; `title` repeats it. No "System" option.
+ * - The name is the action, so the button has no aria-pressed. `title` repeats the name.
+ * - No "System" option (owner decision 2026-11-13).
  *
- * The icons are Lucide 0.487's `sun` and `moon` (ISC licence), byte for byte the markup
- * lucide-react renders on the videos site (test/mode-toggle.test.ts pins it).
+ * The icons are Lucide 0.487's `sun` and `moon` (ISC licence), the ones the videos site renders
+ * through lucide-react; apps/web checks that these strings still equal lucide-react's output.
+ * Apps outside the monorepo copy the markup exactly and test it against the same strings.
  */
 
 /** Lucide's default `<svg>` attributes (lucide-react 0.487 defaultAttributes). */
@@ -26,16 +28,20 @@ export const MOON_ICON_BODY = '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></pa
 export const MODE_TOGGLE_LABELS = {
   en: { toLight: 'Switch to light mode', toDark: 'Switch to dark mode' },
   ar: { toLight: 'التبديل إلى الوضع الفاتح', toDark: 'التبديل إلى الوضع الداكن' },
-} as const;
+};
 
 /** The name for the mode on screen (`dark` true: "Switch to light mode"). */
-export function modeToggleLabel(lang: string, dark: boolean): string {
+export function modeToggleLabel(lang, dark) {
   const l = MODE_TOGGLE_LABELS[lang === 'ar' ? 'ar' : 'en'];
   return dark ? l.toLight : l.toDark;
 }
 
-/** One icon as markup, decorative (the button carries the name); `cls` adds classes after Lucide's. */
-export function modeIconSvg(icon: 'sun' | 'moon', cls = ''): string {
+/**
+ * One icon as markup, decorative (the button carries the name). `cls` adds classes after Lucide's
+ * own (`lucide lucide-sun`), e.g. for CSS that shows the icon of the mode on screen.
+ */
+export function modeIconSvg(icon, cls = '') {
   const body = icon === 'sun' ? SUN_ICON_BODY : MOON_ICON_BODY;
-  return `<svg ${MODE_ICON_ATTRS} class="lucide lucide-${icon}${cls ? ` ${cls}` : ''}" aria-hidden="true" focusable="false">${body}</svg>`;
+  const classes = `lucide lucide-${icon === 'sun' ? 'sun' : 'moon'}${cls ? ` ${cls}` : ''}`;
+  return `<svg ${MODE_ICON_ATTRS} class="${classes}" aria-hidden="true" focusable="false">${body}</svg>`;
 }

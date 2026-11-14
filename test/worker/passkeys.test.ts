@@ -1,3 +1,4 @@
+import { brandHtml, envBadgeHtml, langButtonHtml } from "../../src/lib/fanous-nav/header.js";
 /** Staff passkeys (wiki AUTH-PASSKEYS, "Staff enforcement points": CMS admin). */
 import { describe, expect, it } from "vitest";
 import { CMS, cookiesOf, ISSUER, makeWorker, signIn, usersCount } from "./helpers.ts";
@@ -100,17 +101,27 @@ describe("Passkey needed page", () => {
       expect(saved).toContain('data-mode="light"');
    });
 
-   it("Light/Dark is the videos site's icon toggle: Lucide sun/moon, named for the other mode, no text", async () => {
+   it("Light/Dark is the shared header's icon toggle: Lucide sun/moon, named for the other mode, no text", async () => {
       const f = makeWorker();
       for (const [lang, toLight, toDark] of [["en", "Switch to light mode", "Switch to dark mode"], ["ar", "التبديل إلى الوضع الفاتح", "التبديل إلى الوضع الداكن"]] as const) {
          const html = await (await f(`/sso/passkey-needed?lang=${lang}`)).text();
-         const light = html.match(/<a class="mode-to-light mode-ic"[^>]*>([^]*?)<\/a>/);
-         const dark = html.match(/<a class="mode-to-dark mode-ic"[^>]*>([^]*?)<\/a>/);
+         const light = html.match(/<a class="aun-icon-btn aun-mode mode-to-light"[^>]*>([^]*?)<\/a>/);
+         const dark = html.match(/<a class="aun-icon-btn aun-mode mode-to-dark"[^>]*>([^]*?)<\/a>/);
          expect(light?.[0]).toContain(`aria-label="${toLight}" title="${toLight}"`);
          expect(dark?.[0]).toContain(`aria-label="${toDark}" title="${toDark}"`);
          expect(light?.[1]).toMatch(/^<svg [^>]*class="lucide lucide-sun"[^>]*>[^]*<\/svg>$/);
          expect(dark?.[1]).toMatch(/^<svg [^>]*class="lucide lucide-moon"[^>]*>[^]*<\/svg>$/);
       }
+   });
+
+   it("wears the shared header: brand, QA badge, app links, language (keeps the return path), no Sign in", async () => {
+      const html = await (await makeWorker()("/sso/passkey-needed?return=%2Fpages&lang=en")).text();
+      expect(html).toContain('<header class="aun-header cms-hd">');
+      expect(html).toContain(brandHtml({ lang: "en", href: "/", app: "Content" }));
+      expect(html).toContain(envBadgeHtml("qa", "en"));
+      expect(html).toContain(langButtonHtml({ lang: "en", href: "/sso/passkey-needed?return=%2Fpages&lang=ar" }));
+      expect(html).toContain('href="https://www.test/en/"');
+      expect(html).not.toContain('class="aun-signin"');
    });
 
    it("only a safe return path is used", async () => {

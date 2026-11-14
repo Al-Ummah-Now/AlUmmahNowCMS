@@ -11,6 +11,7 @@ import { Autocomplete, comboboxProps } from "./autocomplete.tsx";
 import { LeaveDialog, LinkDialog } from "./dialogs.tsx";
 import { appLinks, type AppLinkId } from "../../lib/app-links.ts";
 import { absolute } from "../format.ts";
+import { headerBrandHtml, headerSitePrefsHtml, withQuery } from "../../lib/header.ts";
 
 export interface View {
    prefs: Prefs;
@@ -23,8 +24,10 @@ export interface View {
    user: { email: string; name: string; role: "admin" | "editor" | "staff_writer" | "writer"; sub?: string | null };
    wwwUrl: string;
    adminWebUrl: string;
-   /** For the account menu's "Al Ummah Now apps" links (src/lib/app-links.ts). */
+   /** For the header's app links and the account menu's "Al Ummah Now apps" (src/lib/app-links.ts). */
    videosWebUrl?: string;
+   /** ENVIRONMENT (src/env.ts): the header's QA / STAGE badge, none in production. */
+   environment?: string;
    issuer?: string;
    assets: { css: string; theme: string; js: string };
    /** Tab icons for this environment (src/lib/app-icons.ts). */
@@ -94,29 +97,7 @@ function NavLinks(props: { v: View; items: NavItem[] }) {
 
 /** Link to the same screen with one query parameter changed (language, appearance). */
 export function withParam(v: View, key: string, value: string): string {
-   const q = new URLSearchParams(v.search);
-   q.set(key, value);
-   return `${v.path}?${q.toString()}`;
-}
-
-function Prefs(props: { v: View }) {
-   const { v } = props;
-   const other = v.prefs.lang === "ar" ? "en" : "ar";
-   return (
-      <>
-         {/* Light / Dark (no "System"): one link per target mode, CSS shows the one for the mode on
-             screen (html.dark), so it is right before paint even when the device decides */}
-         <a class="ic mode-to-light" href={withParam(v, "mode", "light")} title={v.t.prefs.toLight} aria-label={v.t.prefs.toLight} data-mode-toggle="light">
-            <Icon name="sun" />
-         </a>
-         <a class="ic mode-to-dark" href={withParam(v, "mode", "dark")} title={v.t.prefs.toDark} aria-label={v.t.prefs.toDark} data-mode-toggle="dark">
-            <Icon name="moon" />
-         </a>
-         <a class="ic" href={withParam(v, "lang", other)} lang={other} hreflang={other} title={v.t.prefs.switchTo} aria-label={v.t.prefs.switchTo}>
-            <Icon name="languages" />
-         </a>
-      </>
-   );
+   return withQuery(v.path, v.search, key, value);
 }
 
 /** The name the account menu shows: the account's name, the email only when it has none. */
@@ -249,6 +230,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
    const { t, prefs } = v;
    const theme = THEMES[prefs.theme];
    const dark = prefs.mode !== "light";
+   const searchAction = isWriter(v) ? "/posts" : "/pages";
    return (
       <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} class={dark ? "dark" : undefined}>
          <head>
@@ -288,33 +270,33 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                      <a href={v.passkey.setupUrl}>{t.passkey.add}</a>
                   </div>
                ) : null}
-               <header class="hd">
-                  <div class="hd-start">
-                     <button class="ic only-phone" type="button" data-open-drawer aria-label={t.nav.menu} aria-controls="drawer" aria-expanded="false">
-                        <Icon name="menu" />
-                     </button>
-                     <a class="brand" href="/">
-                        {/* The owner's app icon as supplied (docs/design/NAV.md: the logo, never a placeholder) */}
-                        <img class="brand-mark" src="/icon-192.png" alt="" width={36} height={36} />
-                        <span>
-                           <span class="brand-name">{t.brand}</span>
-                           <span class="brand-sub">{t.cms}</span>
-                        </span>
-                     </a>
+               {/* The shared header (AlUmmahNow docs/design/NAV.md "Header", src/lib/header.ts): [menu] brand ·
+                   QA/STAGE · search · New · Website, Videos · language · sun/moon · account */}
+               <header class="aun-header cms-hd hd">
+                  <button class="aun-icon-btn only-phone" type="button" data-open-drawer aria-label={t.nav.menu} aria-controls="drawer" aria-expanded="false">
+                     <Icon name="menu" />
+                  </button>
+                  {raw(headerBrandHtml(prefs.lang, v.environment))}
+                  <div class="aun-header-primary hd-search" id="hd-search">
+                     <Autocomplete kind={isWriter(v) ? "posts" : "content"} listId="global-q-list" label={t.header.search}>
+                        <form class="search" role="search" action={searchAction} method="get">
+                           <label class="vh" for="global-q">
+                              {t.header.search}
+                           </label>
+                           <input id="global-q" name="q" type="search" placeholder={t.header.search} maxlength={100} {...comboboxProps("global-q-list")} />
+                           <button type="submit" aria-label={t.header.searchButton}>
+                              <Icon name="search" />
+                           </button>
+                        </form>
+                     </Autocomplete>
                   </div>
-                  <Autocomplete kind={isWriter(v) ? "posts" : "content"} listId="global-q-list" label={t.header.search}>
-                     <form class="search" role="search" action={isWriter(v) ? "/posts" : "/pages"} method="get">
-                        <label class="vh" for="global-q">
-                           {t.header.search}
-                        </label>
-                        <input id="global-q" name="q" type="search" placeholder={t.header.search} maxlength={100} {...comboboxProps("global-q-list")} />
-                        <button type="submit" aria-label={t.header.searchButton}>
-                           <Icon name="search" />
-                        </button>
-                     </form>
-                  </Autocomplete>
-                  <div class="hd-end">
+                  <div class="aun-header-tools">
+                     {/* Below 1024px the search opens under the bar (client/shell.ts); without script, the list's own search */}
+                     <a class="aun-icon-btn hd-search-btn" href={searchAction} data-search-toggle aria-controls="hd-search" aria-label={t.header.search} title={t.header.search}>
+                        <Icon name="search" />
+                     </a>
                      <CreateMenu v={v} />
+                     {raw(headerSitePrefsHtml({ lang: prefs.lang, link: (key, value) => withParam(v, key, value), wwwUrl: v.wwwUrl, videosWebUrl: v.videosWebUrl }))}
                      <AccountMenu v={v} />
                   </div>
                </header>
@@ -325,9 +307,6 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                      <div class="rail-sep" />
                      <span class="rail-group">{t.nav.groupSite}</span>
                      <NavLinks v={v} items={SITE} />
-                     <div class="rail-foot">
-                        <Prefs v={v} />
-                     </div>
                   </nav>
                   <main id="main" tabindex={-1}>
                      <div class="wrap">{props.children}</div>
@@ -351,9 +330,6 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                   <NavLinks v={v} items={CONTENT} />
                   <span class="rail-group">{t.nav.groupSite}</span>
                   <NavLinks v={v} items={SITE} />
-                  <div class="rail-foot" style="flex-direction:row;justify-content:flex-start">
-                     <Prefs v={v} />
-                  </div>
                </div>
             </dialog>
             <LeaveDialog v={v} />

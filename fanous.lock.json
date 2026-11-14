@@ -3,7 +3,7 @@
   "refs": {
     "tokens": "7f1bf3e9f01780c2e2c9359e73c03ec4e4435f83",
     "materials": "399086fcea954661bf720cb6d78832f7e09819a0",
-    "nav": "8d3ccc8b9918d12a85d9e878d9301f6df3a13bde"
+    "nav": "a7b688d183b06ee4ac25ea740e8af1d2784138fd"
   },
   "sources": {
     "399086fcea95:apps/web/src/theme/demo-graphics.json": "bff543163815040efc4ad100d0afd8a46de64716724f60589afb207b06fc32ae",
@@ -26,12 +26,18 @@
     "7f1bf3e9f017:packages/fanous-tokens/themes/nahas/theme.json": "ec5e89700c1fdd5dadf2da5222553563ff99e03a883566e89f138685485bb23c",
     "7f1bf3e9f017:packages/fanous-tokens/generated/nahas/web/tokens.css": "e8d7d9b5bed33cb0369aefcd31b82e596e457ce63a4ecc0f4baa9db20b22da3b",
     "399086fcea95:apps/web/src/theme/materials/nahas.css": "3bf03acace56f541a350c87dde57484737a489056438a16749d48735e0f443c1",
-    "8d3ccc8b9918:packages/fanous-tokens/nav/aun-nav.css": "177502970e17c06280f749f82ff0357db2cee41d51b09c14d172dcf25736d247"
+    "a7b688d183b0:packages/fanous-tokens/nav/aun-nav.css": "cb7718a6c8f581f667dc7a8c291e237efe1559ed80fec504da27f8bbb30f1233"
   },
-  "output": "d241a894c8285ccd31193fd57b161ea53269549aac08099eaaf53a09b5422d4d",
-  "navIconsOutput": "dcb37d480c731da8a0bb1c6f98f00a9bcb933e5df771781d511640d924682aa8",
+  "output": "bb7e52ca1377dd98b5935e600772dbd1641a5d408489bbbb750dafb3f02cef6a",
+  "navIconsOutput": "77fb686e2ca726970abf67537a5d12d74171a4334bf86d5c63b126cd93fcd51e",
   "street": {
     "src/admin/client/fanous-street.generated.js": "89d10b4fd2b09237891365c231916997a3ac7a180dc6e2a53cdebeb5ba12a552",
     "src/admin/client/fanous-street.generated.d.ts": "c66b19686e04dd83086f5c700389b82d222f922c9ff568a10866893d246484c1"
+  },
+  "navFiles": {
+    "src/lib/fanous-nav/header.js": "2befeb44d549143e8cc466f7b091bd4117065cef14ffba3c6a0113a470cd8eda",
+    "src/lib/fanous-nav/header.d.ts": "f9bb4518188e41d53370e6ee5fe1523409d792c2f93a151c7eb87332838e3b02",
+    "src/lib/fanous-nav/mode-toggle.js": "a05f5544599c1364710427baf455213cbd5a2655a38e791e9cc055580db55a7b",
+    "src/lib/fanous-nav/mode-toggle.d.ts": "c57c9674622027069eb1fa5b05b4268a187c557b0bd714c6698a39efce3c682e"
   }
 }

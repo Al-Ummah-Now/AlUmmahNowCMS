@@ -1,5 +1,7 @@
 /** Tiny HTML helpers for the CMS's own server-rendered pages. */
+import { NAV_CSS, THEMES } from "../admin/theme/vendor.generated.ts";
 import { tabIconHtml } from "./app-icons.ts";
+import { HEADER_GLUE_CSS } from "./header.ts";
 
 export function esc(value: unknown): string {
    return String(value ?? "")
@@ -42,7 +44,15 @@ export interface PageOptions {
     * (decided before paint). Absent: the page is light only, as before.
     */
    mode?: "light" | "dark" | null;
+   /**
+    * The shared header (src/lib/header.ts publicHeaderHtml), above the page. Its styles come along:
+    * the shared nav CSS on the default theme's (Fawanees) tokens, so it is the staff screens' header.
+    */
+   header?: string;
 }
+
+/** The header's styles for a page without the theme stylesheet: Fawanees tokens (variables only) and aun-nav.css. */
+const HEADER_CSS = THEMES.fawanees.css + NAV_CSS + HEADER_GLUE_CSS;
 
 /** Dark tokens for pages with a mode (AA contrast: text #f1f3f5 on #121417 = 16:1, links #8ab4f8 = 9:1). */
 const DARK_CSS = `
@@ -66,10 +76,10 @@ ${moded ? '<meta name="color-scheme" content="dark light">' : ""}
 <title>${esc(o.title)}</title>
 ${moded ? `<script nonce="${o.nonce}">${MODE_SCRIPT}</script>` : ""}
 ${tabIconHtml("production") /* these pages have no environment: the plain set */}
-<style nonce="${o.nonce}">${BASE_CSS}${moded ? DARK_CSS : ""}${o.extraCss ?? ""}</style>
+<style nonce="${o.nonce}">${BASE_CSS}${moded ? DARK_CSS : ""}${o.header ? HEADER_CSS : ""}${o.extraCss ?? ""}</style>
 </head>
 <body>
-${o.body}
+${o.header ?? ""}${o.body}
 ${o.script ? `<script nonce="${o.nonce}">${o.script}</script>` : ""}
 </body>
 </html>`;

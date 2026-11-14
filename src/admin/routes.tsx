@@ -69,6 +69,7 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       wwwUrl: cfg.wwwUrl,
       adminWebUrl: adminWeb,
       videosWebUrl: cfg.videosWebUrl,
+      environment: c.env.ENVIRONMENT,
       issuer: cfg.issuer,
       assets: assetUrls(prefs.theme),
       tabIcons: tabIconLinks(c.env.ENVIRONMENT),
