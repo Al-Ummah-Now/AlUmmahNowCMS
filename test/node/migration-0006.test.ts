@@ -6,7 +6,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { normalizeBlocks } from "../../src/lib/blocks.ts";
+import { DEFAULT_STYLE, normalizeBlocks } from "../../src/lib/blocks.ts";
 
 const dir = new URL("../../migrations/", import.meta.url);
 const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
@@ -45,7 +45,7 @@ describe("migration 0006_page_blocks_card_posts", () => {
       const blocks = (id: number) => after.find((r) => r.id === id)!.blocks;
       for (const id of [1, 2]) {
          const parsed = normalizeBlocks(JSON.parse(String(blocks(id))));
-         expect(parsed).toEqual([{ id: "body", type: "markdown", text: (original[id - 1] as { body: string }).body }]);
+         expect(parsed).toEqual([{ id: "body", type: "markdown", appearance: DEFAULT_STYLE.markdown, text: (original[id - 1] as { body: string }).body }]);
       }
       expect([blocks(3), blocks(4), blocks(5)]).toEqual([null, null, null]);
 

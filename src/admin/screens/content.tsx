@@ -14,7 +14,8 @@ import { blockMediaIds, blockPostIds, blockVideoRefs, bodyAsBlocks, storedBlocks
 import { getSnapshots } from "../../lib/video-snapshots.ts";
 import { stableSnapshot } from "../../lib/stable-thumb.ts";
 import { PageTypeField, PageTypePanels, pageTypeOf } from "./page-type.tsx";
-import { BlocksEditor, emptyRefs, MediaDialog, mediaInfoOf, PostsDialog, SlidesEditor, type Refs } from "./blocks.tsx";
+import { previewAssets } from "../assets.ts";
+import { BlockItem, BlocksEditor, emptyRefs, MediaDialog, mediaInfoOf, PostsDialog, SlidesEditor, type Refs } from "./blocks.tsx";
 import { ConfirmDialog, I18nScript, LocalTime, StateBadge } from "../ui/parts.tsx";
 import { historyCard } from "./history.tsx";
 import { MainSiteCard } from "./scholars.tsx";
@@ -313,6 +314,31 @@ async function loadRefs(data: Data, db: D1Database | undefined, blocks: Block[],
    return refs;
 }
 
+/**
+ * Another page's blocks for the page builder (copy from the other language, and that language's saved
+ * version in the live preview): the editor items, server-rendered in `locale` with fresh uids, plus
+ * the stored blocks and what the preview needs about their references. Staff only (a writer edits
+ * posts, never pages).
+ */
+export async function blocksFragment(v: View, data: Data, id: number, locale: "en" | "ar", db?: D1Database): Promise<Record<string, unknown> | null> {
+   if (isWriter(v) || isStaffWriter(v)) return null;
+   const row = await data.one("pages", id);
+   if (!row) return null;
+   const blocks = storedBlocks(row.blocks).length ? storedBlocks(row.blocks) : bodyAsBlocks(row.body);
+   const refs = await loadRefs(data, db, blocks, [], v.videosWebUrl ?? "");
+   const c = { v, locale, refs };
+   return {
+      locale: row.locale === "ar" ? "ar" : "en",
+      title: String(row.title ?? ""),
+      summary: String(row.summary ?? ""),
+      blocks,
+      html: blocks.map((b) => (<BlockItem c={c} b={b} folded={blocks.length > 2} />).toString()).join(""),
+      media: Object.fromEntries(refs.media),
+      videos: Object.fromEntries(refs.videos),
+      posts: Object.fromEntries(refs.posts),
+   };
+}
+
 export async function contentEditor(v: View, data: Data, kind: ContentKind, id: number | null, newLocale: "en" | "ar", db?: D1Database) {
    const { t } = v;
    const writer = isWriter(v);
@@ -387,6 +413,14 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
          mediaUseMany: t.blocks.mediaUseMany(P0),
          mediaUseOne: t.blocks.mediaUseMany(1),
          mediaUploading: t.blocks.mediaUploading("{0}"),
+         blocksCount: t.blocks.blocksCount(P0),
+         blocksCount1: t.blocks.blocksCount(1),
+         blocksCount2: t.blocks.blocksCount(2),
+         blocksCount10: t.blocks.blocksCount(3).replace("3", "{0}"),
+         noTranslation: t.blocks.noTranslation("{0}"),
+         copyFrom: t.blocks.copyFrom("{0}"),
+         copyConfirm: t.blocks.copyConfirm("{0}"),
+         copied: t.blocks.copied("{0}"),
       },
       slides: { ...t.slides, count: t.slides.count(P0), count1: t.slides.count(1), count2: t.slides.count(2), count10: t.slides.count(3) },
       invalid: t.blocks.invalid,
@@ -618,7 +652,23 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                </section>
 
                {kind === "pages" ? (
-                  <PageTypePanels v={v} type={pageType} id={id} locale={locale} filter={row?.list_filter ?? null} blocks={<BlocksEditor v={v} locale={locale} blocks={blocks} refs={refs} />} />
+                  <PageTypePanels v={v} type={pageType} id={id} locale={locale} filter={row?.list_filter ?? null} blocks={
+                        <BlocksEditor
+                           v={v}
+                           locale={locale}
+                           blocks={blocks}
+                           refs={refs}
+                           builder={{
+                              pageId: id,
+                              title: s("title"),
+                              summary: s("summary"),
+                              other: { locale: other, id: translations.data[0] ? Number(translations.data[0].id) : null },
+                              ...previewAssets(),
+                              theme: v.prefs.siteTheme,
+                              mode: v.prefs.mode ?? "dark",
+                           }}
+                        />
+                     } />
                ) : null}
                {kind === "posts" ? <SlidesEditor v={v} locale={locale} slides={slides} refs={refs} hidden={postKind !== "cards"} /> : null}
 

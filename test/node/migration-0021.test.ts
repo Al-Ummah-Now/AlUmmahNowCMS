@@ -7,7 +7,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { destructiveStatements } from "../../scripts/migration-guard.ts";
-import { blocksToMarkdown, normalizeBlocks } from "../../src/lib/blocks.ts";
+import { blocksToMarkdown, DEFAULT_STYLE, normalizeBlocks } from "../../src/lib/blocks.ts";
 
 const dir = new URL("../../migrations/", import.meta.url);
 const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
@@ -90,7 +90,7 @@ describe("migration 0021_about_page", () => {
    it("stores one markdown block the editor round-trips to the same body", () => {
       for (const row of about(migrated())) {
          const blocks = normalizeBlocks(JSON.parse(String(row.blocks)));
-         expect(blocks).toEqual([{ id: "body", type: "markdown", text: row.body }]);
+         expect(blocks).toEqual([{ id: "body", type: "markdown", appearance: DEFAULT_STYLE.markdown, text: row.body }]);
          expect(blocksToMarkdown(blocks)).toBe(row.body);
       }
    });

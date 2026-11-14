@@ -311,7 +311,18 @@ A page is an ordered list of blocks. Every block has a stable `id` (`[a-z0-9-]`,
 and a `type`. Text is in the page's own language (one row per locale; a translation starts as a copy).
 References are resolved when the page is read: a block that is incomplete in the editor, or whose
 images/posts/videos are all gone or no longer public, is **left out**, so www never renders an empty
-frame. A page saved before blocks existed is served as `[{ id: "body", type: "markdown", text: body }]`.
+frame. A page saved before blocks existed is served as `[{ id: "body", type: "markdown", appearance, text: body }]`.
+
+The schema, the stored → served mapping and the HTML renderer are ONE module shared by the CMS, www,
+the scholar sites and the videos site: AlUmmahNow `packages/shared-types/src/page-blocks.ts`, vendored
+here as `src/lib/page-blocks.generated.ts` (`npm run sync:page-blocks -- --ref <sha>`, checked by
+`check:page-blocks`). Wiki: AUN-CMS-PAGE-BUILDER.
+
+**Page builder (additive, 2026-11-14).** Every block also carries `appearance` (theme-safe options,
+never colours or CSS): `{ align: 'start' | 'center'; width: 'content' | 'wide' | 'full'; tone: 'none' |
+'soft' | 'raised' | 'accent' | 'night'; space: 's' | 'm' | 'l' }`, and six section types were added
+(below). Every v1 field keeps its value and meaning (the divider's `style` string stays; `style_kind` is
+the same choice), so a reader of the original contract keeps working.
 
 ```ts
 type Block =
@@ -328,7 +339,17 @@ type Block =
   | { id: string; type: 'columns'; text: string; image: MediaRef | null; caption: string | null; image_side: 'start' | 'end' }
       // start/end are logical: the image is on the right in Arabic when image_side = start
   | { id: string; type: 'quote'; variant: 'quote' | 'callout'; text: string; cite: string | null }
-  | { id: string; type: 'divider'; style: 'line' | 'space'; size: 's' | 'm' | 'l' };
+  | { id: string; type: 'divider'; style: 'line' | 'space'; style_kind: 'line' | 'space'; size: 's' | 'm' | 'l' }
+  // Page builder sections (every block above and below also has `appearance`):
+  | { id: string; type: 'hero'; eyebrow: string | null; title: string | null; subtitle: string | null; background: 'gradient' | 'image' | 'plain'; image: MediaRef | null; height: 's' | 'm' | 'l'; buttons: { label: string; url: string; variant: 'primary' | 'secondary' }[] }
+      // title null on a hero that opens the page = the page title (the hero is the page's h1)
+  | { id: string; type: 'layout'; columns: 2 | 3; items: { image: MediaRef | null; heading: string | null; text: string | null; label: string | null; url: string | null }[] }
+      // text is markdown (same rules as body)
+  | { id: string; type: 'cardgrid'; heading: string | null; intro: string | null; columns: 2 | 3 | 4; items: { image: MediaRef | null; title: string; text: string | null; label: string | null; url: string | null }[] }
+  | { id: string; type: 'faq'; heading: string | null; items: { q: string; a: string }[] }   // a is markdown
+  | { id: string; type: 'stats'; heading: string | null; variant: 'stats' | 'features'; items: { value: string | null; label: string; text: string | null; icon: FeatureIcon | null }[] }
+  | { id: string; type: 'contact'; heading: string | null; text: string | null; label: string; href: string };
+      // href: "/contact/" (www-relative) or a validated mailto:
 ```
 
 - `image.alt` is the block's own description when set, else the library's; `null` = decorative.

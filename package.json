@@ -18,7 +18,7 @@
     "check:migrations": "node --experimental-strip-types --no-warnings scripts/migration-guard.ts --base origin/main",
     "check:config": "node --experimental-strip-types --no-warnings scripts/check-wrangler-config.ts",
     "check:secrets": "node --experimental-strip-types --no-warnings scripts/check-secrets.ts",
-    "check": "npm run lint && npm run typecheck && npm test && npm run check:schema && npm run check:migrations && npm run check:config && npm run check:client && npm run check:fanous && npm run check:posts",
+    "check": "npm run lint && npm run typecheck && npm test && npm run check:schema && npm run check:migrations && npm run check:config && npm run check:client && npm run check:fanous && npm run check:posts && npm run check:page-blocks",
     "build:dry": "wrangler deploy --dry-run --env= --outdir dist/production && wrangler deploy --dry-run --env stage --outdir dist/stage && wrangler deploy --dry-run --env qa --outdir dist/qa",
     "e2e": "playwright test",
     "feed:shape": "node --experimental-strip-types --no-warnings scripts/lib/feed-shape.ts",
@@ -33,7 +33,9 @@
     "sync:fanous": "node --experimental-strip-types --no-warnings scripts/sync-fanous.ts",
     "check:fanous": "node --experimental-strip-types --no-warnings scripts/sync-fanous.ts --check",
     "sync:posts": "node --experimental-strip-types --no-warnings scripts/sync-posts.ts",
-    "check:posts": "node --experimental-strip-types --no-warnings scripts/sync-posts.ts --check"
+    "check:posts": "node --experimental-strip-types --no-warnings scripts/sync-posts.ts --check",
+    "sync:page-blocks": "node --experimental-strip-types --no-warnings scripts/sync-page-blocks.ts",
+    "check:page-blocks": "node --experimental-strip-types --no-warnings scripts/sync-page-blocks.ts --check"
   },
   "dependencies": {
     "@jsquash/avif": "2.1.1",

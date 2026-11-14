@@ -6,15 +6,15 @@
  * contract); `readBlocks` / `readSlides` read it back and validate with the server's own rules.
  */
 import { latestOnly, liveSearch } from "./live-search.ts";
-import { BlockError, isComplete, newBlockId, normalizeBlocks, normalizeSlides, validBlockUrl, type Block, type BlockType, type Slide } from "../../lib/blocks.ts";
+import { BlockError, blockSummary, isComplete, newBlockId, normalizeBlocks, normalizeSlides, validBlockUrl, validEmail, type Block, type Slide } from "../../lib/blocks.ts";
 import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
 import { askLink } from "./dialogs.ts";
-import { renderMarkdownInto } from "./markdown.ts";
 import { openPicker, type PickedItem } from "./picker.ts";
+import { initPageBuilder } from "./page-builder.ts";
 
 type Dict = Record<string, string>;
 interface S {
-   blocks: Dict & { types: Dict; errors: Dict };
+   blocks: Dict & { types: Dict; errors: Dict; langNames: Dict };
    slides: Dict;
    videoLine: string;
    failed: string;
@@ -33,33 +33,41 @@ const itemOf = (node: Element) => node.parentElement?.closest("[data-seq-item]")
 /** Values of one item: every `data-k` whose nearest item is this one. */
 export function readItem(li: Element): Record<string, unknown> {
    const out: Record<string, unknown> = {};
+   // "appearance.align" → out.appearance.align (one level: the block's appearance object)
+   const put = (k: string, v: unknown) => {
+      const dot = k.indexOf(".");
+      if (dot < 0) return void (out[k] = v);
+      const head = k.slice(0, dot);
+      const box = (out[head] && typeof out[head] === "object" ? out[head] : (out[head] = {})) as Record<string, unknown>;
+      box[k.slice(dot + 1)] = v;
+   };
    for (const node of $$<HTMLElement>("[data-k]", li)) {
       if (itemOf(node) !== li && !(node.tagName === "OL" && itemOf(node) === li)) continue;
       if (node.closest("template")) continue;
       const k = node.dataset.k!;
       if (node.tagName === "OL") {
          const items = $$(":scope > li[data-seq-item]", node).map(readItem);
-         out[k] = node.hasAttribute("data-scalar") ? items.map((x) => x.v).filter((x) => x !== null && x !== undefined) : items;
+         put(k, node.hasAttribute("data-scalar") ? items.map((x) => x.v).filter((x) => x !== null && x !== undefined) : items);
          continue;
       }
       const input = node as HTMLInputElement;
       if (input.type === "radio") {
-         if (input.checked) out[k] = input.dataset.type === "int" ? Number(input.value) : input.value;
+         if (input.checked) put(k, input.dataset.type === "int" ? Number(input.value) : input.value);
          continue;
       }
       if (input.type === "checkbox") {
-         out[k] = input.checked;
+         put(k, input.checked);
          continue;
       }
       const raw = input.value;
-      out[k] = input.dataset.type === "int" ? (raw.trim() === "" ? null : Number(raw)) : raw;
+      put(k, input.dataset.type === "int" ? (raw.trim() === "" ? null : Number(raw)) : raw);
    }
    return out;
 }
 
-const listItems = (list: Element) => $$(":scope > li[data-seq-item]", list);
+export const listItems = (list: Element) => $$(":scope > li[data-seq-item]", list);
 
-export type ReadResult<V> = { ok: true; value: V } | { ok: false; item: HTMLElement | null; message: string };
+export type ReadResult<V> = { ok: true; value: V } | { ok: false; item: HTMLElement | null; message: string; field?: HTMLElement };
 
 function blockMessage(e: unknown): string {
    const errs = T.blocks.errors;
@@ -76,11 +84,17 @@ function fail<V>(list: Element, e: unknown): ReadResult<V> {
 export function readBlocks(root: ParentNode = document): ReadResult<Block[]> | null {
    const list = $("[data-blocks-editor] ol[data-k=blocks]", root);
    if (!list) return null;
-   const raw = listItems(list).map(readItem);
-   // Client-side URL check first, to point at the field.
-   for (const [i, b] of raw.entries()) {
-      if (b.type === "cta" && typeof b.url === "string" && b.url.trim() && !validBlockUrl(b.url.trim())) {
-         return { ok: false, item: listItems(list)[i] as HTMLElement, message: T.blocks.urlBad };
+   const items = listItems(list) as HTMLElement[];
+   const raw = items.map(readItem);
+   // Links and emails first, to point at the field itself (any depth: hero buttons, cards, columns).
+   for (const li of items) {
+      for (const input of $$<HTMLInputElement>("input[data-validate]", li)) {
+         const v = input.value.trim();
+         if (!v || input.closest("[hidden]")) continue;
+         const bad = input.dataset.validate === "email" ? !validEmail(v) : !validBlockUrl(v);
+         if (!bad) continue;
+         input.setAttribute("aria-invalid", "true");
+         return { ok: false, item: li, message: input.dataset.validate === "email" ? T.blocks.emailBad : T.blocks.urlBad, field: input };
       }
    }
    try {
@@ -101,15 +115,16 @@ export function readSlides(root: ParentNode = document): ReadResult<Slide[]> | n
 }
 
 /** Shows `message` on the item (or a toast) and focuses it. */
-export function showReadError(r: { item: HTMLElement | null; message: string }): void {
+export function showReadError(r: { item: HTMLElement | null; message: string; field?: HTMLElement }): void {
    if (!r.item) return toast(r.message, "bad");
+   unfold(r.item);
    const err = $<HTMLElement>(":scope > [data-block-err]", r.item);
    if (err) {
       err.textContent = r.message;
       err.hidden = false;
    } else toast(r.message, "bad");
    r.item.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-   ($<HTMLElement>("input:not([type=hidden]),textarea,button", r.item) ?? r.item).focus();
+   (r.field ?? $<HTMLElement>("input:not([type=hidden]),textarea,button", r.item) ?? r.item).focus();
 }
 
 /* ── Ordered lists ────────────────────────────────────────────────────────────────────────────── */
@@ -118,7 +133,7 @@ let uidN = 0;
 const freshUid = () => `c${Date.now().toString(36)}${(uidN++).toString(36)}`;
 
 /** Gives every item in `root` (root included) a fresh uid, rewriting the ids that use it. */
-function reuid(root: HTMLElement): void {
+export function reuid(root: HTMLElement): void {
    const items = [root, ...$$<HTMLElement>("[data-seq-item]", root)].filter((x) => x.hasAttribute("data-uid"));
    for (const item of items) {
       const old = item.dataset.uid!;
@@ -146,23 +161,41 @@ function itemName(li: HTMLElement): string {
    return ($(":scope > .blk-h .blk-t", li)?.firstChild?.textContent ?? $(".sub-title", li)?.textContent ?? "").trim();
 }
 
-function announce(list: Element, msg: string): void {
+export function announce(list: Element, msg: string): void {
    const live = list.closest("[data-blocks-editor],[data-slides-editor]")?.querySelector<HTMLElement>("[data-seq-live]") ?? $("[data-seq-live]");
    if (!live) return;
    live.textContent = "";
    requestAnimationFrame(() => (live.textContent = msg));
 }
 
-/** Positions, empty state, the incomplete markers and the slide count. */
-function refresh(list: Element): void {
+/** Arabic-aware count: "1 block", "2 blocks" / «كتلة واحدة»، «كتلتان»، «٣ كتل»، «١١ كتلة». */
+function countText(n: number, one: string, two: string, few: string, many: string): string {
+   return n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? fmt(few, n) : fmt(many, n);
+}
+
+/** A block card's open/closed state (the body stays in the DOM: it is the state). */
+export function unfold(li: HTMLElement, open = true): void {
+   const btn = $<HTMLButtonElement>(":scope > .blk-h [data-blk-fold]", li);
+   if (!btn) return;
+   li.classList.toggle("folded", !open);
+   btn.setAttribute("aria-expanded", String(open));
+   const label = open ? T.blocks.collapse : T.blocks.expand;
+   btn.setAttribute("aria-label", label);
+   btn.title = label;
+}
+
+/** Positions, empty state, limits, the incomplete markers, block summaries and the counts. */
+export function refresh(list: Element): void {
    const items = listItems(list) as HTMLElement[];
+   const blocks = list.matches("[data-seq-list=blocks]");
    items.forEach((li, i) => {
       const pos = $(":scope > .blk-h [data-seq-pos]", li);
       if (pos) pos.textContent = list.matches("[data-seq-list=slides]") ? String(i + 1) : `, ${fmt(T.blocks.position, i + 1, items.length)}`;
-      const up = $<HTMLButtonElement>(":scope > .blk-h [data-seq=up], :scope > [data-seq-tools] [data-seq=up], :scope > .row-tools [data-seq=up]", li);
-      const down = $<HTMLButtonElement>(":scope > .blk-h [data-seq=down], :scope > .row-tools [data-seq=down]", li);
-      up?.toggleAttribute("disabled", i === 0);
-      down?.toggleAttribute("disabled", i === items.length - 1);
+      const subPos = $(":scope > .sub-hd [data-seq-pos]", li);
+      if (subPos) subPos.textContent = String(i + 1);
+      const tools = ":scope > .blk-h [data-seq=X], :scope > .sub-hd [data-seq=X], :scope > .row-tools [data-seq=X]";
+      $<HTMLButtonElement>(tools.split("X").join("up"), li)?.toggleAttribute("disabled", i === 0);
+      $<HTMLButtonElement>(tools.split("X").join("down"), li)?.toggleAttribute("disabled", i === items.length - 1);
    });
    let empty = list.nextElementSibling?.matches("[data-seq-empty]") ? (list.nextElementSibling as HTMLElement) : null;
    if (!empty && list.hasAttribute("data-empty")) {
@@ -170,16 +203,31 @@ function refresh(list: Element): void {
       list.after(empty);
    }
    if (empty) empty.hidden = items.length > 0;
-   if (list.matches("[data-seq-list=blocks]")) {
+   // A nested list at its limit: its add button and the items' Duplicate are off.
+   const max = Number(list.getAttribute("data-max") ?? "0");
+   if (max) {
+      const full = items.length >= max;
+      const add = list.parentElement?.querySelector<HTMLButtonElement>(`:scope > div > [data-add-sub="${list.getAttribute("data-seq-list")}"]`);
+      add?.toggleAttribute("disabled", full);
+      for (const li of items) $<HTMLButtonElement>(":scope > .sub-hd [data-seq=duplicate]", li)?.toggleAttribute("disabled", full);
+   }
+   if (blocks) {
       for (const li of items) {
          try {
             const [b] = normalizeBlocks([readItem(li)]);
             li.toggleAttribute("data-incomplete", !isComplete(b));
+            const sum = $(":scope > .blk-h [data-blk-sum]", li);
+            if (sum) sum.textContent = blockSummary(b);
          } catch {
             /* shown on save */
          }
       }
+      const badge = list.closest("[data-blocks-editor]")?.querySelector("[data-blk-count]");
+      if (badge) badge.textContent = countText(items.length, T.blocks.blocksCount1, T.blocks.blocksCount2, T.blocks.blocksCount10, T.blocks.blocksCount);
    }
+   // A change inside a nested list changes its block's summary and completeness too.
+   const outer = list.parentElement?.closest<HTMLElement>("[data-seq-item]");
+   if (outer?.parentElement?.matches("[data-seq-list=blocks]")) refresh(outer.parentElement);
    if (list.matches("[data-seq-list=slides]")) {
       for (const li of items) li.toggleAttribute("data-incomplete", !$<HTMLInputElement>("[data-k=media_id]", li)?.value);
       const badge = $("[data-slide-count]");
@@ -192,9 +240,10 @@ function refresh(list: Element): void {
 }
 
 function focusItem(li: HTMLElement, control?: string): void {
-   const target = (control && $<HTMLElement>(`:scope > .blk-h [data-seq=${control}], :scope > .row-tools [data-seq=${control}]`, li)) || null;
+   const sel = (c: string) => `:scope > .blk-h [data-seq=${c}], :scope > .sub-hd [data-seq=${c}], :scope > .row-tools [data-seq=${c}]`;
+   const target = (control && $<HTMLElement>(sel(control), li)) || null;
    if (target && !target.hasAttribute("disabled")) return target.focus();
-   ($<HTMLElement>(":scope > .blk-h .blk-t", li) ? $<HTMLElement>("[data-seq=up]:not([disabled]),[data-seq=down]:not([disabled]),[data-seq=remove]", li) : $<HTMLElement>("input:not([type=hidden]),button", li))?.focus();
+   ($<HTMLElement>(":scope > .blk-h .blk-t, :scope > .sub-hd", li) ? $<HTMLElement>("[data-seq=up]:not([disabled]),[data-seq=down]:not([disabled]),[data-seq=remove]", li) : $<HTMLElement>("input:not([type=hidden]),button", li))?.focus();
 }
 
 function move(li: HTMLElement, by: -1 | 1): void {
@@ -221,7 +270,7 @@ function remove(li: HTMLElement): void {
    announce(list, fmt(T.blocks.removed, name));
    changed(list);
    if (next) focusItem(next);
-   else list.closest("section")?.querySelector<HTMLElement>("[data-add-block],[data-add-slide],[data-add-images],[data-add-videos],[data-pick-posts]")?.focus();
+   else (list.parentElement?.querySelector<HTMLElement>(":scope > div > [data-add-sub]") ?? list.closest("section")?.querySelector<HTMLElement>("[data-open-picker=end],[data-add-slide],[data-add-images],[data-add-videos],[data-pick-posts]"))?.focus();
    // Undo, in a toast with a real button (7 s).
    const host = document.getElementById("toasts");
    if (!host) return;
@@ -243,6 +292,8 @@ function remove(li: HTMLElement): void {
 }
 
 function duplicate(li: HTMLElement): void {
+   const max = Number(li.parentElement?.getAttribute("data-max") ?? "0");
+   if (max && listItems(li.parentElement!).length >= max) return;
    const copy = li.cloneNode(true) as HTMLElement;
    // cloneNode keeps typed values of inputs and textareas, but not a <select>'s or radios' live state in every engine.
    const src = $$<HTMLInputElement>("input[type=radio]", li);
@@ -263,10 +314,11 @@ function duplicate(li: HTMLElement): void {
    focusItem(copy);
 }
 
-export function appendFromTemplate(list: Element, name: string, fill?: (li: HTMLElement) => void): HTMLElement | null {
+export function appendFromTemplate(list: Element, name: string, fill?: (li: HTMLElement) => void, after?: Element | null): HTMLElement | null {
    const li = fromTemplate(name, list.closest("section") ?? document);
    if (!li) return null;
-   list.append(li);
+   if (after && after.parentElement === list) after.after(li);
+   else list.append(li);
    fill?.(li);
    refresh(list);
    changed(list);
@@ -377,13 +429,20 @@ function initSeq(root: HTMLElement): void {
 
 /* ── Field behaviour: conditional fields, markdown tools, slide overlay ───────────────────────── */
 
-function applyWhen(scope: HTMLElement): void {
-   for (const box of $$<HTMLElement>("[data-when]", scope)) {
-      const li = box.closest("[data-seq-item]");
+/** The checked value of radio `k` that belongs to `li` itself (not to an item nested in it). */
+function ownChoice(li: Element, k: string): string {
+   return $$<HTMLInputElement>(`input[data-k="${k}"]:checked`, li).find((x) => itemOf(x) === li)?.value ?? "";
+}
+
+/** `data-when="k=a,b"`: shown when the item's choice k is a or b; `data-when-parent`: the enclosing block's choice. */
+export function applyWhen(scope: HTMLElement): void {
+   for (const box of $$<HTMLElement>("[data-when],[data-when-parent]", scope)) {
+      let li = box.closest("[data-seq-item]");
+      const rule = box.dataset.when ?? box.dataset.whenParent!;
+      if (box.dataset.whenParent !== undefined) li = li?.parentElement?.closest("[data-seq-item]") ?? null;
       if (!li) continue;
-      const [k, values] = box.dataset.when!.split("=");
-      const current = $<HTMLInputElement>(`input[data-k=${k}]:checked`, li)?.value ?? "";
-      box.hidden = !values.split(",").includes(current);
+      const [k, values] = rule.split("=");
+      box.hidden = !values.split(",").includes(ownChoice(li, k));
    }
 }
 
@@ -737,110 +796,74 @@ function setVideoView(scope: HTMLElement, item: PickedItem, snap: { title: strin
    if (title) title.textContent = snap.title;
 }
 
-/* ── Preview ──────────────────────────────────────────────────────────────────────────────────── */
+/* ── Block picker ─────────────────────────────────────────────────────────────────────────────── */
 
-function imgOf(li: Element, id: number | null): HTMLImageElement | null {
-   if (!id) return null;
-   const src = $$<HTMLImageElement>("[data-image-img]", li).find((x) => x.closest("[data-image-slot]")?.querySelector<HTMLInputElement>("input[data-k=media_id]")?.value === String(id));
-   if (!src) return null;
-   const img = el("img", { src: src.src, alt: "", loading: "lazy" });
-   if (src.getAttribute("width")) {
-      img.setAttribute("width", src.getAttribute("width")!);
-      img.setAttribute("height", src.getAttribute("height")!);
-   }
-   return img;
+let pickerAfter: HTMLElement | null = null;
+let pickerOpener: HTMLElement | null = null;
+
+/** Opens the picker to add a block after `after` (null: at the end). */
+function openBlockPicker(root: HTMLElement, from: HTMLElement, after: HTMLElement | null): void {
+   const dlg = $<HTMLDialogElement>("#blk-picker", root);
+   if (!dlg) return;
+   pickerAfter = after;
+   pickerOpener = from;
+   const q = $<HTMLInputElement>("[data-picker-q]", dlg)!;
+   q.value = "";
+   filterPicker(dlg, "");
+   dlg.showModal();
+   q.focus();
 }
 
-function renderPreview(target: HTMLElement, list: Element): void {
-   target.replaceChildren();
-   const items = listItems(list);
-   let blocks: Block[];
-   try {
-      blocks = normalizeBlocks(items.map(readItem));
-   } catch {
-      blocks = [];
-   }
-   const shown = blocks.map((b, i) => [b, items[i]] as const).filter(([b]) => isComplete(b));
-   if (!shown.length) {
-      target.append(el("p", { class: "muted" }, T.blocks.previewEmpty));
-      return;
-   }
-   for (const [b, li] of shown) {
-      const box = el("div", { class: `bp-b bp-${b.type}` });
-      switch (b.type) {
-         case "markdown":
-            renderMarkdownInto(box, b.text, T.videoLine);
-            break;
-         case "image": {
-            const fig = el("figure", { class: `bp-fig ${b.size}` });
-            const img = imgOf(li, b.media_id);
-            if (img) fig.append(img);
-            if (b.caption) fig.append(el("figcaption", {}, b.caption));
-            box.append(fig);
-            break;
-         }
-         case "gallery": {
-            const grid = el("div", { class: "bp-gal", style: `--cols:${b.columns}` });
-            for (const x of b.items) {
-               const img = imgOf(li, x.media_id);
-               if (img) grid.append(el("figure", {}, img, ...(x.caption ? [el("figcaption", {}, x.caption)] : [])));
-            }
-            box.append(grid);
-            break;
-         }
-         case "posts": {
-            if (b.heading) box.append(el("h3", {}, b.heading));
-            const titles = $$("[data-post-title]", li).map((x) => x.textContent ?? "");
-            box.append(el("p", { class: "muted" }, b.mode === "picked" ? titles.join(" · ") : b.mode === "tag" ? `${T.blocks.modeTag}: ${b.tag} (${b.limit})` : `${T.blocks.modeLatest} (${b.limit})`));
-            break;
-         }
-         case "cards":
-            if (b.heading) box.append(el("h3", {}, b.heading));
-            box.append(el("p", { class: "muted" }, `${T.blocks.types.cards}${b.tag ? ` · ${b.tag}` : ""} · ${b.page_size}`));
-            break;
-         case "videos": {
-            if (b.heading) box.append(el("h3", {}, b.heading));
-            const row = el("div", { class: "bp-shelf" });
-            for (const sub of $$("ol[data-k=items] > li", li)) {
-               const th = $<HTMLImageElement>("img[data-video-thumb]", sub);
-               const t = readItem(sub).title_override || ($("[data-video-title]", sub)?.firstChild?.textContent ?? "");
-               row.append(el("div", {}, th ? el("img", { src: th.src, alt: "" }) : el("span", { class: "vthumb" }), el("span", {}, String(t).replace(/ · $/, ""))));
-            }
-            box.append(row);
-            break;
-         }
-         case "video": {
-            const th = $<HTMLImageElement>("img[data-video-thumb]", li);
-            box.append(el("div", { class: "bp-video" }, th ? el("img", { src: th.src, alt: "" }) : el("span", {}), el("span", { class: "bp-play", "aria-hidden": "true" }, "▶")));
-            if (b.caption) box.append(el("p", { class: "muted" }, b.caption));
-            break;
-         }
-         case "cta": {
-            const card = el("div", { class: `bp-cta ${b.tone}` });
-            if (b.heading) card.append(el("h3", {}, b.heading));
-            if (b.text) card.append(el("p", {}, b.text));
-            card.append(el("span", { class: "btn primary sm" }, b.label), el("small", { dir: "ltr" }, ` ${b.url}`));
-            box.append(card);
-            break;
-         }
-         case "columns": {
-            const cols = el("div", { class: `bp-cols ${b.image_side}` });
-            const txt = el("div");
-            renderMarkdownInto(txt, b.text, T.videoLine);
-            const img = imgOf(li, b.media_id);
-            cols.append(txt, img ? el("figure", {}, img, ...(b.caption ? [el("figcaption", {}, b.caption)] : [])) : el("span"));
-            box.append(cols);
-            break;
-         }
-         case "quote":
-            box.append(el("blockquote", { class: `bp-q ${b.variant}` }, el("p", {}, b.text), ...(b.cite ? [el("cite", {}, b.cite)] : [])));
-            break;
-         case "divider":
-            box.append(b.style === "line" ? el("hr", { class: `bp-hr ${b.size}` }) : el("div", { class: `bp-space ${b.size}` }));
-            break;
+function filterPicker(dlg: HTMLElement, raw: string): void {
+   const words = raw.toLowerCase().split(/\s+/).filter(Boolean);
+   let any = false;
+   for (const group of $$<HTMLElement>("[data-pk-group]", dlg)) {
+      let shown = 0;
+      for (const li of $$<HTMLElement>("[data-pk-item]", group)) {
+         const hit = words.every((w) => (li.dataset.search ?? "").includes(w));
+         li.hidden = !hit;
+         if (hit) shown++;
       }
-      target.append(box);
+      group.hidden = shown === 0;
+      any ||= shown > 0;
    }
+   $<HTMLElement>("[data-picker-none]", dlg)!.hidden = any;
+}
+
+function initBlockPicker(root: HTMLElement): void {
+   const dlg = $<HTMLDialogElement>("#blk-picker", root);
+   if (!dlg) return;
+   const list = $("ol[data-k=blocks]", root)!;
+   $("[data-picker-close]", dlg)!.addEventListener("click", () => dlg.close());
+   dlg.addEventListener("close", () => {
+      if (pickerOpener?.isConnected) pickerOpener.focus();
+      pickerOpener = null;
+   });
+   // A click on the backdrop closes it, like Esc.
+   dlg.addEventListener("click", (e) => {
+      if (e.target === dlg) dlg.close();
+   });
+   const q = $<HTMLInputElement>("[data-picker-q]", dlg)!;
+   q.addEventListener("input", () => filterPicker(dlg, q.value));
+   q.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      $<HTMLButtonElement>("[data-pk-item]:not([hidden]) [data-preset]", dlg)?.click();
+   });
+   dlg.addEventListener("click", (e) => {
+      const card = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-preset]");
+      if (!card) return;
+      const added = appendFromTemplate(list, `block:${card.dataset.preset}`, undefined, pickerAfter);
+      pickerOpener = null;
+      dlg.close();
+      if (!added) return;
+      applyWhen(added);
+      announce(list, fmt(T.blocks.added, card.dataset.presetName ?? ""));
+      added.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      // The first field to type in (the markdown toolbar comes before the text), else the first control.
+      ($<HTMLElement>(".blk-b textarea, .blk-b input:not([type=hidden]):not([type=radio]):not([type=checkbox])", added) ?? $<HTMLElement>(".blk-b button, .blk-b input:not([type=hidden])", added) ?? added).focus();
+      added.dispatchEvent(new CustomEvent("blk:added", { bubbles: true }));
+   });
 }
 
 /* ── Wiring ───────────────────────────────────────────────────────────────────────────────────── */
@@ -864,7 +887,12 @@ export function initBlocks(): void {
       applyWhen(root);
       $$<HTMLElement>(".slide", root).forEach(updateOverlay);
       root.addEventListener("change", (e) => {
-         const li = (e.target as HTMLElement).closest<HTMLElement>("[data-seq-item]");
+         const target = e.target as HTMLInputElement;
+         const li = target.closest<HTMLElement>("[data-seq-item]");
+         if (li?.dataset.blockType === "layout" && target.dataset.k === "columns" && itemOf(target) === li) {
+            const list = $<HTMLElement>("ol[data-seq-list=layout-cols]", li);
+            while (list && listItems(list).length < Number(target.value)) appendFromTemplate(list, "layout-cols");
+         }
          if (li) {
             applyWhen(li);
             refresh(li.parentElement!);
@@ -884,16 +912,18 @@ export function initBlocks(): void {
          const btn = t.closest<HTMLButtonElement>("button");
          if (!btn) return;
          const li = btn.closest<HTMLElement>("[data-seq-item]");
-         if (btn.matches("[data-add-block]")) {
-            const list = $("ol[data-k=blocks]", root)!;
-            const type = btn.dataset.addBlock as BlockType;
-            const added = appendFromTemplate(list, `block:${type}`);
+         if (btn.matches("[data-open-picker]")) {
+            openBlockPicker(root, btn, btn.dataset.openPicker === "after" ? li : null);
+         } else if (btn.matches("[data-blk-fold]") && li) {
+            unfold(li, li.classList.contains("folded"));
+         } else if (btn.matches("[data-add-sub]")) {
+            const list = btn.closest(".stack-sm")?.querySelector<HTMLElement>(`:scope > ol[data-seq-list="${btn.dataset.addSub}"]`);
+            if (!list) return;
+            const added = appendFromTemplate(list, btn.dataset.addSub!);
             if (added) {
-               applyWhen(added);
-               announce(list, fmt(T.blocks.added, T.blocks.types[type]));
-               added.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-               // The first field to type in (the markdown toolbar comes before the text), else the first control.
-               ($<HTMLElement>(".blk-b textarea, .blk-b input:not([type=hidden]):not([type=radio]):not([type=checkbox])", added) ?? $<HTMLElement>(".blk-b button, .blk-b input:not([type=hidden])", added) ?? added).focus();
+               applyWhen(added.parentElement!.closest<HTMLElement>("[data-seq-item]") ?? added);
+               announce(list, fmt(T.blocks.added, itemName(added)));
+               $<HTMLElement>("input:not([type=hidden]):not([type=radio]), textarea, [data-choose-image]", added)?.focus();
             }
          } else if (btn.matches("[data-add-slide]")) {
             const list = $("ol[data-k=slides]", root)!;
@@ -956,21 +986,9 @@ export function initBlocks(): void {
             }, btn);
          }
       });
-      // Edit / Preview
-      const editBox = $<HTMLElement>("[data-blocks-edit]", root);
-      const previewBox = $<HTMLElement>("[data-blocks-preview]", root);
-      for (const b of $$<HTMLButtonElement>("[data-blocks-view]", root)) {
-         b.addEventListener("click", () => {
-            const show = b.dataset.blocksView === "preview";
-            $$("[data-blocks-view]", root).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-            if (editBox) editBox.hidden = show;
-            if (previewBox) previewBox.hidden = !show;
-            if (show && previewBox) {
-               const body = $<HTMLElement>("[data-blocks-preview-body]", previewBox)!;
-               renderPreview(body, $("ol[data-k=blocks]", root)!);
-               body.focus();
-            }
-         });
+      if (root.matches("[data-blocks-editor]")) {
+         initBlockPicker(root);
+         initPageBuilder(root, T);
       }
    }
    // Post kind: Article ↔ Cards shows the body or the slides (both are kept on save).

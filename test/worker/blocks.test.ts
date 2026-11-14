@@ -8,6 +8,7 @@ import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
 const ORIGIN = "https://cms.test";
 import { PNG_16X9 as PNG } from "../fixtures/png-16x9.ts";
 import { SUMMARY_SLIDES_MAX } from "../../src/routes/public-api.ts";
+import { BLOCK_TYPES, DEFAULT_STYLE, PAGE_BLOCK_PRESETS } from "../../src/lib/blocks.ts";
 let videosUp = true;
 const videosApi = (url: URL) => {
    if (!videosUp) return new Response("down", { status: 503 });
@@ -78,7 +79,7 @@ describe("page blocks", () => {
       const page = await json(await send("POST", "/api/data/entity/pages", { slug: "built", locale: "en", title: "Built", status: "published", blocks }));
       const stored = await env.DB.prepare("SELECT body, blocks FROM pages WHERE id = ?1").bind(page.data.id).first<{ body: string; blocks: string }>();
       expect(stored!.body).toBe("Hello **world**\n\n## Latest\n\n## Watch\n\n::video[vid-1]\n\n**Join**\n\n[Sign up](/join)\n\nSide text\n\n> Words\n>\n> — Someone\n\n## Stories");
-      expect(JSON.parse(stored!.blocks)[2]).toEqual({ id: "empty-img", type: "image", media_id: null, alt: "", caption: "", size: "content" });
+      expect(JSON.parse(stored!.blocks)[2]).toEqual({ id: "empty-img", type: "image", appearance: DEFAULT_STYLE.image, media_id: null, alt: "", caption: "", size: "content" });
 
       const res = await f("/api/public/v1/pages/built?locale=en");
       expect(res.status).toBe(200);
@@ -100,7 +101,10 @@ describe("page blocks", () => {
       ]);
       expect(b.embed).toMatchObject({ kind: "video", ref_id: "vid-1", caption: "Talk", snapshot: { title: "Talk one" } });
       expect(b.cols).toMatchObject({ image_side: "start", image: { width: 16 } });
-      expect(b.cards).toEqual({ id: "cards", type: "cards", heading: "Stories", tag: null, page_size: 12, filter: true });
+      expect(b.cards).toEqual({ id: "cards", type: "cards", appearance: DEFAULT_STYLE.cards, heading: "Stories", tag: null, page_size: 12, filter: true });
+      // v2: every served block carries its appearance; a divider keeps its v1 style string too.
+      expect(b.img.appearance).toEqual({ ...DEFAULT_STYLE.image, width: "wide" });
+      expect(b.d).toMatchObject({ style: "space", style_kind: "space", size: "l", appearance: DEFAULT_STYLE.divider });
       expect(post.data.id).toBeGreaterThan(0);
    });
 
@@ -112,7 +116,7 @@ describe("page blocks", () => {
          expect(res.status).toBe(400);
       }
       const row = await env.DB.prepare("SELECT blocks, body FROM pages WHERE id = ?1").bind(page.data.id).first<{ blocks: string; body: string }>();
-      expect(JSON.parse(row!.blocks)).toEqual([{ id: "a", type: "markdown", text: "x" }]);
+      expect(JSON.parse(row!.blocks)).toEqual([{ id: "a", type: "markdown", appearance: DEFAULT_STYLE.markdown, text: "x" }]);
       expect(row!.body).toBe("x");
    });
 
@@ -121,7 +125,7 @@ describe("page blocks", () => {
       await env.DB.prepare("INSERT INTO pages (slug, locale, title, body, status) VALUES ('legacy', 'en', 'Legacy', '# Old\n\nBody', 'published')").run();
       const body = await json(await f("/api/public/v1/pages/legacy?locale=en"));
       expect(body.body).toBe("# Old\n\nBody");
-      expect(body.blocks).toEqual([{ id: "body", type: "markdown", text: "# Old\n\nBody" }]);
+      expect(body.blocks).toEqual([{ id: "body", type: "markdown", appearance: DEFAULT_STYLE.markdown, text: "# Old\n\nBody" }]);
    });
 
    it("leaves out videos the refresh found not public", async () => {
@@ -219,10 +223,17 @@ describe("block and slide editors (server render)", () => {
       expect(html).toContain("data-blocks-editor");
       expect(html).toContain('data-locale="ar"');
       expect(html).not.toContain('id="f-body"');
-      for (const type of ["markdown", "image", "gallery", "posts", "cards", "videos", "video", "cta", "columns", "quote", "divider"]) {
-         expect(html, type).toContain(`data-seq-template="block:${type}"`);
-         expect(html, type).toContain(`data-add-block="${type}"`);
+      // The picker: one card and one template per preset, covering every block type.
+      for (const p of PAGE_BLOCK_PRESETS) {
+         expect(html, p.key).toContain(`data-seq-template="block:${p.key}"`);
+         expect(html, p.key).toContain(`data-preset="${p.key}"`);
       }
+      expect(new Set(PAGE_BLOCK_PRESETS.map((p) => p.type))).toEqual(new Set(BLOCK_TYPES));
+      // The builder: open button, preview frame (sandboxed, no scripts), theme choice for the preview only.
+      expect(html).toContain("data-builder-open");
+      expect(html).toMatch(/<iframe[^>]*sandbox="allow-same-origin"[^>]*data-pv-frame/);
+      expect(html).toContain('id="blk-picker"');
+      for (const id of ["hero-buttons", "layout-cols", "cards", "faq", "stats"]) expect(html, id).toContain(`data-seq-template="${id}"`);
       // The stored block is rendered with its library image and alt; dialogs are on the page.
       expect(html).toMatch(/<img[^>]*src="[^"]*\/api\/public\/v1\/media\/[^"]+"[^>]*width="16"[^>]*height="9"/);
       expect(html).toContain('value="بديل"');
@@ -262,7 +273,7 @@ describe("revisions (#8) keep blocks and slides", () => {
       expect(hist).not.toContain("[object Object]");
       await send("POST", `/admin/api/revisions/${rev.results[0].id}/restore`, { updated_at: edited.updated_at });
       const row = await env.DB.prepare("SELECT blocks, body FROM pages WHERE id = ?1").bind(page.id).first<{ blocks: string; body: string }>();
-      expect(JSON.parse(row!.blocks)).toEqual(v1);
+      expect(JSON.parse(row!.blocks)).toEqual([{ ...v1[0], appearance: DEFAULT_STYLE.markdown }]);
       expect(row!.body).toBe("First");
 
       const post = (await json(await send("POST", "/api/data/entity/posts", { slug: "rvc", locale: "en", title: "C", kind: "cards", slides: [{ id: "s1", media_id: img, alt: "", heading: "One", body: "", position: "top" }] }))).data;
@@ -339,5 +350,66 @@ describe("card posts", () => {
       expect(item.slides.map((s: { id: string }) => s.id)).toEqual(slides.slice(0, SUMMARY_SLIDES_MAX).map((s) => s.id));
       const cards = await json(await f("/api/public/v1/cards?locale=en"));
       expect(cards.items.find((p: { slug: string }) => p.slug === "long").slides).toHaveLength(SUMMARY_SLIDES_MAX);
+   });
+});
+
+describe("page builder (wiki AUN-CMS-PAGE-BUILDER)", () => {
+   it("serves every v2 section with its appearance, resolving images and the contact link", async () => {
+      const { f, send, upload } = await session();
+      const img = await upload("pb.png");
+      const blocks = [
+         { id: "hero", type: "hero", subtitle: "Hello", background: "image", media_id: img, alt: "Bg", buttons: [{ label: "Go", url: "/videos/", variant: "primary" }, { label: "", url: "/x/" }] },
+         { id: "cols", type: "layout", columns: 2, items: [{ heading: "One", text: "Text", media_id: img }, { heading: "Two", label: "More", url: "https://example.org/" }] },
+         { id: "grid", type: "cardgrid", heading: "Start", items: [{ title: "A", url: "/a/", label: "Open", media_id: img }, { title: "" }] },
+         { id: "faq", type: "faq", items: [{ q: "Free?", a: "Yes." }, { q: "Half", a: "" }] },
+         { id: "feat", type: "stats", variant: "features", items: [{ label: "Watch", icon: "play" }], appearance: { tone: "night", width: "full" } },
+         { id: "mail", type: "contact", label: "Email us", kind: "email", email: "team@example.org" },
+         { id: "page", type: "contact", label: "Contact", kind: "page" },
+      ];
+      await send("POST", "/api/data/entity/pages", { slug: "pb", locale: "en", title: "PB", status: "published", blocks });
+      const body = await json(await f("/api/public/v1/pages/pb?locale=en"));
+      const b = Object.fromEntries((body.blocks as Record<string, any>[]).map((x) => [x.id, x]));
+      expect(b.hero).toMatchObject({ background: "image", image: { alt: "Bg", width: 16 }, buttons: [{ label: "Go", url: "/videos/" }], appearance: DEFAULT_STYLE.hero });
+      expect(b.cols.items[0]).toMatchObject({ heading: "One", image: { width: 16 }, url: null });
+      expect(b.cols.items[1]).toMatchObject({ label: "More", url: "https://example.org/" });
+      expect(b.grid.items).toHaveLength(1);
+      expect(b.faq.items).toEqual([{ q: "Free?", a: "Yes." }]);
+      expect(b.feat).toMatchObject({ variant: "features", items: [{ label: "Watch", icon: "play", value: null }], appearance: { ...DEFAULT_STYLE.stats, tone: "night", width: "full" } });
+      expect(b.mail.href).toBe("mailto:team@example.org");
+      expect(b.page.href).toBe("/contact/");
+      // A bad email or link is refused with a 400, never stored.
+      for (const bad of [{ id: "x", type: "contact", label: "M", kind: "email", email: "nope" }, { id: "x", type: "hero", buttons: [{ label: "Go", url: "javascript:alert(1)" }] }]) {
+         expect((await send("POST", "/api/data/entity/pages", { slug: `bad${bad.type}`, locale: "en", title: "B", blocks: [bad] }, false)).status).toBe(400);
+      }
+   });
+
+   it("the blocks fragment gives another page's blocks as editor items, staff only", async () => {
+      const { f, send } = await session();
+      const ar = (await json(await send("POST", "/api/data/entity/pages", { slug: "frag", locale: "ar", title: "صفحة", blocks: [{ id: "h", type: "hero", title: "<b>مرحبا</b>" }, { id: "q", type: "faq", items: [{ q: "س", a: "ج" }] }] }))).data;
+      const { callback } = await signIn(["Admin"], { id: "b-frag", email: "frag@example.com" });
+      const cookie = cookiesOf(callback);
+      const res = await f(`/pages/${ar.id}/blocks-fragment?locale=en`, { headers: { cookie } });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      const out = (await json(res)).data;
+      expect(out.locale).toBe("ar");
+      expect(out.blocks.map((x: { type: string }) => x.type)).toEqual(["hero", "faq"]);
+      // Editor markup in the target page's language; the text is escaped, never markup.
+      expect(out.html).toContain('data-block-type="hero"');
+      expect(out.html).toContain('lang="en"');
+      expect(out.html).toContain("&lt;b&gt;مرحبا&lt;/b&gt;");
+      expect(out.html).not.toContain("<b>مرحبا</b>");
+      expect((await f("/pages/999999/blocks-fragment", { headers: { cookie } })).status).toBe(404);
+      expect((await makeWorker()(`/pages/${ar.id}/blocks-fragment`)).status).not.toBe(200);
+   });
+
+   it("the preview posts endpoint lists what a posts block would, and refuses other blocks", async () => {
+      const { send } = await session();
+      await send("POST", "/api/data/entity/posts", { slug: "pp", locale: "en", title: "Listed", body: "b", status: "published", tags: ["news"] });
+      await send("POST", "/api/data/entity/posts", { slug: "pp2", locale: "en", title: "Other", body: "b", status: "published" });
+      const res = await json(await send("POST", "/admin/api/page-preview/posts", { block: { id: "p", type: "posts", mode: "tag", tag: "news", limit: 5 }, locale: "en" }));
+      expect(res.data.map((p: { slug: string }) => p.slug)).toEqual(["pp"]);
+      expect((await send("POST", "/admin/api/page-preview/posts", { block: { id: "p", type: "markdown", text: "x" } }, false)).status).toBe(400);
+      expect((await send("POST", "/admin/api/page-preview/posts", { block: { id: "p", type: "nope" } }, false)).status).toBe(400);
    });
 });

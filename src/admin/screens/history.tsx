@@ -6,7 +6,7 @@ import { Icon } from "../ui/icons.tsx";
 import { PageHead, type View } from "../ui/layout.tsx";
 import { I18nScript, LocalTime } from "../ui/parts.tsx";
 import type { ContentKind } from "./content.tsx";
-import { storedBlocks, storedSlides } from "../../lib/blocks.ts";
+import { DEFAULT_STYLE, storedBlocks, storedSlides, type Block } from "../../lib/blocks.ts";
 
 /** Long text: shown as a line diff. Everything else: before / after. */
 const LONG = new Set(["body", "summary", "excerpt", "seo_description", "blocks", "slides"]);
@@ -46,8 +46,17 @@ const clip = (s: string, n = 90) => {
 function structured(v: View, field: string, value: unknown): string | null {
    const tb = v.t.blocks;
    if (field === "blocks") {
+      const styleNote = (b: Block) => {
+         const d = DEFAULT_STYLE[b.type];
+         const st = b.appearance;
+         const words: Record<string, string> = { start: tb.alignStart, center: tb.alignCenter, content: tb.widthContent, wide: tb.widthWide, full: tb.widthFull, none: tb.toneNone, soft: tb.toneSoft, raised: tb.toneRaised, accent: tb.toneAccent, night: tb.toneNight, s: tb.sizeS, m: tb.sizeM, l: tb.sizeL };
+         const diff = (["align", "width", "tone", "space"] as const).filter((k) => st[k] !== d[k]).map((k) => words[st[k]]);
+         return diff.length ? ` [${diff.join(" · ")}]` : "";
+      };
       return storedBlocks(value)
-         .map((b) => {
+         .map((b) => line(b) + styleNote(b))
+         .join("\n");
+      function line(b: Block): string {
             const name = tb.types[b.type];
             switch (b.type) {
                case "markdown":
@@ -71,10 +80,21 @@ function structured(v: View, field: string, value: unknown): string | null {
                case "quote":
                   return `${name}: ${clip(b.text)}`;
                case "divider":
-                  return `${name}: ${b.style === "line" ? tb.styleLine : tb.styleSpace}`;
+                  return `${name}: ${b.style_kind === "line" ? tb.styleLine : tb.styleSpace}`;
+               case "hero":
+                  return `${name}: ${clip(b.title || b.subtitle) || "—"}${b.buttons.length ? ` · ${b.buttons.map((x) => `${clip(x.label, 30)} → ${x.url}`).join(" · ")}` : ""}`;
+               case "layout":
+                  return `${name} (${b.columns}): ${b.items.map((x) => clip(x.heading || x.text, 30) || (x.media_id ? `#${x.media_id}` : "—")).join(" | ")}`;
+               case "cardgrid":
+                  return `${name}: ${b.heading ? `${clip(b.heading, 40)} · ` : ""}${b.items.map((x) => clip(x.title, 30)).join(" | ")}`;
+               case "faq":
+                  return `${name}: ${b.heading ? `${clip(b.heading, 40)} · ` : ""}${b.items.map((x) => clip(x.q, 40)).join(" | ")}`;
+               case "stats":
+                  return `${name}: ${b.items.map((x) => clip([x.value, x.label].filter(Boolean).join(" "), 30)).join(" | ")}`;
+               case "contact":
+                  return `${name}: ${clip(b.label || b.heading, 40)} → ${b.kind === "email" ? b.email : tb.contactPage}`;
             }
-         })
-         .join("\n");
+      }
    }
    if (field === "slides") return storedSlides(value).map((x, i) => `${v.t.slides.one} ${i + 1}: #${x.media_id ?? "—"} ${clip(x.heading)}${x.body ? ` — ${clip(x.body, 60)}` : ""}`).join("\n");
    if (field === "kind") return value === "cards" ? v.t.content.kindCards : v.t.content.kindArticle;
