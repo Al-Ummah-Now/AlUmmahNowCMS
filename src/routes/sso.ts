@@ -6,6 +6,14 @@ import { deleteCookie, getCookie, getSignedCookie, setCookie, setSignedCookie } 
 import { pickLang } from "../lib/i18n.ts";
 import { buildAuthorizeUrl, exchangeCode, signInLang, OidcError, parsePrompt, verifyAccessToken, type Prompt } from "../lib/oidc.ts";
 import { passkeyNeededPage, statusPage } from "../lib/pages.ts";
+import { STRINGS } from "../lib/i18n.ts";
+import { esc } from "../lib/html.ts";
+import { accountsSection } from "../lib/accounts.ts";
+import { tabIconLinks } from "../lib/app-icons.ts";
+import { resolvePrefs } from "../admin/prefs.ts";
+import { assetUrls } from "../admin/assets.ts";
+import { stringsFor } from "../admin/ui/layout.tsx";
+import { GatePage, type GateContent } from "../admin/ui/gate.tsx";
 import { createPkce, randomToken } from "../lib/pkce.ts";
 import { safeReturnPath } from "../lib/return-path.ts";
 import { mapRoles } from "../lib/roles.ts";
@@ -24,15 +32,17 @@ const TX_TTL_SECONDS = 600;
 export const txCookieName = (secure: boolean) => (secure ? "__Host-cms_sso" : "cms_sso");
 
 /**
- * The refusal marker: set by /sso/callback when the signed-in account has no CMS role, read ONCE
- * by /sso/no-access. Without it, /sso/no-access does not show the page: it signs in again (silent
- * while auth has a browser session). So reloading the page, going back to it or reopening an old
- * tab retries the sign-in with auth's CURRENT account instead of showing a stale "No access"
- * (2026-11-14: the owner kept getting the page in a tab from a refusal of another account). It
- * cannot loop: every render of the page needs a fresh refusal by the callback.
+ * The refusal marker: set by /sso/callback when the signed-in account has no CMS role, read by
+ * /sso/no-access. It lives 2 minutes (the page's language and Light/Dark links reload it) and any
+ * new sign-in (/sso/login: Switch, Active, Sign in to another account) clears it. Without it,
+ * /sso/no-access does not show the page: it signs in again (silent while auth has a browser
+ * session). So reloading the page later, going back to it or reopening an old tab retries the
+ * sign-in with auth's CURRENT account instead of showing a stale "No access" (2026-11-14: the
+ * owner reloaded a tab from a refusal of their other account a day earlier). It cannot loop: the
+ * page only shows after a refusal by the callback.
  */
 export const deniedCookieName = (secure: boolean) => (secure ? "__Host-cms_denied" : "cms_denied");
-const DENIED_TTL_SECONDS = 300;
+const DENIED_TTL_SECONDS = 120;
 
 interface Denied {
    m: string; // the refused account's email
@@ -68,6 +78,72 @@ export function renderStatus(
       account,
    });
    return c.html(html, status);
+}
+
+export type GateKind = "no_access" | "accounts" | "logged_out" | "sign_in_failed";
+
+/**
+ * The themed version of the CMS's own pages (src/admin/ui/gate.tsx): the site theme, Light/Dark and
+ * en/ar like the staff screens. `account` (No access) names the refused account.
+ */
+export async function renderGate(
+   c: Ctx,
+   fetcher: typeof fetch,
+   kind: GateKind,
+   status: 200 | 400 | 403 | 502,
+   o: { accounts?: { returnPath: string }; account?: string } = {},
+) {
+   const cfg = c.get("cfg");
+   const prefs = await resolvePrefs(c, fetcher);
+   const t = STRINGS[prefs.lang];
+   const admin = stringsFor(prefs.lang);
+   const www = `${cfg?.wwwUrl ?? "https://www.alummahnow.net"}/${prefs.lang}/`;
+   const chooser = o.accounts && cfg ? accountsSection({ lang: prefs.lang, issuer: cfg.issuer, returnPath: o.accounts.returnPath, hint: kind === "no_access" }) : undefined;
+   const content: Record<GateKind, Omit<GateContent, "chooser" | "testId">> = {
+      no_access: {
+         icon: "alert",
+         title: t.noAccessTitle,
+         body: t.noAccessBody,
+         leadHtml: o.account ? esc(t.noAccessAccount).replace("{email}", `<bdi><strong>${esc(o.account)}</strong></bdi>`) : undefined,
+         // Sign out lives in the account chooser below ("Sign out of all accounts").
+         actionsHtml: `<a class="btn primary" href="${esc(www)}">${esc(t.backToSite)}</a>${chooser ? "" : ` <a class="btn" href="/sso/logout">${esc(t.signOut)}</a>`}`,
+      },
+      accounts: {
+         icon: "users",
+         title: t.accountsTitle,
+         body: t.accountsBody,
+         actionsHtml: `<a class="btn primary" href="${esc(o.accounts?.returnPath ?? "/")}">${esc(t.backToCms)}</a>`,
+      },
+      logged_out: {
+         icon: "logout",
+         title: t.loggedOutTitle,
+         body: t.loggedOutBody,
+         actionsHtml: `<a class="btn primary" href="/sso/login">${esc(t.signInAgain)}</a> <a class="btn" href="${esc(www)}">${esc(t.backToSite)}</a>`,
+      },
+      sign_in_failed: {
+         icon: "alert",
+         title: t.signInFailedTitle,
+         body: t.signInFailedBody,
+         actionsHtml: `<a class="btn primary" href="/sso/login">${esc(t.signInAgain)}</a> <a class="btn" href="${esc(www)}">${esc(t.backToSite)}</a>`,
+      },
+   };
+   const url = new URL(c.req.url);
+   // The language / appearance links keep only the page's own safe parameters
+   const keep = new URLSearchParams();
+   if (o.accounts && url.searchParams.has("return")) keep.set("return", o.accounts.returnPath);
+   const html = GatePage({
+      v: {
+         prefs,
+         nonce: c.get("nonce"),
+         assets: assetUrls(prefs.theme),
+         tabIcons: tabIconLinks(c.env.ENVIRONMENT),
+         path: url.pathname,
+         search: keep.toString(),
+         strings: { brand: admin.brand, cms: t.cms, sub: admin.cms, skip: admin.skip, toLight: t.toLight, toDark: t.toDark, switchLang: t.switchLang, switchLangCode: t.switchLangCode },
+      },
+      c: { ...content[kind], chooser, testId: kind.replace("_", "-") },
+   });
+   return c.html("<!doctype html>" + (await html.toString()), status);
 }
 
 /**
@@ -111,6 +187,8 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
    sso.get("/login", async (c) => {
       const cfg = c.get("cfg");
       const secure = !cfg.isLocal;
+      // A new sign-in: an earlier refusal no longer describes this browser
+      if (getCookie(c, deniedCookieName(secure)) !== undefined) deleteCookie(c, deniedCookieName(secure), { path: "/", secure });
       const { verifier, challenge } = await createPkce();
       const prompt = parsePrompt(c.req.query("prompt"));
       const tx: Tx = {
@@ -171,11 +249,11 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
          await failed();
          const fallback = callbackErrorRedirect(tx, state);
          if (fallback) return c.redirect(fallback, 302);
-         return renderStatus(c, "sign_in_failed", 400);
+         return renderGate(c, deps.fetch, "sign_in_failed", 400);
       }
       if (!tx || !code || !state || tx.e < Date.now() / 1000 || !timingSafeEqual(tx.s, state)) {
          await failed();
-         return renderStatus(c, "sign_in_failed", 400);
+         return renderGate(c, deps.fetch, "sign_in_failed", 400);
       }
 
       let identity;
@@ -192,7 +270,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       } catch (error) {
          await failed();
          console.warn("sso callback rejected", error instanceof OidcError ? error.kind : "error", (error as Error).message);
-         return renderStatus(c, "sign_in_failed", error instanceof OidcError && error.kind === "invalid_token" ? 403 : 502);
+         return renderGate(c, deps.fetch, "sign_in_failed", error instanceof OidcError && error.kind === "invalid_token" ? 403 : 502);
       }
 
       const role = mapRoles(identity.roles);
@@ -303,13 +381,12 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       });
       return c.html(html, 200);
    });
-   // Shown once per refusal (deniedCookieName); otherwise it signs in again with auth's current account.
+   // Shown after a recent refusal (deniedCookieName); otherwise it signs in again with auth's current account.
    sso.get("/no-access", async (c) => {
       const cfg = c.get("cfg");
       const secure = !cfg.isLocal;
       const name = deniedCookieName(secure);
       const raw = await getSignedCookie(c, cfg.jwtSecret, name);
-      if (raw !== undefined) deleteCookie(c, name, { path: "/", secure });
       let denied: Denied | null = null;
       try {
          const d = raw ? (JSON.parse(decodeURIComponent(raw)) as Partial<Denied>) : null;
@@ -318,15 +395,16 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
          denied = null;
       }
       if (!denied) {
+         if (raw !== undefined) deleteCookie(c, name, { path: "/", secure });
          const lang = c.req.query("lang");
          return c.redirect(`/sso/login?return=%2F${lang === "ar" || lang === "en" ? `&lang=${lang}` : ""}`, 302);
       }
-      return renderStatus(c, "no_access", 403, { returnPath: safeReturnPath(denied.r) }, denied.m);
+      return renderGate(c, deps.fetch, "no_access", 403, { accounts: { returnPath: safeReturnPath(denied.r) }, account: denied.m });
    });
    // Account chooser (linked from the picker and the admin UI). Needs no CMS session: the list
    // is read by the browser straight from auth.
-   sso.get("/accounts", (c) => renderStatus(c, "accounts", 200, { returnPath: safeReturnPath(c.req.query("return")) }));
-   sso.get("/logged-out", (c) => renderStatus(c, "logged_out", 200));
+   sso.get("/accounts", (c) => renderGate(c, deps.fetch, "accounts", 200, { accounts: { returnPath: safeReturnPath(c.req.query("return")) } }));
+   sso.get("/logged-out", (c) => renderGate(c, deps.fetch, "logged_out", 200));
 
    return sso;
 }

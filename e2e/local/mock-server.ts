@@ -6,7 +6,9 @@
  *     AI_MOCK_URL when ENVIRONMENT=local); a title containing "E2E-DECLINE" gets a refusal;
  *   - a third-party AI service for the generic HTTP provider (docs/AI_PROVIDERS.md): POST /v1/chat with
  *     `Authorization: Bearer <E2E_AI_KEY>`, chat-style JSON in and out, same canned replies;
- *   - the videos admin's /public/site-theme (404 → the CMS default theme).
+ *   - the videos admin's /public/site-theme (404 → the CMS default theme);
+ *   - auth's accounts API for the CMS account chooser: GET /session/accounts (credentialed CORS),
+ *     the list set by the test with POST /__accounts {accounts}.
  *
  *   node --experimental-strip-types e2e/local/mock-server.ts   (port MOCK_PORT, default 8798)
  */
@@ -25,6 +27,7 @@ const jwk = { ...(await exportJWK(publicKey)), kid: "e2e", alg: "ES256", use: "s
 
 let current = { id: "e2e-admin", email: "e2e-admin@example.test", roles: ["Admin"] };
 const codes = new Map<string, typeof current>();
+let accounts: unknown[] = [];
 
 async function toResponse(res: import("node:http").ServerResponse, r: Response) {
    res.writeHead(r.status, Object.fromEntries(r.headers));
@@ -40,6 +43,16 @@ createServer(async (req, res) => {
       if (url.pathname === "/__as" && req.method === "POST") {
          current = JSON.parse(body);
          return toResponse(res, Response.json({ ok: true }));
+      }
+      if (url.pathname === "/__accounts" && req.method === "POST") {
+         accounts = (JSON.parse(body) as { accounts: unknown[] }).accounts;
+         return toResponse(res, Response.json({ ok: true }));
+      }
+      if (url.pathname.startsWith("/session/")) {
+         const cors = { "access-control-allow-origin": String(req.headers.origin ?? "*"), "access-control-allow-credentials": "true", "access-control-allow-headers": "content-type, accept", "access-control-allow-methods": "GET, POST, DELETE", vary: "origin" };
+         if (req.method === "OPTIONS") return toResponse(res, new Response(null, { status: 204, headers: cors }));
+         if (url.pathname === "/session/accounts" && req.method === "GET") return toResponse(res, new Response(JSON.stringify({ accounts }), { headers: { ...cors, "content-type": "application/json" } }));
+         return toResponse(res, new Response(JSON.stringify({ success: true }), { headers: { ...cors, "content-type": "application/json" } }));
       }
       if (url.pathname === "/authorize") {
          const code = crypto.randomUUID();

@@ -600,4 +600,32 @@ html.fanous-street .drop:hover,html.fanous-street .drop.over{background:color-mi
 /* Phones have no side margins for garlands: every fourth list item opens a 76px gap, enough for one (the module needs a 48px free band
    after padding each card by 6px; the same gap as www and the videos site), so the street shows while scrolling and the lists stay dense. */
 @media(max-width:639px){html.fanous-street :is(.list,.rows)>:nth-child(4n+1):not(:first-child){margin-block-start:66px}}
+/* The CMS's own pages outside the shell (src/admin/ui/gate.tsx): No access, accounts, signed out. */
+.gate-body{--rail:0px;display:flex;flex-direction:column}
+.gate-hd{display:flex;justify-content:space-between}
+.gate-prefs{display:flex;gap:4px}
+.gate{position:relative;z-index:1;flex:1;display:grid;place-items:start center;padding:clamp(24px,7vh,72px) clamp(16px,4vw,32px) 48px}
+.gate-card{width:min(100%,600px);display:grid;gap:14px}
+.gate-ic{display:inline-grid;place-items:center;width:56px;height:56px;border-radius:50%;background:color-mix(in srgb,var(--fanous-color-primary) 16%,transparent);color:var(--fanous-color-primary);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fanous-color-primary) 45%,transparent)}
+.gate-card h1{margin:0;font-size:clamp(24px,3.2vw,30px);line-height:1.2}
+.gate-card p{margin:0}
+.gate-lead{padding:10px 14px;border-radius:var(--r-md);background:color-mix(in srgb,var(--fanous-color-primary) 10%,transparent);overflow-wrap:anywhere}
+.gate-body-text{color:var(--fanous-color-text-secondary)}
+.gate-actions{display:flex;gap:10px;flex-wrap:wrap;margin-block-start:4px}
+.gate-accounts{display:grid;gap:12px;margin-block-start:10px;padding-block-start:18px;border-block-start:1px solid color-mix(in srgb,var(--fanous-color-primary) 22%,transparent)}
+.gate-accounts h2{margin:0;font-size:18px}
+.gate-accounts .status{margin:0;color:var(--fanous-color-text-secondary)}
+.gate-accounts .status:empty{display:none}
+.gate-accounts .status.error{color:var(--fanous-c-form-error)}
+.gate-accounts .li{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.gate-accounts .who{flex:1 1 15rem;min-width:0}
+.gate-accounts .who-name{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600}
+.gate-accounts .email{color:var(--fanous-color-text-secondary);font-size:14px;overflow-wrap:break-word;direction:ltr;text-align:start;unicode-bidi:isolate}
+[dir=rtl] .gate-accounts .email{text-align:end}
+.gate-accounts .li-end{display:flex;gap:8px;flex-wrap:wrap;margin-inline-start:auto}
+.gate-av{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:color-mix(in srgb,var(--fanous-color-primary) 22%,transparent);color:var(--fanous-color-text-primary);font-weight:700}
+button.badge.published{border:0;font:inherit;font-size:12px;font-weight:700;cursor:pointer;min-height:28px}
+@media(hover:hover){button.badge.published:hover{box-shadow:inset 0 0 0 1px currentColor}}
+button.badge.published .icon{width:14px;height:14px}
+@media(max-width:600px){.gate-av{display:none}.gate-accounts .li-end{margin-inline-start:0}}
 `;
