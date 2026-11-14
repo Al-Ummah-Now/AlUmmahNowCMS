@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { pkceChallenge } from "../../src/lib/pkce.ts";
 import { callbackErrorRedirect } from "../../src/routes/sso.ts";
 import { accessToken, CLIENT, CMS, cookiesOf, ISSUER, makeWorker, signIn, usersCount } from "./helpers.ts";
@@ -488,5 +488,41 @@ describe("the previous CMS session never survives an unfinished sign-in", () => 
       }
       // The session still opens the admin UI.
       expect((await f("/", { headers: { cookie: session } })).status).toBe(200);
+   });
+});
+
+describe("sign-in outcomes are logged (2026-11-14: a refusal left no trace in the CMS logs)", () => {
+   const lines = (spy: { mock: { calls: unknown[][] } }) =>
+      spy.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith("{")).map((l) => JSON.parse(l) as Record<string, unknown>);
+
+   it("a refusal, a sign-in and a stale no-access tab each log one line with the domain and roles, never the address", async () => {
+      const warn = vi.spyOn(console, "warn");
+      const info = vi.spyOn(console, "log");
+      try {
+         const { callback } = await signIn(["Member"], { id: "log-member", email: "Tester@Example.org" });
+         expect(callback.headers.get("location")).toBe("/sso/no-access");
+         await signIn(["Member", "Super Admin", "Admin"], { id: "log-owner", email: "owner@example.net" });
+         await makeWorker()("/sso/no-access");
+         await makeWorker()("/sso/no-access", { headers: { cookie: cookiesOf(callback) } });
+         expect(lines(warn)).toContainEqual({ level: "warn", msg: "sso refused: no CMS role", emailDomain: "example.org", roles: ["Member"] });
+         expect(lines(info)).toContainEqual({ level: "info", msg: "sso signed in", emailDomain: "example.net", roles: ["Member", "Super Admin", "Admin"], role: "admin" });
+         expect(lines(info)).toContainEqual({ level: "info", msg: "sso no-access: no recent refusal, signing in again", marker: "none" });
+         expect(lines(info)).toContainEqual({ level: "info", msg: "sso no-access shown", emailDomain: "example.org" });
+         const all = [...warn.mock.calls, ...info.mock.calls].map((c) => c.join(" ")).join("\n");
+         expect(all).not.toMatch(/tester@|owner@/i);
+      } finally {
+         warn.mockRestore();
+         info.mockRestore();
+      }
+   });
+
+   it("a callback without our transaction logs why it was rejected", async () => {
+      const warn = vi.spyOn(console, "warn");
+      try {
+         await makeWorker()("/sso/callback?code=x&state=y");
+         expect(lines(warn)).toContainEqual({ level: "warn", msg: "sso callback rejected", kind: "no_tx" });
+      } finally {
+         warn.mockRestore();
+      }
    });
 });

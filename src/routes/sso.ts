@@ -41,6 +41,9 @@ export const txCookieName = (secure: boolean) => (secure ? "__Host-cms_sso" : "c
  * owner reloaded a tab from a refusal of their other account a day earlier). It cannot loop: the
  * page only shows after a refusal by the callback.
  */
+/** The part of an address after the last @ (logs carry the domain, never the address). */
+export const emailDomain = (email: string): string => (email.includes("@") ? email.slice(email.lastIndexOf("@") + 1).toLowerCase().slice(0, 100) : "none");
+
 export const deniedCookieName = (secure: boolean) => (secure ? "__Host-cms_denied" : "cms_denied");
 const DENIED_TTL_SECONDS = 120;
 
@@ -252,6 +255,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
          return renderGate(c, deps.fetch, "sign_in_failed", 400);
       }
       if (!tx || !code || !state || tx.e < Date.now() / 1000 || !timingSafeEqual(tx.s, state)) {
+         log.warn("sso callback rejected", { kind: !tx ? "no_tx" : !code || !state ? "no_code" : tx.e < Date.now() / 1000 ? "tx_expired" : "state_mismatch" });
          await failed();
          return renderGate(c, deps.fetch, "sign_in_failed", 400);
       }
@@ -269,12 +273,16 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
          });
       } catch (error) {
          await failed();
-         console.warn("sso callback rejected", error instanceof OidcError ? error.kind : "error", (error as Error).message);
+         log.warn("sso callback rejected", { kind: error instanceof OidcError ? error.kind : "error", error: errText(error) });
          return renderGate(c, deps.fetch, "sign_in_failed", error instanceof OidcError && error.kind === "invalid_token" ? 403 : 502);
       }
 
       const role = mapRoles(identity.roles);
+      // One line per sign-in outcome, so a refusal can be traced from the CMS's own logs: the email
+      // domain only (never the address) and the role names exactly as auth sent them.
+      const who = { emailDomain: emailDomain(identity.email), roles: identity.roles.slice(0, 10).map((r) => r.slice(0, 40)) };
       if (!role) {
+         log.warn("sso refused: no CMS role", who);
          // No allowed role: show the 403 page and create nothing (no user row, no session).
          // A CMS session the browser still holds for ANOTHER account (the user just switched to
          // this one) is dropped too, so the CMS never keeps acting as an account auth no longer
@@ -296,6 +304,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       // deadline (pkd), so it lapses then even if its 8 h are not over.
       const passkey = passkeyVerdict(identity);
       if (passkey.kind === "required") {
+         log.info("sso refused: passkey required", { ...who, role });
          await clearSession(c, deps);
          return c.redirect(passkeyNeededPath(tx.r, signInLang(undefined, tx.r)), 303);
       }
@@ -327,6 +336,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       const authenticator = app.module.auth.authenticator;
       const token = await authenticator.jwt({ id: user.id, email: user.email, role: user.role, strategy: "sso", sid: newSessionId(), name_en: names.en, name_ar: names.ar, ...(passkey.kind === "grace" ? { pkd: passkey.deadline } : {}) });
       const headers = await authenticator.getAuthCookieHeader(token, new Headers());
+      log.info("sso signed in", { ...who, role });
       for (const cookie of headers.getSetCookie()) c.header("Set-Cookie", cookie, { append: true });
       return c.redirect(tx.r, 302);
    });
@@ -395,10 +405,12 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
          denied = null;
       }
       if (!denied) {
+         log.info("sso no-access: no recent refusal, signing in again", { marker: raw === undefined ? "none" : "stale" });
          if (raw !== undefined) deleteCookie(c, name, { path: "/", secure });
          const lang = c.req.query("lang");
          return c.redirect(`/sso/login?return=%2F${lang === "ar" || lang === "en" ? `&lang=${lang}` : ""}`, 302);
       }
+      log.info("sso no-access shown", { emailDomain: emailDomain(denied.m) });
       return renderGate(c, deps.fetch, "no_access", 403, { accounts: { returnPath: safeReturnPath(denied.r) }, account: denied.m });
    });
    // Account chooser (linked from the picker and the admin UI). Needs no CMS session: the list
