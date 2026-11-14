@@ -107,6 +107,12 @@ export interface SsoIdentity {
    passkeyDeadline?: number;
 }
 
+/**
+ * The only JWS algorithm Auth signs access tokens with (openauth keys.ts `signingAlg`; the JWKS
+ * publishes ES256 P-256 keys). Pinned so a token can never pick its own algorithm.
+ */
+export const ACCESS_TOKEN_ALGORITHMS = ["ES256"] as const;
+
 const jwksCache = new Map<string, JWTVerifyGetKey>();
 
 export function remoteJwks(issuer: string): JWTVerifyGetKey {
@@ -128,6 +134,7 @@ export async function verifyAccessToken(
       ({ payload } = await jwtVerify(token, p.jwks ?? remoteJwks(p.issuer), {
          issuer: p.issuer,
          audience: p.clientId,
+         algorithms: [...ACCESS_TOKEN_ALGORITHMS],
          requiredClaims: ["exp", "sub"],
          clockTolerance: 30,
       }));

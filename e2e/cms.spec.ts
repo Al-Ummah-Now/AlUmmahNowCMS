@@ -142,6 +142,28 @@ test.describe("signed in", () => {
       await context.close();
    });
 
+   test("a super admin (qa-superadmin) reaches the dashboard, and a stale no-access tab recovers", async ({ browser }, info) => {
+      test.skip(info.project.name !== "desktop", "runs once");
+      const context = await browser.newContext({ ...info.project.use, locale: "en" });
+      const page = await context.newPage();
+      // As after a real sign-in: the browser holds auth's session too
+      const res = await browserSignInWithAuthSession(context, page, ACCOUNTS.superAdmin);
+      expect(res?.status(), "the super admin did not reach the CMS").toBeLessThan(400);
+      await expect(page).toHaveURL(`${CMS_URL}/`);
+      const me = (await (await page.request.get(`${CMS_URL}/api/auth/me`)).json()) as { user?: { role?: string } };
+      expect(me.user?.role, "Super Admin must map to the CMS admin role").toBe("admin");
+      await expect(page.getByRole("heading", { level: 1 })).not.toHaveText("No access");
+      // A no-access page left open (or reloaded) from an earlier refusal signs in again with
+      // auth's current account instead of showing a stale "No access" (2026-11-14).
+      await context.clearCookies({ domain: cmsHost });
+      await page.goto("/sso/no-access");
+      await page.waitForURL((u) => u.origin === new URL(CMS_URL).origin && !u.pathname.startsWith("/sso/"), { timeout: 45_000 });
+      await expect(page).toHaveURL(`${CMS_URL}/`);
+      expect(((await (await page.request.get(`${CMS_URL}/api/auth/me`)).json()) as { user?: { role?: string } }).user?.role).toBe("admin");
+      await shot(page, "super-admin-dashboard");
+      await context.close();
+   });
+
    test("an admin (qa-admin) reaches the staff screens (en/ar, axe)", async ({ context, page }) => {
       const res = await browserSignIn(context, page, ACCOUNTS.admin);
       expect(res?.status()).toBeLessThan(400);

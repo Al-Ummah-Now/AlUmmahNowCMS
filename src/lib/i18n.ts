@@ -13,6 +13,7 @@ export const STRINGS = {
    en: {
       cms: "Al Ummah Now CMS",
       noAccessTitle: "No access",
+      noAccessAccount: "You are signed in as {email}.",
       noAccessBody:
          "Your account does not have access to the content management system. If you think it should, ask an administrator to give you the Admin or Moderator role, then sign in again.",
       backToSite: "Back to Al Ummah Now",
@@ -88,6 +89,7 @@ export const STRINGS = {
    ar: {
       cms: "نظام إدارة محتوى الأمة الآن",
       noAccessTitle: "لا تملك صلاحية الوصول",
+      noAccessAccount: "أنت مسجّل الدخول باسم {email}.",
       noAccessBody:
          "حسابك لا يملك صلاحية الوصول إلى نظام إدارة المحتوى. إذا كنت تعتقد أنه يجب أن يملكها، فاطلب من أحد المسؤولين منحك دور المسؤول أو المشرف، ثم سجّل الدخول مرة أخرى.",
       backToSite: "العودة إلى الأمة الآن",

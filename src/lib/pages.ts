@@ -22,6 +22,8 @@ export function statusPage(o: {
    path: string;
    /** Renders the account chooser (no_access, accounts). */
    accounts?: { issuer: string; returnPath: string };
+   /** no_access: the email of the account that was refused. */
+   account?: string;
 }): string {
    const t = STRINGS[o.lang];
    const [title, body] = {
@@ -60,7 +62,7 @@ export function statusPage(o: {
       body: `<main id="main">
 <p>${esc(t.cms)}</p>
 <h1>${esc(title)}</h1>
-<p>${esc(body)}</p>
+${o.kind === "no_access" && o.account ? `<p class="who">${esc(t.noAccessAccount).replace("{email}", `<bdi><strong>${esc(o.account)}</strong></bdi>`)}</p>\n` : ""}<p>${esc(body)}</p>
 <div class="actions">${actions}</div>
 ${chooser?.html ?? ""}
 <p class="lang"><a href="${esc(switchHref)}" lang="${other}" hreflang="${other}">${esc(t.switchLang)}</a></p>
