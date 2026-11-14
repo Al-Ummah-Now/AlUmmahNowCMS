@@ -2,14 +2,13 @@
 import { ACCOUNTS_CSS, accountsSection } from "./accounts.ts";
 import { esc, page } from "./html.ts";
 import { STRINGS, type Lang } from "./i18n.ts";
-import { modeIconSvg } from "./mode-toggle.ts";
+import { publicHeaderHtml, withQuery } from "./header.ts";
 
 export type StatusPageKind = "no_access" | "error" | "sign_in_failed" | "not_found" | "logged_out" | "accounts";
 
 const CSS = `
 main{max-width:40rem;margin:3rem auto;padding:0 1rem}
 .actions{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.5rem}
-.lang{margin-top:2rem}
 `;
 
 /** Pages that show the account chooser (their CSP allows `connect-src` to the auth origin). */
@@ -25,6 +24,12 @@ export function statusPage(o: {
    accounts?: { issuer: string; returnPath: string };
    /** no_access: the email of the account that was refused. */
    account?: string;
+   /** Saved mode (cms_mode), or null: the device decides. */
+   mode?: "light" | "dark" | null;
+   /** ENVIRONMENT: the header's QA / STAGE badge. */
+   environment?: string;
+   /** The header's Videos link (Website comes from wwwUrl). */
+   videosWebUrl?: string;
 }): string {
    const t = STRINGS[o.lang];
    const [title, body] = {
@@ -49,14 +54,13 @@ export function statusPage(o: {
            ? `<a class="btn" href="/">${esc(t.cms)}</a> <a class="btn secondary" href="${esc(www)}">${esc(t.backToSite)}</a>`
            : `<a class="btn" href="/sso/login">${esc(t.signInAgain)}</a>
             <a class="btn secondary" href="${esc(www)}">${esc(t.backToSite)}</a>`;
-   const other = t.switchLangCode as Lang;
-   const switchHref =
-      o.kind === "accounts" && o.accounts
-         ? `${o.path}?return=${encodeURIComponent(o.accounts.returnPath)}&lang=${other}`
-         : `${o.path}?lang=${other}`;
+   // The language / appearance links keep the path and only the page's own safe parameter (return)
+   const keep = o.kind === "accounts" && o.accounts ? new URLSearchParams({ return: o.accounts.returnPath }).toString() : "";
    return page({
       lang: o.lang,
       nonce: o.nonce,
+      mode: o.mode ?? null,
+      header: publicHeaderHtml({ lang: o.lang, environment: o.environment, link: (key, value) => withQuery(o.path, keep, key, value), wwwUrl: o.wwwUrl, videosWebUrl: o.videosWebUrl }),
       title: `${title} · ${t.cms}`,
       extraCss: chooser ? CSS + ACCOUNTS_CSS : CSS,
       script: chooser?.script,
@@ -66,7 +70,6 @@ export function statusPage(o: {
 ${o.kind === "no_access" && o.account ? `<p class="who">${esc(t.noAccessAccount).replace("{email}", `<bdi><strong>${esc(o.account)}</strong></bdi>`)}</p>\n` : ""}<p>${esc(body)}</p>
 <div class="actions">${actions}</div>
 ${chooser?.html ?? ""}
-<p class="lang"><a href="${esc(switchHref)}" lang="${other}" hreflang="${other}">${esc(t.switchLang)}</a></p>
 </main>`,
    });
 }
@@ -85,9 +88,13 @@ export function passkeyNeededPage(o: {
    returnPath: string;
    setupUrl: string;
    signInPath: string;
+   /** ENVIRONMENT: the header's QA / STAGE badge. */
+   environment?: string;
+   /** The header's app links (Website, Videos). */
+   wwwUrl?: string;
+   videosWebUrl?: string;
 }): string {
    const t = STRINGS[o.lang];
-   const other = t.switchLangCode as Lang;
    const link = (key: string, value: string) => {
       const q = new URLSearchParams({ return: o.returnPath, lang: o.lang });
       q.set(key, value);
@@ -97,10 +104,10 @@ export function passkeyNeededPage(o: {
       lang: o.lang,
       nonce: o.nonce,
       mode: o.mode,
+      // The shared header: language and Light / Dark keep the return path (no Sign in: the page offers its own)
+      header: publicHeaderHtml({ lang: o.lang, environment: o.environment, link, wwwUrl: o.wwwUrl, videosWebUrl: o.videosWebUrl }),
       title: `${t.passkeyNeededTitle} · ${t.cms}`,
-      extraCss: CSS + ".prefs{display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-top:2rem}.prefs .lang{margin:0}" +
-         // Light / Dark: the videos site's icon toggle (src/lib/mode-toggle.ts), 44px target, 18px icon
-         ".mode-ic{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid var(--border);border-radius:999px;color:var(--fg)}.mode-ic svg{width:18px;height:18px}",
+      extraCss: CSS,
       body: `<main id="main" data-testid="passkey-needed">
 <p>${esc(t.cms)}</p>
 <h1>${esc(t.passkeyNeededTitle)}</h1>
@@ -109,11 +116,6 @@ export function passkeyNeededPage(o: {
 <a class="btn" href="${esc(o.setupUrl)}" data-testid="passkey-add">${esc(t.addPasskey)}</a>
 <a class="btn secondary" href="${esc(o.signInPath)}" data-testid="passkey-sign-in">${esc(t.signInWithPasskey)}</a>
 </div>
-<p class="prefs">
-<a class="lang" href="${esc(link("lang", other))}" lang="${other}" hreflang="${other}">${esc(t.switchLang)}</a>
-<a class="mode-to-light mode-ic" href="${esc(link("mode", "light"))}" data-testid="mode-to-light" aria-label="${esc(t.toLight)}" title="${esc(t.toLight)}">${modeIconSvg("sun")}</a>
-<a class="mode-to-dark mode-ic" href="${esc(link("mode", "dark"))}" data-testid="mode-to-dark" aria-label="${esc(t.toDark)}" title="${esc(t.toDark)}">${modeIconSvg("moon")}</a>
-</p>
 </main>`,
    });
 }

@@ -87,7 +87,7 @@ for (const lang of ["en", "ar"] as const) {
          const id = await create(page, { slug: `leave-${stamp()}-${lang}`, locale: lang, title: `Leave ${stamp()}` });
          await page.goto(`/posts/${id}${q}`);
          await page.locator("#f-title").fill(`Changed ${stamp()}`);
-         await page.locator("header a.brand").click();
+         await page.locator("header a.aun-brand").click();
          const dlg = page.getByRole("dialog", { name: T.common.leaveTitle });
          await expect(dlg).toContainText(T.common.leaveUnsaved);
          await expect(dlg.getByRole("button", { name: T.common.stay, exact: true })).toBeFocused();
@@ -95,7 +95,7 @@ for (const lang of ["en", "ar"] as const) {
          await page.keyboard.press("Escape");
          await expect(dlg).toBeHidden();
          await expect(page).toHaveURL(new RegExp(`/posts/${id}`));
-         await page.locator("header a.brand").click();
+         await page.locator("header a.aun-brand").click();
          await dlg.getByRole("button", { name: T.common.leaveAnyway, exact: true }).click();
          await expect(page).toHaveURL(`${ON}/`);
          // Reload / close never prompt (no beforeunload): reaching here without a native dialog proves it.

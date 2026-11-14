@@ -47,3 +47,14 @@ export function appLinks(role: BkndRole, lang: "en" | "ar", urls: AppLinkUrls): 
       .map((a) => ({ id: a.id, href: href[a.id] }))
       .filter((a) => a.href !== "" && !a.href.startsWith("/"));
 }
+
+/**
+ * The header's app links (AlUmmahNow docs/design/NAV.md "Header", slot 6): the public sites other
+ * than the CMS, Website then Videos, at this environment's hosts and in the page's language, the
+ * same addresses as the account menu's. No role is needed (the signed-out pages show them too).
+ */
+export function publicSiteLinks(lang: "en" | "ar", urls: Pick<AppLinkUrls, "www" | "videos">): { id: "www" | "videos"; href: string }[] {
+   return appLinks("writer", lang, { www: urls.www, videos: urls.videos, admin: "", issuer: "" }).filter(
+      (a): a is { id: "www" | "videos"; href: string } => a.id === "www" || a.id === "videos",
+   );
+}

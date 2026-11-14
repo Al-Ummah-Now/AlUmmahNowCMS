@@ -1,10 +1,10 @@
 /**
- * The Light / Dark control in the CMS (src/lib/mode-toggle.ts)
+ * The Light / Dark control in the CMS (src/lib/fanous-nav/mode-toggle.js, vendored by scripts/sync-fanous.ts)
  * is an exact copy of AlUmmahNow packages/fanous-tokens/nav/mode-toggle.js, whose markup the
  * videos site checks against lucide-react 0.487. Pinned here so a drift fails in this repo too.
  */
 import { describe, expect, it } from 'vitest';
-import { MODE_TOGGLE_LABELS, modeIconSvg, modeToggleLabel } from '../../src/lib/mode-toggle.ts';
+import { MODE_TOGGLE_LABELS, modeIconSvg, modeToggleLabel } from '../../src/lib/fanous-nav/mode-toggle.js';
 
 const ATTRS = 'xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
 

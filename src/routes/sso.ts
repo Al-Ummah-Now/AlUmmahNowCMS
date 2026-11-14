@@ -61,6 +61,25 @@ export interface Tx {
    p?: Prompt; // prompt sent to /authorize (absent on the normal sign-in)
 }
 
+/**
+ * Language and Light / Dark for the plain pages (status, passkey needed), as on the staff screens
+ * (src/admin/prefs.ts) but with no theme lookup: `?lang=` / `?mode=` are saved per browser
+ * (cms_lang, cms_mode), else the saved choice, else the browser's language and the device's mode.
+ */
+export function plainPrefs(c: Ctx): { lang: "en" | "ar"; mode: "light" | "dark" | null } {
+   const url = new URL(c.req.url);
+   const opts = { path: "/", sameSite: "Lax" as const, secure: url.protocol === "https:", httpOnly: true, maxAge: 365 * 24 * 60 * 60 };
+   const qLang = url.searchParams.get("lang");
+   if (qLang === "ar" || qLang === "en") setCookie(c, "cms_lang", qLang, opts);
+   const savedLang = getCookie(c, "cms_lang");
+   const lang = qLang === "ar" || qLang === "en" ? qLang : savedLang === "ar" || savedLang === "en" ? savedLang : pickLang(url, c.req.header("Accept-Language") ?? null);
+   const qMode = url.searchParams.get("mode");
+   if (qMode === "light" || qMode === "dark") setCookie(c, "cms_mode", qMode, opts);
+   const savedMode = getCookie(c, "cms_mode");
+   const mode = qMode === "light" || qMode === "dark" ? qMode : savedMode === "light" || savedMode === "dark" ? savedMode : null;
+   return { lang, mode };
+}
+
 export function renderStatus(
    c: Ctx,
    kind: Parameters<typeof statusPage>[0]["kind"],
@@ -71,9 +90,13 @@ export function renderStatus(
 ) {
    const cfg = c.get("cfg");
    const url = new URL(c.req.url);
+   const { lang, mode } = plainPrefs(c);
    const html = statusPage({
       kind,
-      lang: pickLang(url, c.req.header("Accept-Language") ?? null),
+      lang,
+      mode,
+      environment: c.env.ENVIRONMENT,
+      videosWebUrl: cfg?.videosWebUrl,
       nonce: c.get("nonce"),
       wwwUrl: cfg?.wwwUrl ?? "https://www.alummahnow.net",
       path: url.pathname,
@@ -142,7 +165,11 @@ export async function renderGate(
          tabIcons: tabIconLinks(c.env.ENVIRONMENT),
          path: url.pathname,
          search: keep.toString(),
-         strings: { brand: admin.brand, cms: t.cms, sub: admin.cms, skip: admin.skip, toLight: t.toLight, toDark: t.toDark, switchLang: t.switchLang, switchLangCode: t.switchLangCode },
+         environment: c.env.ENVIRONMENT,
+         wwwUrl: cfg?.wwwUrl,
+         videosWebUrl: cfg?.videosWebUrl,
+         signInHref: kind === "logged_out" || kind === "sign_in_failed" ? "/sso/login" : undefined,
+         strings: { cms: t.cms, skip: admin.skip },
       },
       c: { ...content[kind], chooser, testId: kind.replace("_", "-") },
    });
@@ -370,21 +397,16 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
    // Staff passkeys (src/lib/passkeys.ts): a page, not an error. Needs no CMS session (it has none).
    sso.get("/passkey-needed", (c) => {
       const cfg = c.get("cfg");
-      const url = new URL(c.req.url);
       const returnPath = safeReturnPath(c.req.query("return"));
       // Language and mode as on the staff screens (src/admin/prefs.ts): ?lang= / ?mode= saved per browser
-      const opts = { path: "/", sameSite: "Lax" as const, secure: !cfg.isLocal, httpOnly: true, maxAge: 365 * 24 * 60 * 60 };
-      const qLang = c.req.query("lang");
-      const savedLang = getCookie(c, "cms_lang");
-      const lang = qLang === "ar" || qLang === "en" ? qLang : savedLang === "ar" || savedLang === "en" ? savedLang : pickLang(url, c.req.header("Accept-Language") ?? null);
-      const qMode = c.req.query("mode");
-      if (qMode === "light" || qMode === "dark") setCookie(c, "cms_mode", qMode, opts);
-      const savedMode = getCookie(c, "cms_mode");
-      const mode = qMode === "light" || qMode === "dark" ? qMode : savedMode === "light" || savedMode === "dark" ? savedMode : null;
+      const { lang, mode } = plainPrefs(c);
       const html = passkeyNeededPage({
          lang,
          nonce: c.get("nonce"),
          mode,
+         environment: c.env.ENVIRONMENT,
+         wwwUrl: cfg.wwwUrl,
+         videosWebUrl: cfg.videosWebUrl,
          returnPath,
          setupUrl: passkeySetupUrl(cfg.issuer, cfg.publicUrl, returnPath, lang),
          signInPath: passkeySignInPath(returnPath, lang),

@@ -17,6 +17,34 @@ export function initShell(): void {
       if (e.target === drawer) drawer.close();
    });
 
+   // Below 1024px the header's search sits under the bar, opened by its icon (the link to the
+   // list's own search is the no-script way). Escape or a click outside closes it.
+   const searchBtn = $<HTMLAnchorElement>("[data-search-toggle]");
+   const header = searchBtn?.closest("header");
+   const setSearch = (open: boolean) => {
+      if (!searchBtn || !header) return;
+      header.classList.toggle("search-open", open);
+      searchBtn.setAttribute("aria-expanded", String(open));
+   };
+   if (searchBtn && header) {
+      searchBtn.setAttribute("role", "button");
+      searchBtn.setAttribute("aria-expanded", "false");
+      searchBtn.addEventListener("click", (e) => {
+         e.preventDefault();
+         const open = !header.classList.contains("search-open");
+         setSearch(open);
+         if (open) $<HTMLInputElement>("#global-q")?.focus();
+      });
+      document.addEventListener("click", (e) => {
+         if (header.classList.contains("search-open") && !header.contains(e.target as Node)) setSearch(false);
+      });
+      document.addEventListener("keydown", (e) => {
+         if (e.key !== "Escape" || !header.classList.contains("search-open")) return;
+         setSearch(false);
+         searchBtn.focus();
+      });
+   }
+
    // <details data-pop> menus: one open at a time, close on outside click and Escape.
    const pops = $$<HTMLDetailsElement>("details[data-pop]");
    for (const d of pops) {

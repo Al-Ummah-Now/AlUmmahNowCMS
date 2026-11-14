@@ -2,6 +2,8 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetThemeCache, siteTheme } from "../../src/admin/prefs.ts";
 import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
+import { appLinksHtml, brandHtml, envBadgeHtml, HEADER_ORDER, langButtonHtml } from "../../src/lib/fanous-nav/header.js";
+import { modeLinksHtml } from "../../src/lib/header.ts";
 
 async function session(roles: string[], id: string) {
    const { callback } = await signIn(roles, { id, email: `${id}@example.com` });
@@ -52,9 +54,8 @@ describe("staff shell", () => {
       expect(html).toContain('data-mode-toggle="dark"');
       expect(html).toContain('aria-label="Switch to light mode"');
       expect(html).toContain('aria-label="Switch to dark mode"');
-      // the videos site's icons, exact Lucide markup (src/lib/mode-toggle.ts), 18px
-      expect(html).toContain('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>');
-      expect(html).toMatch(/<svg [^>]*width="18" height="18"[^>]*class="lucide lucide-sun icon"/);
+      // the shared header's toggle (src/lib/header.ts), exact Lucide markup from the vendored mode-toggle.js
+      expect(html).toContain(modeLinksHtml("en", (k, val) => `/?${k}=${val}`));
       expect(html).not.toMatch(/mode=system|>System<|Device/);
       expect(first.headers.getSetCookie().join("\n")).not.toMatch(/cms_mode/);
       // ?mode=system is not a mode any more: ignored, nothing saved
@@ -69,6 +70,39 @@ describe("staff shell", () => {
       const dark = await f("/?mode=dark", { headers: { cookie } });
       expect(await dark.text()).toMatch(/data-mode="dark" class="dark"/);
       expect(dark.headers.getSetCookie().join("\n")).toMatch(/cms_mode=dark/);
+   });
+
+   it("wears the shared header (AlUmmahNow docs/design/NAV.md): the builders' markup, in the contract's order", async () => {
+      const cookie = await session(["Admin"], "shell-header");
+      const f = makeWorker();
+      for (const lang of ["en", "ar"] as const) {
+         const html = await (await f(`/pages?lang=${lang}&q=x`, { headers: { cookie } })).text();
+         const header = html.slice(html.indexOf('<header class="aun-header cms-hd hd">'), html.indexOf("</header>") + 9);
+         expect(header).not.toBe("");
+         const brand = brandHtml({ lang, href: "/", app: lang === "ar" ? "المحتوى" : "Content" });
+         const env = envBadgeHtml("qa", lang);
+         const apps = appLinksHtml({ lang, links: [{ id: "www", href: `https://www.test/${lang}/` }, { id: "videos", href: `https://videos.test/${lang}` }] });
+         const other = lang === "ar" ? "en" : "ar";
+         // the language button keeps the screen and its query
+         const langBtn = langButtonHtml({ lang, href: `/pages?lang=${other}&q=x` });
+         const mode = modeLinksHtml(lang, (k, val) => `/pages?lang=${k === "lang" ? val : lang}&q=x${k === "mode" ? `&mode=${val}` : ""}`);
+         for (const piece of [brand, env, apps, langBtn, mode]) expect(header).toContain(piece);
+         // order: menu · brand · env · search (primary) · New · app links · language · sun/moon · account
+         const at = (s: string) => header.indexOf(s);
+         const order = [at("data-open-drawer"), at(brand), at(env), at('class="aun-header-primary'), at('class="btn primary sm"'), at(apps), at(langBtn), at(mode), at("aun-acct-btn")];
+         expect(order.every((n) => n >= 0)).toBe(true);
+         expect([...order].sort((a, b) => a - b)).toEqual(order);
+         expect(HEADER_ORDER).toEqual(["menu", "brand", "env", "primary", "actions", "apps", "lang", "mode", "account"]);
+         // language and Light / Dark left the rail and the drawer
+         expect(html.slice(html.indexOf("</header>"))).not.toMatch(/hreflang=|data-mode-toggle/);
+      }
+   });
+
+   it("the header has no environment badge in production", async () => {
+      const cookie = await session(["Admin"], "shell-prod");
+      const html = await (await makeWorker(undefined, { ENVIRONMENT: "production" })("/", { headers: { cookie } })).text();
+      expect(html).toContain('class="aun-brand"');
+      expect(html).not.toContain('class="aun-env"');
    });
 
    it("follows site.theme from the videos admin", async () => {

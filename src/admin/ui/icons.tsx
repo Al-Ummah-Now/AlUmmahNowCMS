@@ -4,7 +4,7 @@
  * apps. Decorative: always aria-hidden; the control carries the label.
  */
 import { raw } from "hono/html";
-import { modeIconSvg } from "../../lib/mode-toggle.ts";
+import { modeIconSvg } from "../../lib/fanous-nav/mode-toggle.js";
 
 const PATHS = {
    flag: "M4 22V4M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1",
@@ -70,7 +70,7 @@ const PATHS = {
    rocket: "M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1zM12 15l-3-3a22 22 0 0 1 2-4A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22 22 0 0 1-4 2zM9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5",
 } as const;
 
-/** The Light / Dark icons are the shared toggle's (src/lib/mode-toggle.ts): exact Lucide markup. */
+/** The Light / Dark icons are the shared toggle's (src/lib/fanous-nav/mode-toggle.js): exact Lucide markup. */
 export type IconName = keyof typeof PATHS | "sun" | "moon";
 
 export function Icon(props: { name: IconName; class?: string; size?: number }) {

@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import { pkceChallenge } from "../../src/lib/pkce.ts";
 import { callbackErrorRedirect } from "../../src/routes/sso.ts";
+import { brandHtml, envBadgeHtml, langButtonHtml, signInHtml } from "../../src/lib/fanous-nav/header.js";
 import { accessToken, CLIENT, CMS, cookiesOf, ISSUER, makeWorker, signIn, usersCount } from "./helpers.ts";
 
 describe("unauthenticated", () => {
@@ -524,5 +525,39 @@ describe("sign-in outcomes are logged (2026-11-14: a refusal left no trace in th
       } finally {
          warn.mockRestore();
       }
+   });
+});
+
+/** Every CMS page wears the shared header (AlUmmahNow docs/design/NAV.md "Header", src/lib/header.ts). */
+describe("the CMS pages outside the staff shell wear the shared header", () => {
+   const brand = (lang: "en" | "ar") => brandHtml({ lang, href: "/", app: lang === "ar" ? "المحتوى" : "Content" });
+
+   it("Signed out: brand, QA badge, app links, language, Light/Dark and a solid Sign in", async () => {
+      const html = await (await makeWorker()("/sso/logged-out?lang=ar")).text();
+      const header = html.slice(html.indexOf('<header class="aun-header cms-hd">'), html.indexOf("</header>"));
+      expect(header).toContain(brand("ar"));
+      expect(header).toContain(envBadgeHtml("qa", "ar"));
+      expect(header).toContain('<nav class="aun-apps"');
+      expect(header).toContain(langButtonHtml({ lang: "ar", href: "/sso/logged-out?lang=en" }));
+      expect(header).toContain('data-mode-toggle="light"');
+      expect(header).toContain(signInHtml({ lang: "ar", href: "/sso/login" }));
+   });
+
+   it("the account chooser has no Sign in; its language link keeps the return path", async () => {
+      const html = await (await makeWorker()("/sso/accounts?return=%2Fposts")).text();
+      expect(html).toContain(brand("en"));
+      expect(html).toContain(langButtonHtml({ lang: "en", href: "/sso/accounts?return=%2Fposts&lang=ar" }));
+      expect(html).not.toContain('class="aun-signin"');
+   });
+
+   it("a plain status page (not found) has the same header, Light/Dark saved like the staff screens", async () => {
+      const res = await makeWorker()("/no-such-page?mode=dark", { headers: { "accept-language": "ar" } });
+      expect(res.status).toBe(404);
+      const html = await res.text();
+      expect(html).toContain('<html lang="ar" dir="rtl" data-mode="dark" class="dark">');
+      expect(html).toContain(brand("ar"));
+      expect(html).toContain(envBadgeHtml("qa", "ar"));
+      expect(html).toContain(langButtonHtml({ lang: "ar", href: "/no-such-page?lang=en" }));
+      expect(res.headers.getSetCookie().some((c) => c.startsWith("cms_mode=dark"))).toBe(true);
    });
 });

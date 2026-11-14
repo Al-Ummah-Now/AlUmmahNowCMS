@@ -3,13 +3,14 @@
  * The CMS's own pages outside the staff shell: No access, the account chooser, Signed out, Sign-in
  * failed. They wear the site theme like the staff screens (the same theme and app stylesheets,
  * the theme's backdrop, Light/Dark decided before paint, en/ar with RTL) on a centered card, with
- * the brand, language and appearance in a slim header. No session is needed to render them.
+ * the shared header (src/lib/header.ts). No session is needed to render them.
  */
 import { raw } from "hono/html";
 import { ICON_THEME_COLOR, type IconLink } from "../../lib/app-icons.ts";
 import type { Prefs } from "../prefs.ts";
 import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "./icons.tsx";
+import { publicHeaderHtml, withQuery } from "../../lib/header.ts";
 
 const MODE_SCRIPT = `(function(){var h=document.documentElement;if(h.dataset.mode)return;var m=matchMedia("(prefers-color-scheme: dark)");var a=function(){h.classList.toggle("dark",m.matches)};a();m.addEventListener("change",a)})();`;
 
@@ -21,16 +22,16 @@ export interface GateView {
    /** The page's own path and query (language / appearance links keep the rest of the query). */
    path: string;
    search: string;
+   /** ENVIRONMENT: the header's QA / STAGE badge. */
+   environment?: string;
+   /** The header's app links (Website, Videos). */
+   wwwUrl?: string;
+   videosWebUrl?: string;
+   /** A solid Sign in in the header, on the signed-out landings (Signed out, Sign-in failed). */
+   signInHref?: string;
    strings: {
-      brand: string;
       cms: string;
-      /** The brand's second line, as in the staff shell ("Content"). */
-      sub: string;
       skip: string;
-      toLight: string;
-      toDark: string;
-      switchLang: string;
-      switchLangCode: string;
    };
 }
 
@@ -47,18 +48,13 @@ export interface GateContent {
    testId: string;
 }
 
-function withParam(v: GateView, key: string, value: string): string {
-   const q = new URLSearchParams(v.search);
-   q.set(key, value);
-   return `${v.path}?${q.toString()}`;
-}
+const withParam = (v: GateView, key: string, value: string) => withQuery(v.path, v.search, key, value);
 
 export function GatePage(props: { v: GateView; c: GateContent }) {
    const { v, c } = props;
    const { prefs, strings: t } = v;
    const theme = THEMES[prefs.theme];
    const dark = prefs.mode !== "light";
-   const other = t.switchLangCode;
    return (
       <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} class={dark ? "dark" : undefined}>
          <head>
@@ -81,26 +77,9 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
             <div class="theme-bg" aria-hidden="true">
                {raw(theme.backdrop)}
             </div>
-            <header class="hd gate-hd">
-               <a class="brand" href="/">
-                  <img class="brand-mark" src="/icon-192.png" alt="" width={36} height={36} />
-                  <span>
-                     <span class="brand-name">{t.brand}</span>
-                     <span class="brand-sub">{t.sub}</span>
-                  </span>
-               </a>
-               <div class="gate-prefs">
-                  <a class="ic mode-to-light" href={withParam(v, "mode", "light")} title={t.toLight} aria-label={t.toLight}>
-                     <Icon name="sun" />
-                  </a>
-                  <a class="ic mode-to-dark" href={withParam(v, "mode", "dark")} title={t.toDark} aria-label={t.toDark}>
-                     <Icon name="moon" />
-                  </a>
-                  <a class="ic" href={withParam(v, "lang", other)} lang={other} hreflang={other} title={t.switchLang} aria-label={t.switchLang}>
-                     <Icon name="languages" />
-                  </a>
-               </div>
-            </header>
+            {/* The shared header (src/lib/header.ts): brand, badge, app links, language, sun/moon, and Sign in
+                on the signed-out landings */}
+            {raw(publicHeaderHtml({ lang: prefs.lang, environment: v.environment, link: (key, value) => withParam(v, key, value), wwwUrl: v.wwwUrl, videosWebUrl: v.videosWebUrl, signInHref: v.signInHref }))}
             <main id="main" class="gate">
                <section class="card gate-card" data-testid={c.testId} aria-labelledby="gate-h">
                   <span class="gate-ic">

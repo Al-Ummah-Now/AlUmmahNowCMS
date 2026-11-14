@@ -152,10 +152,13 @@ Worker with Hono JSX, and enhanced by one small client script. bknd's admin UI m
 | `/picker/api/snapshots` (POST) | snapshot a video picked into a page block, server-side (§2.1) | admin, editor |
 | `/admin/api/video-snapshots/retry` (POST) | requeue dead-lettered block video snapshots (Overview flag) | admin, editor |
 
-Screen anatomy (shared): header (brand + theme wordmark at the start, global search across pages and
-posts in the centre, New and the account menu at the end), a 76 px rail with icon+label items
-(Overview, Pages, Posts, Navigation, Videos, Site, Library, People) that becomes a drawer and a bottom
-bar on phones, and the language and mode controls at the rail foot. Lists use cards on phones and a
+Screen anatomy (shared): the shared header (AlUmmahNow docs/design/NAV.md "Header", built with the
+vendored `nav/header.js` builders in `src/lib/header.ts`): [drawer toggle] the logo lockup ("Al Ummah
+Now" / "Content"), the QA / STAGE badge, global search across pages and posts (below 1024 px an icon
+opens it under the bar), New, Website and Videos, the language button, the sun/moon button and the
+account menu; the pages outside the shell (gate, status, passkey needed) wear the same header, with a
+solid Sign in on Signed out and Sign-in failed. A rail with icon+label items (Overview, Pages, Posts,
+Navigation, Videos, Site, Library, People) becomes a drawer and a bottom bar below 768 px. Lists use cards on phones and a
 table on wide screens. Editors are two columns on wide screens (content | publish panel, cover,
 translations, SEO) and one column on phones with a sticky action bar.
 
