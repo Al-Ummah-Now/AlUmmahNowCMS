@@ -91,8 +91,8 @@ describe("account chooser script", () => {
       expect(t.list.children[0].text()).toContain("Active");
       expect(t.list.children[1].text()).toContain("b@example.com");
       expect(t.list.children[1].text()).not.toContain("Active");
-      // The active account has no switch button; the other one does.
-      expect(t.list.children[0].buttons().map((b) => b.textContent)).toEqual(["Sign out"]);
+      // The active account has no switch button (its "Active" badge retries the sign-in); the other one does.
+      expect(t.list.children[0].buttons().map((b) => b.textContent)).toEqual(["Active", "Sign out"]);
       expect(t.list.children[1].buttons().map((b) => b.textContent)).toEqual(["Switch", "Sign out"]);
    });
 
@@ -107,10 +107,21 @@ describe("account chooser script", () => {
       expect(t.assigned).toEqual(["/sso/login?prompt=none&return=%2Fpicker"]);
    });
 
+   it("clicking Active retries the sign-in with that account (silent), calling nothing on auth", async () => {
+      const t = run(two);
+      await t.settle();
+      const active = t.list.children[0].buttons()[0];
+      expect(active.attrs["aria-label"]).toBe("Active: Sign in again with this account (Alice)");
+      await active.listeners.click();
+      await t.settle();
+      expect(t.assigned).toEqual(["/sso/login?prompt=none&return=%2Fpicker"]);
+      expect(t.calls.filter((c) => c.method !== "GET")).toEqual([]);
+   });
+
    it("signing out of the active account while others remain: DELETE it, then sign in silently as the next one", async () => {
       const t = run(two);
       await t.settle();
-      await t.list.children[0].buttons()[0].listeners.click();
+      await t.list.children[0].buttons()[1].listeners.click();
       await t.settle();
       expect(t.calls.some((c) => c.method === "DELETE" && c.url === "https://auth.test/session/accounts/u-a")).toBe(true);
       expect(t.assigned).toEqual(["/sso/login?prompt=none&return=%2Fpicker"]);
@@ -130,7 +141,7 @@ describe("account chooser script", () => {
    it("signing out of the last account is the single sign-out", async () => {
       const t = run({ status: 200, body: { accounts: [two.body.accounts[0]] } });
       await t.settle();
-      await t.list.children[0].buttons()[0].listeners.click();
+      await t.list.children[0].buttons()[1].listeners.click();
       expect(t.calls.some((c) => c.method === "DELETE")).toBe(false);
       expect(t.assigned).toEqual(["/sso/logout"]);
    });
@@ -146,7 +157,8 @@ describe("account chooser script", () => {
    it("names and emails are rendered as text, never as HTML", async () => {
       const t = run({ status: 200, body: { accounts: [{ userId: "x", isActive: true, email: "x@example.com", name: "<img src=x onerror=alert(1)>" }] } });
       await t.settle();
-      expect(t.list.children[0].children[0].children[0].textContent).toBe("<img src=x onerror=alert(1)>");
+      // li > [avatar, who > [who-name > [name span, Active], email]]
+      expect(t.list.children[0].children[1].children[0].children[0].textContent).toBe("<img src=x onerror=alert(1)>");
    });
 
    it("the embedded config cannot break out of the script tag", () => {

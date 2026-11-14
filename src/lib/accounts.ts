@@ -26,28 +26,20 @@ export function accountLinks(returnPath: string) {
    };
 }
 
-export const ACCOUNTS_CSS = `
-section.accounts{margin-top:2rem}
-ul.accounts{list-style:none;padding:0;margin:0;display:grid;gap:.5rem}
-ul.accounts li{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem}
-ul.accounts .who{flex:1;min-width:12rem}
-ul.accounts .email{color:var(--muted);font-size:.875rem;overflow-wrap:anywhere}
-ul.accounts .badge{display:inline-block;font-size:.75rem;border:1px solid var(--ok);color:var(--ok);border-radius:1rem;padding:0 .5rem;margin-inline-start:.5rem}
-.accounts .status{min-height:1.5rem;margin:.5rem 0}
-.accounts .status.error{color:var(--danger)}
-`;
+/** Styles live in the CMS component system (src/admin/ui/styles.ts, `.gate-accounts`); kept for older callers. */
+export const ACCOUNTS_CSS = "";
 
 export function accountsSection(o: { lang: Lang; issuer: string; returnPath: string; hint?: boolean }): { html: string; script: string } {
    const t = STRINGS[o.lang].accounts;
    const links = accountLinks(o.returnPath);
-   const html = `<section class="accounts" aria-labelledby="accounts-h">
+   const html = `<section class="gate-accounts" aria-labelledby="accounts-h">
 <h2 id="accounts-h">${esc(t.heading)}</h2>
 ${o.hint ? `<p>${esc(t.noAccessHint)}</p>` : ""}
 <p id="accounts-status" class="status" role="status" aria-live="polite">${esc(t.loading)}</p>
-<ul class="accounts" id="accounts-list"></ul>
-<div class="actions">
+<ul class="list" id="accounts-list"></ul>
+<div class="gate-actions">
 <a class="btn" id="accounts-add" href="${esc(links.add)}">${esc(t.add)}</a>
-<a class="btn secondary" href="${esc(links.signOutAll)}">${esc(t.signOutAll)}</a>
+<a class="btn ghost" href="${esc(links.signOutAll)}">${esc(t.signOutAll)}</a>
 </div>
 </section>`;
    const cfg = JSON.stringify({ auth: o.issuer, links, t }).replace(/</g, "\\u003c");
@@ -69,30 +61,39 @@ async function load() {
   list.replaceChildren();
   for (const a of accounts) {
     const label = (typeof a.name === "string" && a.name.trim()) || a.email || a.userId;
-    const li = el("li");
+    const li = el("li", { class: "li" });
+    li.append(el("span", { class: "gate-av", "aria-hidden": "true" }, (Array.from(String(label).trim())[0] || "?").toUpperCase()));
     const who = el("div", { class: "who" });
-    const name = el("div", {}, label);
-    if (a.isActive) name.append(el("span", { class: "badge" }, T.active));
+    const name = el("div", { class: "who-name" });
+    name.append(el("span", {}, label));
+    if (a.isActive) {
+      // "Active" retries the sign-in with this account (silent: auth already has it as the active one)
+      const retry = el("button", { type: "button", class: "badge published", title: T.activeRetry, "aria-label": T.active + ": " + T.activeRetry + " (" + label + ")" }, T.active);
+      retry.addEventListener("click", () => act(retry, async () => { location.assign(C.links.silent); }));
+      name.append(retry);
+    }
     who.append(name);
     if (a.email && a.email !== label) who.append(el("div", { class: "email" }, a.email));
     li.append(who);
+    const end = el("div", { class: "li-end" });
     if (!a.isActive) {
-      const sw = el("button", { type: "button", class: "btn", "aria-label": T.switchTo + " " + label }, T.switch);
+      const sw = el("button", { type: "button", class: "btn primary", "aria-label": T.switchTo + " " + label }, T.switch);
       sw.addEventListener("click", () => act(sw, async () => {
         const res = await call("/session/switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId: a.userId }) });
         if (!res.ok) throw new Error(String(res.status));
         location.assign(C.links.silent);
       }));
-      li.append(sw);
+      end.append(sw);
     }
-    const out = el("button", { type: "button", class: "btn secondary", "aria-label": T.signOutOf + " " + label }, T.signOut);
+    const out = el("button", { type: "button", class: "btn ghost", "aria-label": T.signOutOf + " " + label }, T.signOut);
     out.addEventListener("click", () => act(out, async () => {
       if (accounts.length <= 1) { location.assign(C.links.signOutAll); return; }
       const res = await call("/session/accounts/" + encodeURIComponent(a.userId), { method: "DELETE" });
       if (!res.ok) throw new Error(String(res.status));
       if (a.isActive) location.assign(C.links.silent); else await load();
     }));
-    li.append(out);
+    end.append(out);
+    li.append(end);
     list.append(li);
   }
 }

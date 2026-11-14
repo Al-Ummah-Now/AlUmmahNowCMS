@@ -91,7 +91,9 @@ describe("callback", () => {
       const html = await denied.text();
       expect(html).toContain("No access");
       // The page names the refused account, so a wrong active account is obvious
-      expect(html).toContain("You are signed in as <bdi><strong>viewer@example.com</strong></bdi>.");
+      expect(html).toContain("You&#39;re signed in as <bdi><strong>viewer@example.com</strong></bdi>, which can&#39;t open the CMS.");
+      // Every role that opens the CMS is named
+      expect(html).toContain("Super Admin, Admin, Moderator, Writer and Scholar accounts can sign in.");
       expect(callback.headers.getSetCookie().some((c) => c.startsWith("auth="))).toBe(false);
       expect(await usersCount()).toBe(before);
    });
@@ -308,22 +310,54 @@ describe("prompt handling", () => {
 });
 
 describe("no-access is never a dead end (2026-11-14: a super admin kept getting a stale No access)", () => {
-   it("is shown once per refusal: a reload, the back button or an old tab signs in again", async () => {
+   it("is shown only after a recent refusal: later, or after a new sign-in, the same URL signs in again", async () => {
       const { callback } = await signIn(["Member"], { id: "na-member", email: "na-member@example.com" });
       const marker = callback.headers.getSetCookie().find((c) => c.startsWith("__Host-cms_denied="));
       expect(marker).toMatch(/HttpOnly/i);
       expect(marker).toMatch(/Secure/i);
-      expect(marker).toMatch(/Max-Age=300/i);
+      expect(marker).toMatch(/Max-Age=120/i);
+      const cookie = cookiesOf(callback);
       const f = makeWorker();
-      const first = await f("/sso/no-access", { headers: { cookie: cookiesOf(callback) } });
-      expect(first.status).toBe(403);
-      // Consumed: the browser drops it
-      expect(first.headers.getSetCookie().some((c) => c.startsWith("__Host-cms_denied=") && /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c))).toBe(true);
-      // The same URL again, without a fresh refusal: a new sign-in (silent while auth has a session)
+      expect((await f("/sso/no-access", { headers: { cookie } })).status).toBe(403);
+      // Its language and Light/Dark links reload it while the refusal is recent
+      expect((await f("/sso/no-access?lang=ar&mode=dark", { headers: { cookie } })).status).toBe(403);
+      // Without the marker (expired, another browser, an old tab the next day): a new sign-in
       const again = await f("/sso/no-access");
       expect(again.status).toBe(302);
       expect(again.headers.get("location")).toBe("/sso/login?return=%2F");
       expect((await f("/sso/no-access?lang=ar")).headers.get("location")).toBe("/sso/login?return=%2F&lang=ar");
+      // Any new sign-in (Switch, Active, another account) clears it
+      const login = await f("/sso/login?prompt=none", { headers: { cookie } });
+      expect(login.headers.getSetCookie().some((c) => c.startsWith("__Host-cms_denied=") && /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c))).toBe(true);
+   });
+
+   it("an expired marker never shows the page", async () => {
+      const { callback } = await signIn(["Member"], { id: "na-old", email: "na-old@example.com" });
+      const cookie = cookiesOf(callback);
+      const realNow = Date.now;
+      Date.now = () => realNow() + 121_000;
+      try {
+         const res = await makeWorker()("/sso/no-access", { headers: { cookie } });
+         expect(res.status).toBe(302);
+         expect(res.headers.get("location")).toBe("/sso/login?return=%2F");
+      } finally {
+         Date.now = realNow;
+      }
+   });
+
+   it("wears the site theme with Light/Dark and en/ar (the staff screens' stylesheets, a card)", async () => {
+      const { callback } = await signIn(["Member"], { id: "na-theme", email: "na-theme@example.com" });
+      const res = await makeWorker()("/sso/no-access?mode=dark&lang=ar", { headers: { cookie: cookiesOf(callback) } });
+      const html = await res.text();
+      expect(html).toMatch(/<html lang="ar" dir="rtl" data-theme="fawanees" data-mode="dark" class="dark">/);
+      expect(html).toMatch(/<link rel="stylesheet" href="\/admin-assets\/theme-fawanees\.[0-9a-z]+\.css"/);
+      expect(html).toMatch(/<link rel="stylesheet" href="\/admin-assets\/app\.[0-9a-z]+\.css"/);
+      expect(html).toContain('class="card gate-card" data-testid="no-access"');
+      expect(html).toContain("لا تملك صلاحية الوصول");
+      expect(html).toContain("المشرف العام والمشرف والمراقب والكاتب والعالِم");
+      const css = await makeWorker()(html.match(/href="(\/admin-assets\/app\.[0-9a-z]+\.css)"/)![1]);
+      expect(css.status).toBe(200);
+      expect(await css.text()).toContain(".gate-card{");
    });
 
    it("a stale no-access tab reaches the dashboard once auth's active account is a super admin", async () => {

@@ -13,9 +13,9 @@ export const STRINGS = {
    en: {
       cms: "Al Ummah Now CMS",
       noAccessTitle: "No access",
-      noAccessAccount: "You are signed in as {email}.",
+      noAccessAccount: "You're signed in as {email}, which can't open the CMS.",
       noAccessBody:
-         "Your account does not have access to the content management system. If you think it should, ask an administrator to give you the Admin or Moderator role, then sign in again.",
+         "Your account doesn't have a role that opens the content manager. Super Admin, Admin, Moderator, Writer and Scholar accounts can sign in. If yours should, ask an administrator for one of these roles, then sign in again.",
       backToSite: "Back to Al Ummah Now",
       signOut: "Sign out",
       signInAgain: "Sign in again",
@@ -45,6 +45,7 @@ export const STRINGS = {
          loading: "Loading accounts…",
          loadFailed: "Could not load the accounts signed in on this browser.",
          active: "Active",
+         activeRetry: "Sign in again with this account",
          switch: "Switch",
          switchTo: "Switch to",
          signOut: "Sign out",
@@ -89,9 +90,9 @@ export const STRINGS = {
    ar: {
       cms: "نظام إدارة محتوى الأمة الآن",
       noAccessTitle: "لا تملك صلاحية الوصول",
-      noAccessAccount: "أنت مسجّل الدخول باسم {email}.",
+      noAccessAccount: "أنت مسجّل الدخول بحساب {email}، وهو لا يفتح نظام المحتوى.",
       noAccessBody:
-         "حسابك لا يملك صلاحية الوصول إلى نظام إدارة المحتوى. إذا كنت تعتقد أنه يجب أن يملكها، فاطلب من أحد المسؤولين منحك دور المسؤول أو المشرف، ثم سجّل الدخول مرة أخرى.",
+         "حسابك لا يملك دورًا يفتح نظام إدارة المحتوى. يستطيع الدخول أصحاب أدوار المشرف العام والمشرف والمراقب والكاتب والعالِم. إذا كان يجب أن يملك حسابك أحدها، فاطلبه من أحد المشرفين، ثم سجّل الدخول مرة أخرى.",
       backToSite: "العودة إلى الأمة الآن",
       signOut: "تسجيل الخروج",
       signInAgain: "تسجيل الدخول مرة أخرى",
@@ -121,8 +122,9 @@ export const STRINGS = {
          loading: "جارٍ تحميل الحسابات…",
          loadFailed: "تعذّر تحميل الحسابات المسجّل دخولها على هذا المتصفح.",
          active: "النشط",
+         activeRetry: "سجّل الدخول مرة أخرى بهذا الحساب",
          switch: "تبديل",
-         switchTo: "التبديل إلى",
+         switchTo: "تبديل إلى",
          signOut: "تسجيل الخروج",
          signOutOf: "تسجيل الخروج من",
          add: "تسجيل الدخول بحساب آخر",
