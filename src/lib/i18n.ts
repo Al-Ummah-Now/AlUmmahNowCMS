@@ -33,7 +33,7 @@ export const STRINGS = {
       backToCms: "Back to the CMS",
       passkeyNeededTitle: "Passkey needed",
       passkeyNeededBody:
-         "Staff accounts sign in to the CMS with a passkey. Add a passkey to your account, then sign in with it. If you already have one, sign in with your passkey.",
+         "Staff accounts sign in to the CMS with a passkey, saved on this device, in your password manager, on your phone or on a security key. Add a passkey to your account, then sign in with it. If you already have one, sign in with your passkey.",
       addPasskey: "Add a passkey",
       signInWithPasskey: "Sign in with a passkey",
       toLight: "Switch to light mode",
@@ -108,7 +108,7 @@ export const STRINGS = {
       backToCms: "العودة إلى نظام إدارة المحتوى",
       passkeyNeededTitle: "يلزم مفتاح مرور",
       passkeyNeededBody:
-         "تسجّل حسابات فريق العمل الدخول إلى نظام إدارة المحتوى بمفتاح مرور. أضف مفتاح مرور إلى حسابك، ثم سجّل الدخول به. وإن كان لديك مفتاح مرور، فسجّل الدخول به.",
+         "تسجّل حسابات فريق العمل الدخول إلى نظام إدارة المحتوى بمفتاح مرور محفوظ على هذا الجهاز أو في مدير كلمات المرور أو على هاتفك أو على مفتاح أمان. أضف مفتاح مرور إلى حسابك، ثم سجّل الدخول به. وإن كان لديك مفتاح مرور، فسجّل الدخول به.",
       addPasskey: "إضافة مفتاح مرور",
       signInWithPasskey: "تسجيل الدخول بمفتاح مرور",
       toLight: "التبديل إلى الوضع الفاتح",
