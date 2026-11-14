@@ -132,7 +132,7 @@ describe("public API: shapes (docs/PUBLIC_API.md)", () => {
          alternates: [{ locale: "ar", slug: "hawl" }],
          images: [],
          // Additive (page blocks): a row saved before blocks serves its body as one rich-text block.
-         blocks: [{ id: "body", type: "markdown", text: "# About" }],
+         blocks: [{ id: "body", type: "markdown", appearance: { align: "start", width: "content", tone: "none", space: "m" }, text: "# About" }],
          // Additive (docs/specs/WWW-PAGES.md): a content page; list pages are served by /lists/:slug.
          list_kind: null,
       });

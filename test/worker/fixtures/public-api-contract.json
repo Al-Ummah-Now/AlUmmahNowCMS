@@ -161,6 +161,12 @@
          "blocks": [
             {
                "id": "body",
+               "appearance": {
+                  "align": "start",
+                  "width": "content",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "markdown",
                "text": "# About\n\n::video[vid-1]\n"
             }
@@ -193,6 +199,12 @@
          "blocks": [
             {
                "id": "body",
+               "appearance": {
+                  "align": "start",
+                  "width": "content",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "markdown",
                "text": "نص"
             }
@@ -311,14 +323,14 @@
          "slide_count": 0,
          "first_slide": null,
          "slides": [],
+         "ref": null,
+         "v2": null,
+         "community": null,
          "body": "Body",
          "seo_title": null,
          "seo_description": null,
          "alternates": [],
-         "images": [],
-         "ref": null,
-         "v2": null,
-         "community": null
+         "images": []
       }
    },
    "/api/public/v1/posts/hidden?locale=en": {
@@ -504,11 +516,23 @@
          "blocks": [
             {
                "id": "text",
+               "appearance": {
+                  "align": "start",
+                  "width": "content",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "markdown",
                "text": "## Welcome\n\nSome **text**."
             },
             {
                "id": "img",
+               "appearance": {
+                  "align": "start",
+                  "width": "wide",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "image",
                "image": {
                   "url": "https://cms.test/api/public/v1/media/<file>",
@@ -530,6 +554,12 @@
             },
             {
                "id": "gal",
+               "appearance": {
+                  "align": "start",
+                  "width": "wide",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "gallery",
                "columns": 3,
                "items": [
@@ -573,6 +603,12 @@
             },
             {
                "id": "news",
+               "appearance": {
+                  "align": "start",
+                  "width": "content",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "posts",
                "heading": "Latest news",
                "mode": "latest",
@@ -682,6 +718,12 @@
             },
             {
                "id": "pick",
+               "appearance": {
+                  "align": "start",
+                  "width": "content",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "posts",
                "heading": "Picked",
                "mode": "picked",
@@ -773,6 +815,12 @@
             },
             {
                "id": "stories",
+               "appearance": {
+                  "align": "start",
+                  "width": "wide",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "cards",
                "heading": "Stories",
                "tag": "stories",
@@ -781,6 +829,12 @@
             },
             {
                "id": "shelf",
+               "appearance": {
+                  "align": "start",
+                  "width": "wide",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "videos",
                "heading": "Watch",
                "items": [
@@ -830,6 +884,12 @@
             },
             {
                "id": "embed",
+               "appearance": {
+                  "align": "start",
+                  "width": "content",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "video",
                "kind": "video",
                "ref_id": "vid-1",
@@ -853,6 +913,12 @@
             },
             {
                "id": "cta",
+               "appearance": {
+                  "align": "start",
+                  "width": "content",
+                  "tone": "accent",
+                  "space": "m"
+               },
                "type": "cta",
                "heading": "Get involved",
                "text": "Join us",
@@ -862,6 +928,12 @@
             },
             {
                "id": "cols",
+               "appearance": {
+                  "align": "start",
+                  "width": "wide",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "columns",
                "text": "Beside the image",
                "image": {
@@ -884,6 +956,12 @@
             },
             {
                "id": "quote",
+               "appearance": {
+                  "align": "start",
+                  "width": "content",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "quote",
                "variant": "callout",
                "text": "Remember this",
@@ -891,8 +969,15 @@
             },
             {
                "id": "div",
+               "appearance": {
+                  "align": "center",
+                  "width": "content",
+                  "tone": "none",
+                  "space": "m"
+               },
                "type": "divider",
                "style": "line",
+               "style_kind": "line",
                "size": "m"
             }
          ],
@@ -983,14 +1068,14 @@
                "position": "top"
             }
          ],
+         "ref": null,
+         "v2": null,
+         "community": null,
          "body": "## The beginning\n\nWhere it started\n\n## Then",
          "seo_title": null,
          "seo_description": null,
          "alternates": [],
-         "images": [],
-         "ref": null,
-         "v2": null,
-         "community": null
+         "images": []
       }
    },
    "/api/public/v1/cards?locale=en": {

@@ -1,0 +1,9 @@
+{
+  "repo": "Al-Ummah-Now/AlUmmahNow",
+  "ref": "f732038794f3cbedea39bb420073abda45720dfb",
+  "files": {
+    "page-blocks.ts": "4fc79c8064e25712fd57f436ebd5c572eeea05b76149b6af1d3a210cc2aaa913",
+    "page-blocks.sample.ts": "c616f12abd2745c24b519fe0d5dc2a0f799a96b20aefa6595f18ce5c7bc1be76",
+    "page-blocks.css": "2a3e4fc8da6a864e08acba161eb0b8d028d25ac91149d0be6af115b14f27dc52"
+  }
+}

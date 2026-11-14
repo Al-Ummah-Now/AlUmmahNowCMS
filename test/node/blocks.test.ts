@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+   DEFAULT_STYLE,
    BLOCK_TYPES,
    BlockError,
    blockMediaIds,
@@ -32,16 +33,25 @@ const full = [
    { id: "i", type: "quote", variant: "callout", text: "Note\nthis", cite: "Editor" },
    { id: "j", type: "divider", style: "line", size: "l" },
    { id: "k", type: "cards", heading: "Stories", tag: "seerah", page_size: 9, filter: false },
+   { id: "l", type: "hero", title: "Welcome", subtitle: "Hello", buttons: [{ label: "Go", url: "/videos/", variant: "primary" }] },
+   { id: "m", type: "layout", columns: 3, items: [{ heading: "One" }, { text: "Two" }, { media_id: 7 }] },
+   { id: "n", type: "cardgrid", heading: "Start", items: [{ title: "A", url: "/a/", label: "Open" }] },
+   { id: "o", type: "faq", items: [{ q: "Free?", a: "Yes." }] },
+   { id: "p", type: "stats", variant: "features", items: [{ label: "Watch", icon: "play" }] },
+   { id: "q", type: "contact", label: "Contact us", kind: "page" },
 ];
 
 describe("normalizeBlocks", () => {
    it("accepts every type, fills defaults and drops unknown keys", () => {
       const out = normalizeBlocks([...full, { id: "z", type: "divider", extra: "nope" }]);
       expect(out.map((b) => b.type)).toEqual([...full.map((b) => b.type), "divider"]);
-      expect(out[0]).toEqual({ id: "a", type: "markdown", text: "# Hi\n\nBody" });
+      expect(out[0]).toEqual({ id: "a", type: "markdown", appearance: DEFAULT_STYLE.markdown, text: "# Hi\n\nBody" });
       expect(out[2]).toMatchObject({ items: [{ media_id: 4 }, { media_id: 5 }] });
       expect(out[3]).toMatchObject({ post_ids: [9, 7], tag: "" });
-      expect(out.at(-1)).toEqual({ id: "z", type: "divider", style: "line", size: "m" });
+      expect(out.at(-1)).toEqual({ id: "z", type: "divider", appearance: DEFAULT_STYLE.divider, style_kind: "line", size: "m" });
+      // A v1 divider's style string is its line/space choice; an image's size is its width.
+      expect(out[9]).toMatchObject({ style_kind: "line", size: "l" });
+      expect(out[1]).toMatchObject({ size: "wide", appearance: { width: "wide" } });
       expect(new Set(BLOCK_TYPES)).toEqual(new Set(out.map((b) => b.type)));
    });
 
@@ -83,7 +93,18 @@ describe("normalizeBlocks", () => {
 });
 
 describe("helpers", () => {
-   const blocks = normalizeBlocks(full);
+   // The v1 types (a-k); the v2 sections (l-q) have their own test below.
+   const blocks = normalizeBlocks(full.slice(0, 11));
+   const v2 = normalizeBlocks(full.slice(11));
+
+   it("v2 sections: references, markdown for v1 readers, translatable texts", () => {
+      expect(blockMediaIds(v2)).toEqual([7]);
+      const md = blocksToMarkdown(v2);
+      for (const s of ["## Welcome", "[Go](/videos/)", "### One", "**Free?**", "Yes.", "Watch", "[Contact us](/contact/)"]) expect(md).toContain(s);
+      expect(blockTexts(v2).map((x) => x.path)).toEqual([
+         "l.title", "l.subtitle", "l.buttons.0.label", "m.items.0.heading", "m.items.1.text", "n.heading", "n.items.0.title", "n.items.0.label", "o.items.0.q", "o.items.0.a", "p.items.0.label", "q.label",
+      ]);
+   });
 
    it("the URL rule matches the navigation rule", () => {
       expect(validBlockUrl("/about")).toBe(true);

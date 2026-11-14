@@ -108,7 +108,7 @@ describe("preview API (GET /api/preview/v1/:kind/:id)", () => {
          ["alternates", "blocks", "body", "cover", "images", "list_kind", "locale", "published_at", "seo_description", "seo_title", "slug", "summary", "title", "updated_at"].sort(),
       );
       // The draft's blocks, exactly as the public Page serves them (a body-only row: one text block).
-      expect(body.content.blocks).toEqual([{ id: "body", type: "markdown", text: "# Draft body" }]);
+      expect(body.content.blocks).toEqual([{ id: "body", type: "markdown", appearance: { align: "start", width: "content", tone: "none", space: "m" }, text: "# Draft body" }]);
    });
 
    it("a scheduled row previews as scheduled while the public API still hides it", async () => {

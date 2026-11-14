@@ -345,7 +345,7 @@ function postSummaryOf(env: Env, r: Row, cover: MediaRef | null, slides: PublicS
    };
 }
 
-const blockDeps = (env: Env): BlockDeps => ({
+export const blockDeps = (env: Env): BlockDeps => ({
    summaries: (rows) => postSummaries(env, rows),
    postCols: POST_SUMMARY_COLS,
    snapshot: (s, kind, refId) => snapshotOf(s, { videosWebUrl: trimSlash(env.VIDEOS_WEB_URL), kind, refId }),

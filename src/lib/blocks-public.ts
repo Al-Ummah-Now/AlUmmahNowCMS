@@ -6,7 +6,8 @@
  * out, so www never renders an empty frame.
  */
 import type { Env } from "../env.ts";
-import { isComplete, storedBlocks, storedSlides, type Block, type Slide, type SlidePosition } from "./blocks.ts";
+import { blockMediaIds, blockVideoRefs, bodyAsBlocks, isComplete, storedBlocks, storedSlides, type Block, type Slide, type SlidePosition } from "./blocks.ts";
+import { servePageBlocks, type PostSummaryLite, type ServedBlock, type VideoSnapshot } from "./page-blocks.generated.ts";
 import { MEDIA_COLS, mediaRefOf, type MediaRef, type MediaRow } from "./media-ref.ts";
 import { LIVE_SQL } from "./schedule.ts";
 import { MAIN_SITE_SQL } from "./scholars/main-site.ts";
@@ -77,7 +78,7 @@ export interface BlockDeps {
    snapshot: (s: Row | null, kind: string, refId: string) => Record<string, unknown> | null;
 }
 
-async function postsFor(env: Env, b: Extract<Block, { type: "posts" }>, l: Locale, deps: BlockDeps): Promise<unknown[]> {
+export async function postsFor(env: Env, b: Extract<Block, { type: "posts" }>, l: Locale, deps: BlockDeps): Promise<unknown[]> {
    const order = "ORDER BY published_at DESC, id DESC";
    if (b.mode === "latest" || b.mode === "tag") {
       const tag = b.mode === "tag" ? "AND EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(posts.tags) THEN posts.tags ELSE '[]' END) WHERE value = ?3)" : "";
@@ -116,75 +117,30 @@ async function postsFor(env: Env, b: Extract<Block, { type: "posts" }>, l: Local
    return deps.summaries(wanted.map((id) => rowById.get(id)).filter((r): r is Row => !!r));
 }
 
-/** A page row's blocks as served. A page saved before blocks existed serves its body as one block. */
-export async function publicBlocks(env: Env, row: Row, deps: BlockDeps): Promise<Record<string, unknown>[]> {
+/**
+ * A page row's blocks as served, through the shared `servePageBlocks` (the same mapping the editor's
+ * live preview uses). References are prefetched in three batched reads: media, video snapshots and
+ * each posts block's list. A page saved before blocks existed serves its body as one text block.
+ */
+export async function publicBlocks(env: Env, row: Row, deps: BlockDeps): Promise<ServedBlock[]> {
    let blocks = storedBlocks(row.blocks);
-   if (!blocks.length && typeof row.body === "string" && row.body.trim()) blocks = [{ id: "body", type: "markdown", text: row.body }];
+   if (!blocks.length) blocks = bodyAsBlocks(row.body);
    blocks = blocks.filter(isComplete);
    const l = row.locale === "ar" ? "ar" : "en";
-   const ids = blocks.flatMap((b) => (b.type === "image" || b.type === "columns" ? (b.media_id ? [b.media_id] : []) : b.type === "gallery" ? b.items.flatMap((x) => (x.media_id ? [x.media_id] : [])) : []));
-   const refs = blocks.flatMap((b) => (b.type === "video" ? [{ kind: b.kind, ref_id: b.ref_id }] : b.type === "videos" ? b.items.map((x) => ({ kind: x.kind, ref_id: x.ref_id })) : []));
-   const [media, snaps] = await Promise.all([mediaByIds(env, ids), getSnapshots(env.DB, refs)]);
-   const served = (kind: string, ref: string) => {
-      const raw = snaps.get(`${kind}:${ref}`) ?? null;
-      if (raw && raw.public === false) return undefined; // no longer public: left out
-      return deps.snapshot(raw, kind, ref);
-   };
-   const out: Record<string, unknown>[] = [];
-   for (const b of blocks) {
-      switch (b.type) {
-         case "markdown":
-            out.push({ id: b.id, type: b.type, text: b.text });
-            break;
-         case "image": {
-            const ref = media.get(b.media_id!);
-            if (ref) out.push({ id: b.id, type: b.type, image: withAlt(ref, b.alt), caption: orNull(b.caption), size: b.size });
-            break;
-         }
-         case "gallery": {
-            const items = b.items.flatMap((x) => {
-               const ref = x.media_id ? media.get(x.media_id) : undefined;
-               return ref ? [{ image: withAlt(ref, x.alt), caption: orNull(x.caption) }] : [];
-            });
-            if (items.length) out.push({ id: b.id, type: b.type, columns: b.columns, items });
-            break;
-         }
-         case "posts": {
-            const items = await postsFor(env, b, l, deps);
-            if (items.length) out.push({ id: b.id, type: b.type, heading: orNull(b.heading), mode: b.mode, items });
-            break;
-         }
-         case "cards":
-            out.push({ id: b.id, type: b.type, heading: orNull(b.heading), tag: orNull(b.tag), page_size: b.page_size, filter: b.filter });
-            break;
-         case "videos": {
-            const items = b.items.flatMap((x) => {
-               const snapshot = served(x.kind, x.ref_id);
-               return snapshot === undefined ? [] : [{ kind: x.kind, ref_id: x.ref_id, title_override: orNull(x.title_override), snapshot }];
-            });
-            if (items.length) out.push({ id: b.id, type: b.type, heading: orNull(b.heading), items });
-            break;
-         }
-         case "video": {
-            const snapshot = served(b.kind, b.ref_id);
-            if (snapshot !== undefined) out.push({ id: b.id, type: b.type, kind: b.kind, ref_id: b.ref_id, caption: orNull(b.caption), snapshot });
-            break;
-         }
-         case "cta":
-            out.push({ id: b.id, type: b.type, heading: orNull(b.heading), text: orNull(b.text), label: b.label, url: b.url, tone: b.tone });
-            break;
-         case "columns": {
-            const ref = b.media_id ? media.get(b.media_id) : undefined;
-            out.push({ id: b.id, type: b.type, text: b.text, image: ref ? withAlt(ref, b.alt) : null, caption: ref ? orNull(b.caption) : null, image_side: b.image_side });
-            break;
-         }
-         case "quote":
-            out.push({ id: b.id, type: b.type, variant: b.variant, text: b.text, cite: orNull(b.cite) });
-            break;
-         case "divider":
-            out.push({ id: b.id, type: b.type, style: b.style, size: b.size });
-            break;
-      }
-   }
-   return out;
+   const postBlocks = blocks.filter((b): b is Extract<Block, { type: "posts" }> => b.type === "posts");
+   const [media, snaps, postLists] = await Promise.all([
+      mediaByIds(env, blockMediaIds(blocks)),
+      getSnapshots(env.DB, blockVideoRefs(blocks)),
+      Promise.all(postBlocks.map(async (b) => [b.id, (await postsFor(env, b, l, deps)) as PostSummaryLite[]] as const)),
+   ]);
+   const posts = new Map(postLists);
+   return servePageBlocks(blocks, {
+      media: (id) => media.get(id),
+      snapshot: (kind, ref) => {
+         const raw = snaps.get(`${kind}:${ref}`) ?? null;
+         if (raw && raw.public === false) return undefined; // no longer public: left out
+         return deps.snapshot(raw, kind, ref) as VideoSnapshot | null;
+      },
+      posts: (b) => posts.get(b.id) ?? [],
+   });
 }

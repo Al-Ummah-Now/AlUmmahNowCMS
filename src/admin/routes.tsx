@@ -21,7 +21,10 @@ import { ADMIN_STRINGS } from "./i18n.ts";
 import { resolvePrefs } from "./prefs.ts";
 import { overviewScreen } from "./screens/overview.tsx";
 import { peopleScreen } from "./screens/people.tsx";
-import { contentEditor, contentList, parseListParams, type ContentKind } from "./screens/content.tsx";
+import { normalizeBlocks, type Block } from "../lib/blocks.ts";
+import { postsFor } from "../lib/blocks-public.ts";
+import { blockDeps } from "../routes/public-api.ts";
+import { blocksFragment, contentEditor, contentList, parseListParams, type ContentKind } from "./screens/content.tsx";
 import { historyScreen } from "./screens/history.tsx";
 import { mediaAltRoute } from "./api.ts";
 import { timelineApi } from "./timeline-api.ts";
@@ -135,6 +138,14 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
          if (!body) return render(c, v, v.t.common.notFound, <p class="notice">{v.t.common.notFound}</p>, 404);
          return render(c, v, v.t.entities[kind].one, body);
       });
+      if (kind === "pages")
+         r.get(`/pages/:id{[0-9]+}/blocks-fragment`, async (c) => {
+            const v = await buildView(c, deps);
+            const out = await blocksFragment(v, new Data(c, deps), Number(c.req.param("id")), c.req.query("locale") === "ar" ? "ar" : "en", c.env.DB);
+            if (!out) return c.json({ error: "not_found" }, 404);
+            c.header("cache-control", "no-store");
+            return c.json({ data: out });
+         });
       r.get(`/${kind}/:id{[0-9]+}/history`, async (c) => {
          const v = await buildView(c, deps);
          const page = Math.min(Math.max(Number.parseInt(c.req.query("page") ?? "1", 10) || 1, 1), 10_000);
@@ -144,6 +155,23 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
          return render(c, v, v.t.history.title, body);
       });
    }
+
+   // The page builder's live preview: what a posts block lists right now (the public API's own query).
+   r.post("/admin/api/page-preview/posts", async (c) => {
+      const role = c.get("user")?.role;
+      if (role === "writer" || role === "staff_writer") return c.json({ error: "forbidden" }, 403);
+      const body = (await c.req.json().catch(() => null)) as { block?: unknown; locale?: unknown } | null;
+      let block: Block | undefined;
+      try {
+         [block] = normalizeBlocks([body?.block]);
+      } catch {
+         return c.json({ error: "bad_block" }, 400);
+      }
+      if (block?.type !== "posts") return c.json({ error: "bad_block" }, 400);
+      const items = await postsFor(c.env, block, body?.locale === "ar" ? "ar" : "en", blockDeps(c.env));
+      c.header("cache-control", "no-store");
+      return c.json({ data: items });
+   });
 
    r.route("/admin/api/timeline", timelineApi(deps));
    r.route("/admin/api/lists", listsApi(deps));

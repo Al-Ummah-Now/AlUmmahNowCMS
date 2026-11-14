@@ -165,19 +165,35 @@ translations, SEO) and one column on phones with a sticky action bar.
 ### 2.1 Page blocks and card posts
 
 **Page content** replaces the page's markdown field with a block list (`src/admin/screens/blocks.tsx`,
-`src/admin/client/blocks.ts`). *Add a block* is a grid of eleven named cards (icon, name and what it
-is for; two compact columns on phones). Each block is a card with its type icon and name, and named
-icon buttons: Move up, Move down, Duplicate, Remove (no bare "+" anywhere). Reorder by those buttons,
-by Alt+↑/↓ from any field in the block, or by dragging the grip; every move, add, duplicate and
-remove is announced in an `aria-live` region, and Remove offers Undo. Focus lands in the new block's
-first field, and stays on the moved item. Images come from the **media chooser** (library grid with
-paging, or upload: names are generated, so an upload never replaces a file); the alt text defaults
-to the library's description. Posts are picked from a search dialog in the page's language; videos
-with the existing picker, snapshotted server-side. *Preview* shows the blocks as they read, in the
-page's language and direction; *Preview on site* shows the finished design. Incomplete blocks are
-marked "Hidden on the site until it is complete". Prose fields are spell-checked in the page's
-language; links are not. A bad block is refused before saving, with the message on that block;
-server errors never show raw text.
+`src/admin/client/blocks.ts`) and the **page builder** (`src/admin/client/page-builder.ts`; wiki
+AUN-CMS-PAGE-BUILDER). Blocks are typed sections, never HTML or CSS: hero, text, image, gallery, two
+or three columns, text beside an image, cards, feature list, stats, FAQ, quote or callout, call to
+action (and a full-width band), contact, video, video shelf, latest posts, card posts, divider, spacer.
+
+- **Add a block** opens the block picker: presets in four groups (Layout, Basics, Sections, Videos and
+  posts), each with a schematic thumbnail, a name and what it is for, and a filter box (Enter adds the
+  first match). It opens from the end of the list or from *Add below* on any block, and adds there.
+- **Each block** is a card with its icon, name and its first words (a page with more than two blocks
+  opens with every block folded to that line), a fold button, and named icon buttons: Move up, Move
+  down, Duplicate, Remove (with Undo). Reorder by those, by Alt+↑/↓ from any field, or by the grip.
+  Nested items (hero buttons, columns, cards, questions, features) reorder, duplicate and remove the
+  same way, within their limits. Every change is announced in an `aria-live` region.
+- **Style** (per block, only the options that type offers): alignment, width (text, wide, full),
+  background tone (none, soft, card, accent, night) and spacing. Tones are theme tokens, so a block
+  looks right in every Fanous theme, light and dark, LTR and RTL.
+- **The builder** (*Open the page builder*) is a full-screen workspace: the block list beside a live
+  preview rendered by the sites' own renderer and stylesheet in a sandboxed frame, updated as you
+  type. Toolbar: Desktop (scaled to fit) / Phone (390 px); this language live / the other language's
+  saved version; Light / Dark; a theme for the preview only (the site's theme never changes here);
+  *Copy from {other language}* (replaces the blocks with the other page's, images and layout included,
+  for translation; Undo in the toast); the form's main Save/Publish; Done (or Esc). Clicking a section
+  in the preview opens its block; focusing a block highlights its section.
+- Images come from the **media chooser** (library grid with paging, or upload: names are generated,
+  so an upload never replaces a file); the alt text defaults to the library's description. Posts are
+  picked from a search dialog in the page's language; videos with the existing picker, snapshotted
+  server-side. Incomplete blocks are marked "Hidden on the site until it is complete". Prose fields
+  are spell-checked in the page's language; links and emails are checked on the field. A bad block
+  is refused before saving, with the message on that block; server errors never show raw text.
 
 **Card posts:** the post editor has a *Post type* toggle (Article | Cards). Cards hides the body and
 shows **Slides**: each slide has an image, a heading and short text (≤ 140 / 400), alt text and a
