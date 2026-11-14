@@ -11,6 +11,9 @@
   "minify": true,
   "keep_vars": false,
   "observability": { "enabled": true },
+  // Static files served before the Worker, at their own paths: the Fawanees street tiles
+  // (public/fanous/street/*.webp, vendored by scripts/sync-fanous.ts). Repeated in each env.
+  "assets": { "directory": "./public" },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   // Workers AI: the AI assist model (docs/AI_ASSIST_SPEC.md §2). Not inherited by envs: each env repeats it.
   "ai": { "binding": "AI" },
@@ -68,6 +71,7 @@
       // no automatic per-request log line (AlUmmahNow docs/operations/logging.md)
       "observability": { "enabled": true, "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": false } },
       "name": "al-ummah-now-cms-stage",
+      "assets": { "directory": "./public" },
       "workers_dev": false,
       "preview_urls": false,
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
@@ -117,6 +121,7 @@
       // no automatic per-request log line (AlUmmahNow docs/operations/logging.md)
       "observability": { "enabled": true, "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": false } },
       "name": "al-ummah-now-cms-qa",
+      "assets": { "directory": "./public" },
       "workers_dev": false,
       "preview_urls": false,
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
