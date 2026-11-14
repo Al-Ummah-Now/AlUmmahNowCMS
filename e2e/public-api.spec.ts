@@ -120,6 +120,16 @@ test.describe("public API as www reads it", () => {
          expect((await request.get(`${API}/lists/e2e-no-such-list?locale=${locale}`)).status()).toBe(404);
       });
 
+      test(`${locale}: About is a published content page linked to its translation (migration 0021)`, async ({ request }) => {
+         // www and the videos site both render /{locale}/about from this page. The copy is the editors'
+         // to change, so only its shape is checked here.
+         const page = await read(request, "page", wwwPaths.page(locale, "about"));
+         expect(page).toMatchObject({ slug: "about", locale, list_kind: null });
+         expect(page.title.trim()).not.toBe("");
+         expect(page.body.trim()).not.toBe("");
+         expect(page.alternates).toContainEqual({ locale: locale === "en" ? "ar" : "en", slug: "about" });
+      });
+
       test(`${locale}: unknown page and post slugs are 404 (www caches them as not found)`, async ({ request }) => {
          for (const path of [wwwPaths.page(locale, "e2e-no-such-page"), wwwPaths.post(locale, "e2e-no-such-post")]) {
             expect((await request.get(`${API}${path}`)).status(), path).toBe(404);

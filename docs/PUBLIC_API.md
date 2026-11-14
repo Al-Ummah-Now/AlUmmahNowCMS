@@ -117,7 +117,9 @@ interface CuratedSnapshot {
 | `/media/*` | — | the R2 object, `Cache-Control: public, max-age=31536000, immutable` |
 | `/media/*` | `w` (1–1600), `f` (`avif` \| `webp` \| `jpeg` \| `png`) | the variant: `Content-Type` of `f`, immutable cache, `X-Variant: hit`. Not made yet: the **original**, `Cache-Control: public, max-age=60, s-maxage=60`, `X-Variant: pending`, and the job is queued. Malformed `w`/`f` → 400 |
 
-The page slug `home` is reserved (not used as a page route on www). An empty CMS returns empty
+The page slug `home` is reserved (not used as a page route on www). The page slug `about` (en + ar,
+translation key `www-about`, seeded by migration 0021 with the owner's copy) is the About page: www
+serves it at `/{locale}/about/` and the videos site renders it at `/{locale}/about`, canonical to www's. An empty CMS returns empty
 arrays and `settings: null`, never an error.
 
 ## Scholars
