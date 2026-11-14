@@ -21,7 +21,17 @@ export const CMS_APP_NAME: Record<HeaderLang, string> = { en: "Content", ar: "ا
 export function withQuery(path: string, search: string, key: string, value: string): string {
    const q = new URLSearchParams(search);
    q.set(key, value);
-   return `${path}?${q.toString()}`;
+   return `${samePath(path)}?${q.toString()}`;
+}
+
+/**
+ * The request path as a same-origin link. A path like `//evil.example` (a request for
+ * `https://cms…//evil.example`) or one with backslashes would otherwise become a link to another
+ * site; leading slashes and backslashes collapse to one `/`.
+ */
+export function samePath(path: string): string {
+   const p = path.replace(/\\/g, "/").replace(/^\/+/, "/");
+   return p.startsWith("/") ? p : "/";
 }
 
 /** Builds a link to this page with one parameter changed (`withQuery`, or a page's own rule). */
