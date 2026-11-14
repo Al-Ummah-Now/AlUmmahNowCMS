@@ -13,7 +13,9 @@
  * The lantern street (Fawanees; AlUmmahNow docs/design/FAWANEES-STREET.md), at the tokens commit:
  * each theme's --fanous-street-* tokens and light-only materials from the videos site's compiled
  * stylesheets (apps/web/src/theme/site-themes.css, materials.css), the street module's CSS
- * (STREET_CSS) and its script, vendored into src/admin/client/ for the client bundle.
+ * (STREET_CSS) and its script, vendored into src/admin/client/ for the client bundle, and the street
+ * tile images the tokens name (apps/web/public/fanous/street/*.webp, one per variant and mode), into
+ * public/fanous/street/ (served by the Worker's static assets at the same paths as on the videos site).
  *
  * The header (AlUmmahNow docs/design/NAV.md "Header"), at the nav commit: the markup builders
  * (nav/header.js) and the Light/Dark toggle they import (nav/mode-toggle.js), with their types,
@@ -22,7 +24,7 @@
  * vendored file differs from the hash recorded at sync time (CI runs it).
  */
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const REPO = "Al-Ummah-Now/AlUmmahNow";
@@ -57,12 +59,22 @@ interface Lock {
    street?: Record<string, string>;
    /** The vendored header files (NAV_FILES_DIR), byte-identical to the nav commit, by path. */
    navFiles?: Record<string, string>;
+   /** The street tile images (public/fanous/street/*.webp), by path. */
+   streetTiles?: Record<string, string>;
 }
 
 export const STREET_JS_OUT = "src/admin/client/fanous-street.generated.js";
 export const STREET_DTS_OUT = "src/admin/client/fanous-street.generated.d.ts";
-/** The street's lights are the one token value that may hold a URL: an inline SVG (data:), never a fetch. */
+/** The street's lights may hold a URL only as an inline SVG (data:), never a fetch. */
 const LIGHTS = /^url\("data:image\/svg\+xml,[A-Za-z0-9%._~!*'()-]+"\)$/;
+/** The street tile (and its variants 1-4): only our own WebP files under /fanous/street/, shown at 2x. */
+const TILE_NAME = /^--fanous-street-tile(-[1-4])?$/;
+const TILE_VALUE = /^image-set\(url\("\/fanous\/street\/([a-z0-9-]+\.webp)"\) 2x\)$/;
+/** Where the tile images are served from (the Worker's static assets) and fetched from (the videos site). */
+export const STREET_TILES_DIR = "public/fanous/street";
+const STREET_TILES_SOURCE = "apps/web/public/fanous/street";
+/** Each tile stays small: the page downloads one per load. */
+export const STREET_TILE_MAX_BYTES = 300 * 1024;
 
 /** One theme's street tokens from the videos site's site-themes.css, as html:not(.dark) / html.dark blocks. */
 export function streetTokens(siteThemes: string, id: string): string {
@@ -70,9 +82,10 @@ export function streetTokens(siteThemes: string, id: string): string {
       const out: string[] = [];
       for (const m of siteThemes.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
          if (!m[1]!.split(",").map((x) => x.trim()).includes(selector)) continue;
-         for (const d of m[2]!.matchAll(/(--fanous-street-[a-z-]+)\s*:\s*([^;]+);/g)) {
+         for (const d of m[2]!.matchAll(/(--fanous-street-[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
             const value = d[2]!.trim();
-            if (d[1] === "--fanous-street-lights" ? !LIGHTS.test(value) : /url\(|[<>{}]|expression/i.test(value)) throw new Error(`unexpected value for ${d[1]} in ${id}: ${value.slice(0, 60)}`);
+            const ok = d[1] === "--fanous-street-lights" ? LIGHTS.test(value) : TILE_NAME.test(d[1]!) ? TILE_VALUE.test(value) : !/url\(|[<>{}]|expression/i.test(value);
+            if (!ok) throw new Error(`unexpected value for ${d[1]} in ${id}: ${value.slice(0, 60)}`);
             out.push(`${d[1]}:${value}`);
          }
       }
@@ -86,6 +99,20 @@ export function streetTokens(siteThemes: string, id: string): string {
 export function lightMaterials(materials: string, id: string): string {
    const m = new RegExp(`html\\[data-theme='${id}'\\]:not\\(\\.dark\\)\\{([^{}]*)\\}`).exec(materials);
    return m ? `html:not(.dark){${m[1]}}` : "";
+}
+
+/** The tile image files the vendored themes name (sorted, unique). */
+export function streetTileFiles(themesCss: string[]): string[] {
+   const files = new Set<string>();
+   for (const css of themesCss) for (const m of css.matchAll(/--fanous-street-tile(?:-[1-4])?:(image-set\([^;}]+\))/g)) files.add(TILE_VALUE.exec(m[1]!)![1]!);
+   return [...files].sort();
+}
+
+/** A tile image as fetched: a WebP under the size cap, or an error. */
+export function checkTile(name: string, body: Uint8Array): void {
+   const b = Buffer.from(body);
+   if (b.subarray(0, 4).toString() !== "RIFF" || b.subarray(8, 12).toString() !== "WEBP") throw new Error(`${name}: not a WebP`);
+   if (b.length > STREET_TILE_MAX_BYTES) throw new Error(`${name}: ${b.length} bytes, over ${STREET_TILE_MAX_BYTES}`);
 }
 
 const vendorHeader = (ref: string, path: string) => `// Generated by scripts/sync-fanous.ts from ${REPO}@${ref}:${path}. Do not edit.\n`;
@@ -162,11 +189,20 @@ async function build(refs: Lock["refs"]) {
       `/** The lantern street module's CSS (packages/fanous-tokens/street/fanous-street.css). */\n` +
       `export const STREET_CSS = ${JSON.stringify(minify(streetCss))};\n` +
       `export const THEMES: Record<ThemeId, VendoredTheme> = ${JSON.stringify(themes, null, 1)};\n`;
+   const tiles: Record<string, Uint8Array> = {};
+   for (const name of streetTileFiles(Object.values(themes).map((t) => t.css))) {
+      const url = `https://raw.githubusercontent.com/${REPO}/${refs.tokens}/${STREET_TILES_SOURCE}/${name}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url}: ${res.status}`);
+      const body = new Uint8Array(await res.arrayBuffer());
+      checkTile(name, body);
+      tiles[`${STREET_TILES_DIR}/${name}`] = body;
+   }
    const street = {
       [STREET_JS_OUT]: vendorHeader(refs.tokens, "packages/fanous-tokens/street/fanous-street.js") + streetJs,
       [STREET_DTS_OUT]: vendorHeader(refs.tokens, "packages/fanous-tokens/street/fanous-street.d.ts") + streetDts,
    };
-   return { body, sources, street };
+   return { body, sources, street, tiles };
 }
 
 /**
@@ -243,8 +279,14 @@ async function main() {
          console.error(`${LOCK} has no hash for every file in ${NAV_FILES_DIR}. Run: npm run sync:fanous`);
          process.exit(1);
       }
-      for (const [file, hash] of Object.entries({ ...lock.street, ...navFiles })) {
-         if (sha256(readFileSync(file, "utf8")) !== hash) {
+      const tiles = lock.streetTiles ?? {};
+      const onDisk = readdirSync(STREET_TILES_DIR).map((f) => `${STREET_TILES_DIR}/${f}`).sort();
+      if (JSON.stringify(onDisk) !== JSON.stringify(Object.keys(tiles).sort())) {
+         console.error(`${STREET_TILES_DIR} holds files the lock does not list, or misses some. Run: npm run sync:fanous`);
+         process.exit(1);
+      }
+      for (const [file, hash] of Object.entries({ ...(lock.street ?? {}), ...navFiles, ...tiles })) {
+         if (sha256(file.endsWith(".webp") ? readFileSync(file) : readFileSync(file, "utf8")) !== hash) {
             console.error(`${file} does not match ${LOCK} (hand edit?). Run: npm run sync:fanous`);
             process.exit(1);
          }
@@ -260,9 +302,13 @@ async function main() {
    if (![refs.tokens, refs.materials, refs.nav].every((r) => /^[0-9a-f]{40}$/.test(r))) {
       throw new Error("pin full commit SHAs: --tokens <sha> --materials <sha> --nav <sha>");
    }
-   const { body, sources, street } = await build(refs);
+   const { body, sources, street, tiles } = await build(refs);
    writeFileSync(OUT, body);
    for (const [file, text] of Object.entries(street)) writeFileSync(file, text);
+   // The tiles directory holds exactly the files the themes name
+   rmSync(STREET_TILES_DIR, { recursive: true, force: true });
+   mkdirSync(STREET_TILES_DIR, { recursive: true });
+   for (const [file, bytes] of Object.entries(tiles)) writeFileSync(file, bytes);
    const icons = await navIconsModule(refs.nav);
    writeFileSync(NAV_ICONS_OUT, icons);
    const fonts = await navFontsModule(refs.nav);
@@ -275,7 +321,7 @@ async function main() {
       writeFileSync(`${NAV_FILES_DIR}/${name}`, text);
       navFiles[`${NAV_FILES_DIR}/${name}`] = sha256(text);
    }
-   const next: Lock = { repo: REPO, refs, sources, output: sha256(body), navIconsOutput: sha256(icons), navFontsOutput: sha256(fonts), street: Object.fromEntries(Object.entries(street).map(([f, t]) => [f, sha256(t)])), navFiles };
+   const next: Lock = { repo: REPO, refs, sources, output: sha256(body), navIconsOutput: sha256(icons), navFontsOutput: sha256(fonts), street: Object.fromEntries(Object.entries(street).map(([f, t]) => [f, sha256(t)])), navFiles, streetTiles: Object.fromEntries(Object.entries(tiles).map(([f, b]) => [f, sha256(b)])) };
    writeFileSync(LOCK, JSON.stringify(next, null, 2) + "\n");
    console.log(`wrote ${OUT} (${body.length} bytes) and ${LOCK}`);
 }
