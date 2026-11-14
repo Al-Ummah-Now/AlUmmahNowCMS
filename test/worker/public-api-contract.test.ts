@@ -4,6 +4,7 @@
  * upload and the alt endpoint), then every public response is compared with a committed snapshot
  * (fixtures/public-api-contract.json) after replacing ids, dates and generated file names.
  */
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import expected from "./fixtures/public-api-contract.json";
 import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
@@ -36,6 +37,9 @@ export function normalize(value: unknown): unknown {
 
 describe("public API contract (www)", () => {
    it("returns the same shapes and values for content written through the staff screens", async () => {
+      // The snapshot's own About pages are written below through the staff API: the About page
+      // migration 0021 seeds goes first (the same slug in both languages).
+      await env.DB.prepare("DELETE FROM pages WHERE slug = 'about'").run();
       const { callback } = await signIn(["Admin"], { id: "contract", email: "contract@example.com" });
       const cookie = cookiesOf(callback);
       const f = makeWorker(videosApi);
