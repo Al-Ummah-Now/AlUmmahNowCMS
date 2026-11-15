@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appLinks, publicSiteLinks } from "../../src/lib/app-links.ts";
+import { appLinks } from "../../src/lib/app-links.ts";
 
 /** The account menu's "Al Ummah Now apps" (AlUmmahNow docs/design/NAV.md). */
 describe("appLinks", () => {
@@ -26,19 +26,5 @@ describe("appLinks", () => {
 
    it("leaves out an app whose address is unknown", () => {
       expect(appLinks("admin", "en", { ...urls, videos: "", issuer: "" }).map((a) => a.id)).toEqual(["www", "admin"]);
-   });
-});
-
-/** The header's app links (AlUmmahNow docs/design/NAV.md "Header"): Website, Videos. */
-describe("publicSiteLinks", () => {
-   it("is Website then Videos at this environment's hosts, in the page's language", () => {
-      expect(publicSiteLinks("ar", { www: "https://www.qa.alummahnow.net/", videos: "https://videos.qa.alummahnow.net" })).toEqual([
-         { id: "www", href: "https://www.qa.alummahnow.net/ar/" },
-         { id: "videos", href: "https://videos.qa.alummahnow.net/ar" },
-      ]);
-   });
-
-   it("leaves out a site whose address is unknown", () => {
-      expect(publicSiteLinks("en", { www: "https://www.alummahnow.net", videos: "" })).toEqual([{ id: "www", href: "https://www.alummahnow.net/en/" }]);
    });
 });

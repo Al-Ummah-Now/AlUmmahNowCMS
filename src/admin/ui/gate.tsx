@@ -24,9 +24,6 @@ export interface GateView {
    search: string;
    /** ENVIRONMENT: the header's QA / STAGE badge. */
    environment?: string;
-   /** The header's app links (Website, Videos). */
-   wwwUrl?: string;
-   videosWebUrl?: string;
    /** A solid Sign in in the header, on the signed-out landings (Signed out, Sign-in failed). */
    signInHref?: string;
    strings: {
@@ -77,9 +74,9 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
             <div class="theme-bg" aria-hidden="true">
                {raw(theme.backdrop)}
             </div>
-            {/* The shared header (src/lib/header.ts): brand, badge, app links, language, sun/moon, and Sign in
+            {/* The shared header (src/lib/header.ts): brand, badge, language, sun/moon, and Sign in
                 on the signed-out landings */}
-            {raw(publicHeaderHtml({ lang: prefs.lang, environment: v.environment, link: (key, value) => withParam(v, key, value), wwwUrl: v.wwwUrl, videosWebUrl: v.videosWebUrl, signInHref: v.signInHref }))}
+            {raw(publicHeaderHtml({ lang: prefs.lang, environment: v.environment, link: (key, value) => withParam(v, key, value), signInHref: v.signInHref }))}
             <main id="main" class="gate">
                <section class="card gate-card" data-testid={c.testId} aria-labelledby="gate-h">
                   <span class="gate-ic">

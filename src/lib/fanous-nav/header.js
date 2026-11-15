@@ -9,20 +9,19 @@
  *
  * Order in the bar (reading order; it mirrors in Arabic), see HEADER_ORDER:
  *   drawer toggle · brand · environment badge · the app's own links/search · app actions ·
- *   app links · language · light/dark · account (or Sign in)
+ *   language · light/dark · account (or Sign in)
+ * No links to other sites (owner, 2026-11-15): the logo leads to the app's home; the other apps
+ * are in the account menu's "Al Ummah Now apps".
  */
 import { MODE_ICON_ATTRS, modeIconSvg, modeToggleLabel } from './mode-toggle.js';
 
 /** The slots of the header, in reading order. */
-export const HEADER_ORDER = ['menu', 'brand', 'env', 'primary', 'actions', 'apps', 'lang', 'mode', 'account'];
+export const HEADER_ORDER = ['menu', 'brand', 'env', 'primary', 'actions', 'lang', 'mode', 'account'];
 
 /** Strings the header needs, per page language. */
 export const HEADER_LABELS = {
   en: {
     siteName: 'Al Ummah Now',
-    apps: 'Al Ummah Now apps',
-    www: 'Website',
-    videos: 'Videos',
     signIn: 'Sign in',
     menu: 'Menu',
     /** The language button's name: the action, then (visible) the other language's own name. */
@@ -32,9 +31,6 @@ export const HEADER_LABELS = {
   },
   ar: {
     siteName: 'الأمة الآن',
-    apps: 'تطبيقات الأمة الآن',
-    www: 'الموقع',
-    videos: 'المرئيات',
     signIn: 'تسجيل الدخول',
     menu: 'القائمة',
     switchLang: 'التبديل إلى الإنجليزية',
@@ -89,26 +85,6 @@ export function envBadgeHtml(environment, lang) {
   if (env !== 'qa' && env !== 'stage') return '';
   const name = HEADER_LABELS[lc(lang)].env[env];
   return `<span class="aun-env" role="note" aria-label="${escapeHtml(name)}" title="${escapeHtml(name)}">${env.toUpperCase()}</span>`;
-}
-
-/**
- * The public sites other than the current one (Website, Videos), each with its app icon.
- * `links`: [{ id: 'www' | 'videos', href }]. Icon only below 1280px; on phones they leave the bar
- * (they are in the account menu's "Al Ummah Now apps", or the drawer, or the page footer).
- */
-export function appLinksHtml({ lang, links, iconBase = '/aun-nav/icons' }) {
-  const l = HEADER_LABELS[lc(lang)];
-  const items = (links ?? [])
-    .filter((a) => a && a.href && (a.id === 'www' || a.id === 'videos'))
-    .map(
-      (a) =>
-        `<a class="aun-app" href="${escapeHtml(a.href)}">` +
-        `<img class="aun-app-mark" src="${escapeHtml(iconBase)}/${a.id}.webp" alt="" width="22" height="22">` +
-        `<span class="aun-app-name">${l[a.id]}</span>` +
-        `</a>`
-    )
-    .join('');
-  return items ? `<nav class="aun-apps" aria-label="${escapeHtml(l.apps)}">${items}</nav>` : '';
 }
 
 /**

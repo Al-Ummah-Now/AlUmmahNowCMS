@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetThemeCache, siteTheme } from "../../src/admin/prefs.ts";
 import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
-import { appLinksHtml, brandHtml, envBadgeHtml, HEADER_ORDER, langButtonHtml } from "../../src/lib/fanous-nav/header.js";
+import { brandHtml, envBadgeHtml, HEADER_ORDER, langButtonHtml } from "../../src/lib/fanous-nav/header.js";
 import { drawerToggleHtml, modeLinksHtml } from "../../src/lib/header.ts";
 
 async function session(roles: string[], id: string) {
@@ -81,22 +81,24 @@ describe("staff shell", () => {
          expect(header).not.toBe("");
          const brand = brandHtml({ lang, href: "/", app: lang === "ar" ? "المحتوى" : "Content" });
          const env = envBadgeHtml("qa", lang);
-         const apps = appLinksHtml({ lang, links: [{ id: "www", href: `https://www.test/${lang}/` }, { id: "videos", href: `https://videos.test/${lang}` }] });
          const other = lang === "ar" ? "en" : "ar";
          // the language button keeps the screen and its query
          const langBtn = langButtonHtml({ lang, href: `/pages?lang=${other}&q=x` });
          const mode = modeLinksHtml(lang, (k, val) => `/pages?lang=${k === "lang" ? val : lang}&q=x${k === "mode" ? `&mode=${val}` : ""}`);
-         for (const piece of [brand, env, apps, langBtn, mode]) expect(header).toContain(piece);
+         for (const piece of [brand, env, langBtn, mode]) expect(header).toContain(piece);
          // the drawer toggle is the videos site's: a 40px .aun-icon-btn.aun-menu-btn with lucide menu, "Menu" / "القائمة"
          expect(header).toContain(drawerToggleHtml(lang));
          expect(drawerToggleHtml(lang)).toMatch(new RegExp(`^<button class="aun-icon-btn aun-menu-btn only-phone" type="button" data-open-drawer aria-label="${lang === "ar" ? "القائمة" : "Menu"}"`));
          expect(drawerToggleHtml(lang)).toContain('class="lucide lucide-menu"');
-         // order: menu · brand · env · search (primary) · New · app links · language · sun/moon · account
+         // order: menu · brand · env · search (primary) · New · language · sun/moon · account
          const at = (s: string) => header.indexOf(s);
-         const order = [at("data-open-drawer"), at(brand), at(env), at('class="aun-header-primary'), at('class="btn primary sm"'), at(apps), at(langBtn), at(mode), at("aun-acct-btn")];
+         const order = [at("data-open-drawer"), at(brand), at(env), at('class="aun-header-primary'), at('class="btn primary sm"'), at(langBtn), at(mode), at("aun-acct-btn")];
          expect(order.every((n) => n >= 0)).toBe(true);
          expect([...order].sort((a, b) => a - b)).toEqual(order);
-         expect(HEADER_ORDER).toEqual(["menu", "brand", "env", "primary", "actions", "apps", "lang", "mode", "account"]);
+         expect(HEADER_ORDER).toEqual(["menu", "brand", "env", "primary", "actions", "lang", "mode", "account"]);
+         // no links to other sites in the bar (owner, 2026-11-15): the www/videos hosts appear only in the account menu
+         const bar = header.replace(/<div class="aun-menu" role="menu">[\s\S]*?<\/details>/g, "");
+         expect(bar).not.toMatch(/aun-apps|class="aun-app"|https:\/\/(www|videos)\.test/);
          // language and Light / Dark left the rail and the drawer
          expect(html.slice(html.indexOf("</header>"))).not.toMatch(/hreflang=|data-mode-toggle/);
       }

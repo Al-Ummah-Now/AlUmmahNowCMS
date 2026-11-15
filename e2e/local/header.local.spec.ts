@@ -1,7 +1,7 @@
 /**
  * The shared header (AlUmmahNow docs/design/NAV.md "Header"; owner 2026-11-14 "UNIFY") on the staff
  * shell and the signed-out pages, against the local `wrangler dev` CMS (playwright.local.config.ts):
- * order, 40px controls, the spec's breakpoints (1280 / 1024 / 768 / 640 / 400), language and
+ * order, 40px controls, the spec's breakpoints (1024 / 768 / 640 / 400), no links to other sites, language and
  * Light / Dark in the header (not the rail), the search under the bar below 1024px, and axe
  * (WCAG 2.2 AA) on the header in en/ar, light/dark, desktop and phone.
  */
@@ -10,7 +10,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Browser globals used inside page.evaluate (the CMS typechecks e2e without the DOM lib)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const document: any, getComputedStyle: any, window: any;
+declare const document: any, getComputedStyle: any, window: any, location: any;
 
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
@@ -56,8 +56,8 @@ const slots = (page: Page) =>
          search: pick(".aun-header-primary"),
          searchBtn: pick(".hd-search-btn"),
          create: pick(".btn.primary.sm"),
-         apps: pick(".aun-apps"),
-         appName: pick(".aun-app-name"),
+         /** Header links that leave the CMS (none: owner 2026-11-15, "No links to sites in header"). */
+         offSite: [...hd.querySelectorAll("a[href]")].filter((a: any) => !a.closest(".aun-menu") && new URL(a.href).origin !== location.origin).map((a: any) => a.href),
          lang: pick(".aun-lang"),
          mode: pick(".mode-to-light") ?? pick(".mode-to-dark"),
          account: pick(".aun-acct-btn"),
@@ -88,12 +88,11 @@ test("staff shell: the shared header across the spec's breakpoints, en and ar", 
          expect(!!s.search, `${at}: search in the bar`).toBe(width >= 1024);
          expect(!!s.searchBtn, `${at}: search icon`).toBe(width < 1024 && width >= 640);
          if (width < 1024) expect(s.create!.w, `${at}: New is a 40px icon`).toBeCloseTo(40, 0);
-         expect(!!s.apps, `${at}: app links`).toBe(width >= 640);
-         expect(!!s.appName, `${at}: app link names`).toBe(width >= 1280);
+         expect(s.offSite, `${at}: no links to other sites`).toEqual([]);
          expect(!!s.accountName, `${at}: account name`).toBe(width >= 768);
          expect(!!s.menu, `${at}: drawer toggle`).toBe(width < 768);
          // reading order: language first, then sun/moon, then the account (mirrored in Arabic)
-         const order = [s.apps, s.lang, s.mode, s.account].filter(Boolean).map((b) => b!.x);
+         const order = [s.lang, s.mode, s.account].filter(Boolean).map((b) => b!.x);
          const sorted = [...order].sort((a, b) => (lang === "ar" ? b - a : a - b));
          expect(order, `${at}: order`).toEqual(sorted);
       }
@@ -152,6 +151,7 @@ test("the signed-out pages wear the same header: same heights and controls as th
       const s = await slots(page);
       expect(s.bar, path).toBeCloseTo(64, 0);
       expect(s.logo!.w, path).toBe(36);
+      expect(s.offSite, `${path}: no links to other sites`).toEqual([]);
       expect(s.lang!.h, path).toBeCloseTo(40, 0);
       expect(s.mode!.w, path).toBeCloseTo(40, 0);
       await expect(page.locator("header .aun-brand-app"), path).toHaveText("Content");

@@ -532,12 +532,13 @@ describe("sign-in outcomes are logged (2026-11-14: a refusal left no trace in th
 describe("the CMS pages outside the staff shell wear the shared header", () => {
    const brand = (lang: "en" | "ar") => brandHtml({ lang, href: "/", app: lang === "ar" ? "المحتوى" : "Content" });
 
-   it("Signed out: brand, QA badge, app links, language, Light/Dark and a solid Sign in", async () => {
+   it("Signed out: brand, QA badge, language, Light/Dark and a solid Sign in; no links to other sites", async () => {
       const html = await (await makeWorker()("/sso/logged-out?lang=ar")).text();
       const header = html.slice(html.indexOf('<header class="aun-header cms-hd">'), html.indexOf("</header>"));
       expect(header).toContain(brand("ar"));
       expect(header).toContain(envBadgeHtml("qa", "ar"));
-      expect(header).toContain('<nav class="aun-apps"');
+      // no links to other sites (owner, 2026-11-15): every header link stays on the CMS
+      expect(header).not.toMatch(/aun-app|href="https?:/);
       expect(header).toContain(langButtonHtml({ lang: "ar", href: "/sso/logged-out?lang=en" }));
       expect(header).toContain('data-mode-toggle="light"');
       expect(header).toContain(signInHtml({ lang: "ar", href: "/sso/login" }));

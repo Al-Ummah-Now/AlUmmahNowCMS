@@ -114,13 +114,14 @@ describe("Passkey needed page", () => {
       }
    });
 
-   it("wears the shared header: brand, QA badge, app links, language (keeps the return path), no Sign in", async () => {
+   it("wears the shared header: brand, QA badge, language (keeps the return path), no Sign in, no links to other sites", async () => {
       const html = await (await makeWorker()("/sso/passkey-needed?return=%2Fpages&lang=en")).text();
       expect(html).toContain('<header class="aun-header cms-hd">');
       expect(html).toContain(brandHtml({ lang: "en", href: "/", app: "Content" }));
       expect(html).toContain(envBadgeHtml("qa", "en"));
       expect(html).toContain(langButtonHtml({ lang: "en", href: "/sso/passkey-needed?return=%2Fpages&lang=ar" }));
-      expect(html).toContain('href="https://www.test/en/"');
+      const header = html.slice(html.indexOf('<header class="aun-header cms-hd">'), html.indexOf("</header>"));
+      expect(header).not.toMatch(/aun-app|href="https?:/);
       expect(html).not.toContain('class="aun-signin"');
    });
 

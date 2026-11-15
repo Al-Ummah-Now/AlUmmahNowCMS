@@ -35,7 +35,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .shell{position:relative;z-index:1}
 
 /* Header: the shared bar (NAV_CSS .aun-header, src/lib/header.ts; AlUmmahNow docs/design/NAV.md
-   "Header"). The CMS adds its search (the primary slot) and New; the brand, badge, app links,
+   "Header"). The CMS adds its search (the primary slot) and New; the brand, badge,
    language, sun/moon and account are the shared controls. One line at every width from 320px
    (NAV.md "Per-app fit", as the videos site's Upload): below 1024px the search moves under the bar,
    opened by an icon, and New is a 40px icon (its label stays its name); below 640px the search icon
