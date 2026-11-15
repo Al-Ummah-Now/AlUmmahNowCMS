@@ -4,11 +4,11 @@ import { ADMIN_CSS } from "../../src/admin/ui/styles.ts";
 import { HEADER_GLUE_CSS } from "../../src/lib/header.ts";
 
 // One typeface in every app's header (AlUmmahNow docs/design/NAV.md "Header", round 3): the contract
-// sets it on .aun-header (system-ui; Noto Naskh Arabic for Arabic) and no app overrides it.
+// sets it on .aun-header (system-ui; Noto Naskh Arabic for Arabic, then system-ui so Latin text in it renders as in English) and no app overrides it.
 describe("the header's typeface is the contract's", () => {
    it("the contract sets the header font, Latin and Arabic", () => {
       expect(NAV_CSS).toMatch(/\.aun-header\{[^}]*font-family:var\(--aun-header-font,system-ui,/);
-      expect(NAV_CSS).toMatch(/\.aun-header:lang\(ar\)\{font-family:var\(--aun-header-font-ar,'Noto Naskh Arabic'/);
+      expect(NAV_CSS).toMatch(/\.aun-header:lang\(ar\)\{font-family:var\(--aun-header-font-ar,'Noto Naskh Arabic','Geeza Pro',system-ui,'Segoe UI',Tahoma,sans-serif\)/);
    });
 
    it("nothing in the CMS sets a font on the header or its pieces", () => {
