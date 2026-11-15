@@ -209,7 +209,7 @@ test("full width, one line from 320 to 1440px, in the contract's typeface (round
             // full width: the brand starts at the edge (16px; 12px on phones, plus the drawer toggle below 768px)
             if (width >= 768 || signedOut) expect(l.brandEdge, `${at}: brand x`).toBeLessThanOrEqual(16);
             // one typeface: the contract's, on the bar and on every piece of text in it
-            expect(l.font, `${at}: header font`).toMatch(lang === "ar" ? /^"Noto Naskh Arabic", "Geeza Pro"/ : /^system-ui, -apple-system/);
+            expect(l.font, `${at}: header font`).toMatch(lang === "ar" ? /^"Noto Naskh Arabic", "Geeza Pro", system-ui, "Segoe UI", Tahoma, sans-serif$/ : /^system-ui, -apple-system/);
             expect(l.fonts, `${at}: one font-family`).toEqual([l.font]);
          }
       }
