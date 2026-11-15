@@ -10,7 +10,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Browser globals used inside page.evaluate (the CMS typechecks e2e without the DOM lib)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const document: any, getComputedStyle: any;
+declare const document: any, getComputedStyle: any, window: any;
 
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
@@ -70,7 +70,7 @@ test("staff shell: the shared header across the spec's breakpoints, en and ar", 
    await signIn(page, `${RUN}-bp`);
    await page.emulateMedia({ colorScheme: "dark" });
    for (const lang of ["en", "ar"] as const) {
-      for (const width of [1440, 1100, 900, 700, 390, 360]) {
+      for (const width of [1440, 1100, 900, 700, 640, 390, 360]) {
          await page.setViewportSize({ width, height: 800 });
          await page.goto(`/pages?lang=${lang}`);
          const s = await slots(page);
@@ -86,7 +86,8 @@ test("staff shell: the shared header across the spec's breakpoints, en and ar", 
          expect(s.logo!.w, `${at}: logo`).toBe(width < 640 ? 32 : 36);
          expect(!!s.brandText, `${at}: wordmark`).toBe(width >= 400);
          expect(!!s.search, `${at}: search in the bar`).toBe(width >= 1024);
-         expect(!!s.searchBtn, `${at}: search icon`).toBe(width < 1024 && width >= 640);
+         expect(!!s.searchBtn, `${at}: search icon`).toBe(width < 1024 && width >= 768);
+         if (width < 1024) expect(s.create!.w, `${at}: New is a 40px icon`).toBeCloseTo(40, 0);
          expect(!!s.apps, `${at}: app links`).toBe(width >= 640);
          expect(!!s.appName, `${at}: app link names`).toBe(width >= 1280);
          expect(!!s.accountName, `${at}: account name`).toBe(width >= 768);
@@ -155,5 +156,84 @@ test("the signed-out pages wear the same header: same heights and controls as th
       expect(s.mode!.w, path).toBeCloseTo(40, 0);
       await expect(page.locator("header .aun-brand-app"), path).toHaveText("Content");
       await axeHeader(page, path);
+   }
+});
+
+/** The bar's box, the brand's distance from its starting edge, every visible control's box, and the fonts in use. */
+const line = (page: Page) =>
+   page.evaluate(() => {
+      const hd = document.querySelector("header.aun-header");
+      const bar = hd.getBoundingClientRect();
+      const rtl = getComputedStyle(hd).direction === "rtl";
+      const brand = hd.querySelector(".aun-brand").getBoundingClientRect();
+      const shown = [...hd.querySelectorAll("a, button, input, .aun-brand-mark")].filter((el: any) => {
+         const r = el.getBoundingClientRect();
+         return r.width > 1 && r.height > 1 && getComputedStyle(el).visibility !== "hidden" && !el.closest(".aun-menu, .ac-list");
+      });
+      const fonts = new Set(
+         [hd, ...hd.querySelectorAll(".aun-brand-name, .aun-brand-app, .aun-lang, .aun-acct-name, .aun-signin, .btn, #global-q")].map((el: any) => getComputedStyle(el).fontFamily),
+      );
+      return {
+         height: bar.height,
+         brandEdge: rtl ? window.innerWidth - brand.right : brand.left,
+         rows: shown.map((el: any) => {
+            const r = el.getBoundingClientRect();
+            return { what: el.className || el.tagName, top: r.top - bar.top, bottom: bar.bottom - r.bottom };
+         }),
+         font: getComputedStyle(hd).fontFamily,
+         fonts: [...fonts],
+         scrollX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+   });
+
+test("full width, one line from 320 to 1440px, in the contract's typeface (round 3)", async ({ page }) => {
+   await signIn(page, `${RUN}-line`);
+   await page.emulateMedia({ colorScheme: "dark" });
+   for (const signedOut of [false, true]) {
+      for (const lang of ["en", "ar"] as const) {
+         for (const width of [1440, 1280, 1024, 900, 768, 640, 390, 360, 320]) {
+            await page.setViewportSize({ width, height: 800 });
+            await page.goto(signedOut ? `/sso/logged-out?lang=${lang}` : `/pages?lang=${lang}`);
+            const l = await line(page);
+            const at = `${signedOut ? "signed out" : "shell"} ${lang} ${width}px`;
+            // exactly 64px (56px below 640px): one line, never a second row
+            expect(l.height, `${at}: bar height`).toBe(width < 640 ? 56 : 64);
+            for (const r of l.rows) {
+               expect(r.top, `${at}: ${r.what} inside the bar`).toBeGreaterThanOrEqual(0);
+               expect(r.bottom, `${at}: ${r.what} inside the bar`).toBeGreaterThanOrEqual(0);
+            }
+            expect(l.scrollX, `${at}: no sideways scroll`).toBeLessThanOrEqual(0);
+            // full width: the brand starts at the edge (16px; 12px on phones, plus the drawer toggle below 768px)
+            if (width >= 768 || signedOut) expect(l.brandEdge, `${at}: brand x`).toBeLessThanOrEqual(16);
+            // one typeface: the contract's, on the bar and on every piece of text in it
+            expect(l.font, `${at}: header font`).toMatch(lang === "ar" ? /^"Noto Naskh Arabic", "Geeza Pro"/ : /^system-ui, -apple-system/);
+            expect(l.fonts, `${at}: one font-family`).toEqual([l.font]);
+         }
+      }
+   }
+});
+
+test("phones: the drawer toggle is the videos site's (40px .aun-icon-btn, lucide menu, Menu / القائمة) and opens the drawer", async ({ page }) => {
+   await signIn(page, `${RUN}-menu`);
+   for (const lang of ["en", "ar"] as const) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/pages?lang=${lang}`);
+      const btn = page.locator("header.aun-header > button[data-open-drawer]");
+      await expect(btn).toHaveAccessibleName(lang === "ar" ? "القائمة" : "Menu");
+      await expect(btn).toHaveClass("aun-icon-btn only-phone");
+      await expect(btn.locator("svg.lucide.lucide-menu line")).toHaveCount(3);
+      const box = (await btn.boundingBox())!;
+      expect(box.width).toBeCloseTo(40, 0);
+      expect(box.height).toBeCloseTo(40, 0);
+      // slot 1: before the brand, in reading order
+      const brand = (await page.locator("header .aun-brand").boundingBox())!;
+      expect(lang === "ar" ? box.x > brand.x : box.x < brand.x).toBe(true);
+      await btn.click();
+      await expect(page.locator("dialog#drawer")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.locator("dialog#drawer")).toBeHidden();
+      // the rail is there from 768px: no toggle
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await expect(btn).toBeHidden();
    }
 });

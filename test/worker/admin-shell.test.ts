@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetThemeCache, siteTheme } from "../../src/admin/prefs.ts";
 import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
 import { appLinksHtml, brandHtml, envBadgeHtml, HEADER_ORDER, langButtonHtml } from "../../src/lib/fanous-nav/header.js";
-import { modeLinksHtml } from "../../src/lib/header.ts";
+import { drawerToggleHtml, modeLinksHtml } from "../../src/lib/header.ts";
 
 async function session(roles: string[], id: string) {
    const { callback } = await signIn(roles, { id, email: `${id}@example.com` });
@@ -87,6 +87,10 @@ describe("staff shell", () => {
          const langBtn = langButtonHtml({ lang, href: `/pages?lang=${other}&q=x` });
          const mode = modeLinksHtml(lang, (k, val) => `/pages?lang=${k === "lang" ? val : lang}&q=x${k === "mode" ? `&mode=${val}` : ""}`);
          for (const piece of [brand, env, apps, langBtn, mode]) expect(header).toContain(piece);
+         // the drawer toggle is the videos site's: a 40px .aun-icon-btn with lucide menu, "Menu" / "القائمة"
+         expect(header).toContain(drawerToggleHtml(lang));
+         expect(drawerToggleHtml(lang)).toMatch(new RegExp(`^<button class="aun-icon-btn only-phone" type="button" data-open-drawer aria-label="${lang === "ar" ? "القائمة" : "Menu"}"`));
+         expect(drawerToggleHtml(lang)).toContain('class="lucide lucide-menu"');
          // order: menu · brand · env · search (primary) · New · app links · language · sun/moon · account
          const at = (s: string) => header.indexOf(s);
          const order = [at("data-open-drawer"), at(brand), at(env), at('class="aun-header-primary'), at('class="btn primary sm"'), at(apps), at(langBtn), at(mode), at("aun-acct-btn")];

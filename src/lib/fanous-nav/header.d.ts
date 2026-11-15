@@ -7,6 +7,7 @@ interface Labels {
   readonly www: string;
   readonly videos: string;
   readonly signIn: string;
+  readonly menu: string;
   readonly switchLang: string;
   readonly otherLang: string;
   readonly env: { readonly qa: string; readonly stage: string };
@@ -20,4 +21,7 @@ export declare function envBadgeHtml(environment: string | undefined | null, lan
 export declare function appLinksHtml(opts: { lang: HeaderLang; links: { id: string; href: string }[]; iconBase?: string }): string;
 export declare function langButtonHtml(opts: { lang: HeaderLang; href: string }): string;
 export declare function modeButtonHtml(opts: { lang: HeaderLang; dark: boolean; id?: string }): string;
+export declare const MENU_ICON_BODY: string;
+/** The menu button opening an `.aun-header-panel` popover (shown below 1024px). */
+export declare function menuButtonHtml(opts: { lang: HeaderLang; panel: string }): string;
 export declare function signInHtml(opts: { lang: HeaderLang; href: string }): string;

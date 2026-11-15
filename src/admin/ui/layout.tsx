@@ -11,7 +11,7 @@ import { Autocomplete, comboboxProps } from "./autocomplete.tsx";
 import { LeaveDialog, LinkDialog } from "./dialogs.tsx";
 import { appLinks, type AppLinkId } from "../../lib/app-links.ts";
 import { absolute } from "../format.ts";
-import { headerBrandHtml, headerSitePrefsHtml, withQuery } from "../../lib/header.ts";
+import { drawerToggleHtml, headerBrandHtml, headerSitePrefsHtml, withQuery } from "../../lib/header.ts";
 
 export interface View {
    prefs: Prefs;
@@ -273,9 +273,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                {/* The shared header (AlUmmahNow docs/design/NAV.md "Header", src/lib/header.ts): [menu] brand ·
                    QA/STAGE · search · New · Website, Videos · language · sun/moon · account */}
                <header class="aun-header cms-hd hd">
-                  <button class="aun-icon-btn only-phone" type="button" data-open-drawer aria-label={t.nav.menu} aria-controls="drawer" aria-expanded="false">
-                     <Icon name="menu" />
-                  </button>
+                  {raw(drawerToggleHtml(prefs.lang))}
                   {raw(headerBrandHtml(prefs.lang, v.environment))}
                   <div class="aun-header-primary hd-search" id="hd-search">
                      <Autocomplete kind={isWriter(v) ? "posts" : "content"} listId="global-q-list" label={t.header.search}>
