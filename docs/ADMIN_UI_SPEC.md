@@ -187,7 +187,9 @@ action (and a full-width band), contact, video, video shelf, latest posts, card 
   saved version; Light / Dark; a theme for the preview only (the site's theme never changes here);
   *Copy from {other language}* (replaces the blocks with the other page's, images and layout included,
   for translation; Undo in the toast); the form's main Save/Publish; Done (or Esc). Clicking a section
-  in the preview opens its block; focusing a block highlights its section.
+  in the preview opens its block; focusing a block highlights its section. On a phone-sized screen
+  (up to 1000 px) the preview sits under the list and opens on Phone, and a block's tools go on a row
+  of their own under its name whenever the list is narrow, so names stay readable.
 - Images come from the **media chooser** (library grid with paging, or upload: names are generated,
   so an upload never replaces a file); the alt text defaults to the library's description. Posts are
   picked from a search dialog in the page's language; videos with the existing picker, snapshotted
