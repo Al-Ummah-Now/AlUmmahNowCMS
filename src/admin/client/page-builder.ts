@@ -32,6 +32,8 @@ interface Snapshot {
 
 const DESKTOP = 1280;
 const PHONE = 390;
+/** The width at which the workspace stacks the preview under the list (builder-styles.ts): phone-sized. */
+const NARROW = "(max-width: 1000px)";
 
 export function initPageBuilder(root: HTMLElement, T: Strings): void {
    const tb = T.blocks;
@@ -74,7 +76,9 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
          );
          // Only our own asset URLs go in; every block's text is escaped by the renderer.
          const q = (s: string) => s.replace(/"/g, "&quot;");
-         frame.srcdoc = `<!doctype html><html lang="${locale}" dir="${locale === "ar" ? "rtl" : "ltr"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" data-pv-theme-css href="${q(themes[state.theme] ?? "")}"><link rel="stylesheet" href="${q(root.dataset.pvCss ?? "")}"></head><body><main data-pv-main></main></body></html>`;
+         const text = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+         // Titled like the frame (its accessible name), so the preview document has a title of its own too
+         frame.srcdoc = `<!doctype html><html lang="${locale}" dir="${locale === "ar" ? "rtl" : "ltr"}"><head><meta charset="utf-8"><title>${text(frame.title)}</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" data-pv-theme-css href="${q(themes[state.theme] ?? "")}"><link rel="stylesheet" href="${q(root.dataset.pvCss ?? "")}"></head><body><main data-pv-main></main></body></html>`;
       });
       return ready;
    };
@@ -286,8 +290,15 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
 
    /* ── Open / close ─────────────────────────────────────────────────────────────────────────── */
 
+   // On a phone-sized screen the preview opens on Phone: a desktop page scaled into a phone's width is
+   // too small to read. Once the editor picks a device, that choice stays.
+   let deviceChosen = false;
    function setOpen(open: boolean): void {
       state.open = open;
+      if (open && !deviceChosen && window.matchMedia(NARROW).matches && state.device !== "phone") {
+         state.device = "phone";
+         for (const b of $$<HTMLButtonElement>("[data-pv-device]", root)) b.setAttribute("aria-pressed", String(b.dataset.pvDevice === "phone"));
+      }
       root.classList.toggle("bld-open", open);
       document.documentElement.classList.toggle("bld-lock", open);
       openBtn.setAttribute("aria-expanded", String(open));
@@ -322,6 +333,7 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
    for (const b of $$<HTMLButtonElement>("[data-pv-device]", root))
       b.addEventListener("click", () => {
          state.device = b.dataset.pvDevice === "phone" ? "phone" : "desktop";
+         deviceChosen = true;
          pressGroup("data-pv-device", state.device);
          fit();
       });

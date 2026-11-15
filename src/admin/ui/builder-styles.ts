@@ -22,6 +22,19 @@ export const BUILDER_CSS = `
 .blk:hover>.blk-ins .btn,.blk:focus-within>.blk-ins .btn,.blk-ins .btn:focus-visible{opacity:1;transform:none}
 @media(hover:none){.blk-ins .btn{opacity:1;transform:none}}
 .blk-list{gap:22px}
+/* A narrow list (a phone, the builder's list column): the block's name gets the whole first row with its
+   fold button, an "incomplete" note goes under the name, and the tools get a row of their own, so names
+   read in full instead of shrinking to a few letters beside five buttons */
+ol[data-k=blocks]{container-type:inline-size}
+@container (max-width:520px){
+ol[data-k=blocks]>.blk>.blk-h{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;column-gap:10px;row-gap:6px}
+ol[data-k=blocks]>.blk>.blk-h>.grip{grid-area:1/1}
+ol[data-k=blocks]>.blk>.blk-h>.blk-ic{grid-area:1/2}
+ol[data-k=blocks]>.blk>.blk-h>.blk-tt{grid-area:1/3}
+ol[data-k=blocks]>.blk>.blk-h>.blk-fold{grid-area:1/4}
+ol[data-k=blocks]>.blk>.blk-h>.blk-warn{grid-area:2/3/3/5;justify-self:start;flex-basis:auto}
+ol[data-k=blocks]>.blk>.blk-h>.blk-tools{grid-area:3/1/4/5;display:flex;justify-content:flex-end;padding-block-start:6px;border-block-start:1px solid var(--fanous-c-divider-line)}
+}
 
 /* Add a block (end of the list) */
 .blk-add-main{display:flex;align-items:center;gap:14px;width:100%;margin-block-start:18px;padding:14px 16px;border:1.5px dashed color-mix(in srgb,var(--fanous-color-primary) 45%,var(--fanous-c-form-section-border));border-radius:var(--r-lg);background:color-mix(in srgb,var(--fanous-color-primary) 5%,transparent);color:inherit;font:inherit;text-align:start;cursor:pointer;transition:background var(--fanous-duration-fast,120ms),border-color var(--fanous-duration-fast,120ms)}

@@ -91,6 +91,10 @@ for (const lang of ["en", "ar"] as const) {
       await page.goto(`${ON}/pages/${en}?lang=${lang}&mode=dark`);
       await page.locator("[data-builder-open]").click();
       await expect(page.locator("html")).toHaveClass(/bld-lock/);
+      // A phone-sized screen opens the preview on Phone (a scaled desktop page is unreadable there)
+      const narrow = (page.viewportSize()?.width ?? 1280) <= 1000;
+      await expect(page.locator("[data-pv-frame-box]")).toHaveAttribute("data-device", narrow ? "phone" : "desktop");
+      await expect(page.locator(`[data-pv-device=${narrow ? "phone" : "desktop"}]`)).toHaveAttribute("aria-pressed", "true");
 
       const hero = await addBlock(page, "hero");
       await hero.locator("[data-k=title]").first().fill("Watch, share and subscribe");
@@ -124,6 +128,15 @@ for (const lang of ["en", "ar"] as const) {
       await cta.locator("[data-k=label]").first().fill("Open the videos site");
       await cta.locator("[data-k=url]").first().fill("https://alummahnow.net/en");
       await expect(frame(page).locator("[data-block-type=cta]")).toContainText("Start watching");
+      // Every block's name reads in full: on a narrow list its tools sit on a row of their own
+      for (const card of await page.locator("ol[data-k=blocks] > li.blk").all()) {
+         const t = card.locator(".blk-t").first();
+         expect(await t.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), await t.innerText()).toBe(true);
+         if (narrow) {
+            const [tb, tools] = await Promise.all([card.locator(".blk-tt").boundingBox(), card.locator(":scope > .blk-h > .blk-tools").boundingBox()]);
+            expect(tools!.y).toBeGreaterThanOrEqual(tb!.y + tb!.height - 1);
+         }
+      }
 
       // Phone preview, then the picker itself: both pass axe.
       await page.locator("[data-pv-device=phone]").click();
