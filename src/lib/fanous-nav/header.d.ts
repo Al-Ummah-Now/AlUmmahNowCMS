@@ -13,7 +13,9 @@ interface Labels {
 }
 export declare const HEADER_LABELS: { readonly en: Labels; readonly ar: Labels };
 export declare function escapeHtml(value: unknown): string;
-export declare function brandHtml(opts: { lang: HeaderLang; href: string; app?: string; logoSrc?: string }): string;
+export declare function brandHtml(opts: { lang: HeaderLang; href: string; app?: string; name?: string; logoSrc?: string }): string;
+/** A same-site path from the request: leading slashes/backslashes collapse to one "/" (never protocol-relative). */
+export declare function samePath(path: unknown): string;
 export declare function envBadgeHtml(environment: string | undefined | null, lang: HeaderLang): string;
 export declare function appLinksHtml(opts: { lang: HeaderLang; links: { id: string; href: string }[]; iconBase?: string }): string;
 export declare function langButtonHtml(opts: { lang: HeaderLang; href: string }): string;
