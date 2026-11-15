@@ -27,7 +27,10 @@ async function signIn(page: Page, suffix: string) {
 }
 
 async function axeHeader(page: Page, what: string) {
-   const r = await new AxeBuilder({ page }).include("header.aun-header").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+   const r = await new AxeBuilder({ page }).include("header.aun-header").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      // experimental in axe, off with the WCAG tags alone: the language button's name must hold its visible label (WCAG 2.5.3)
+      .options({ rules: { "label-content-name-mismatch": { enabled: true } } })
+      .analyze();
    expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`), what).toEqual([]);
 }
 
