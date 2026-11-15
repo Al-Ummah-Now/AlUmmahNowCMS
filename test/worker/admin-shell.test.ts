@@ -87,9 +87,9 @@ describe("staff shell", () => {
          const langBtn = langButtonHtml({ lang, href: `/pages?lang=${other}&q=x` });
          const mode = modeLinksHtml(lang, (k, val) => `/pages?lang=${k === "lang" ? val : lang}&q=x${k === "mode" ? `&mode=${val}` : ""}`);
          for (const piece of [brand, env, apps, langBtn, mode]) expect(header).toContain(piece);
-         // the drawer toggle is the videos site's: a 40px .aun-icon-btn with lucide menu, "Menu" / "القائمة"
+         // the drawer toggle is the videos site's: a 40px .aun-icon-btn.aun-menu-btn with lucide menu, "Menu" / "القائمة"
          expect(header).toContain(drawerToggleHtml(lang));
-         expect(drawerToggleHtml(lang)).toMatch(new RegExp(`^<button class="aun-icon-btn only-phone" type="button" data-open-drawer aria-label="${lang === "ar" ? "القائمة" : "Menu"}"`));
+         expect(drawerToggleHtml(lang)).toMatch(new RegExp(`^<button class="aun-icon-btn aun-menu-btn only-phone" type="button" data-open-drawer aria-label="${lang === "ar" ? "القائمة" : "Menu"}"`));
          expect(drawerToggleHtml(lang)).toContain('class="lucide lucide-menu"');
          // order: menu · brand · env · search (primary) · New · app links · language · sun/moon · account
          const at = (s: string) => header.indexOf(s);

@@ -147,7 +147,8 @@ export const MENU_ICON_BODY =
 
 /**
  * The menu button, first in the bar. Apps with a drawer (videos web, admin, CMS, Auth admin) render
- * the same 40px round button for it. Sites whose own links sit in the bar (www, scholar sites, the
+ * the same 40px round button for it: `.aun-menu-btn`, never `.aun-menu` (the account menu's surface,
+ * absolute and 21rem wide). Sites whose own links sit in the bar (www, scholar sites, the
  * dev site) pass `panel`: the id of an `.aun-header-panel` popover holding those links and search.
  * The button then shows only below 1024px, where `.aun-header-primary.aun-collapse` leaves the
  * bar, so the bar stays one 64px (56px) line on every screen. The popover opens without script.
@@ -155,7 +156,7 @@ export const MENU_ICON_BODY =
 export function menuButtonHtml({ lang, panel }) {
   const label = HEADER_LABELS[lc(lang)].menu;
   return (
-    `<button type="button" class="aun-icon-btn aun-menu aun-menu-collapse" popovertarget="${escapeHtml(panel)}" ` +
+    `<button type="button" class="aun-icon-btn aun-menu-btn aun-menu-collapse" popovertarget="${escapeHtml(panel)}" ` +
     `aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">` +
     `<svg ${MODE_ICON_ATTRS} class="lucide lucide-menu" aria-hidden="true" focusable="false">${MENU_ICON_BODY}</svg>` +
     `</button>`
