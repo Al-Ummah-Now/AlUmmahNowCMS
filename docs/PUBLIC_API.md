@@ -120,7 +120,9 @@ interface CuratedSnapshot {
 The page slug `home` is reserved (not used as a page route on www). The page slug `about` (en + ar,
 translation key `www-about`, seeded by migration 0021 with the owner's copy) is the About page: www
 serves it at `/{locale}/about/` and the videos site renders it at `/{locale}/about`, canonical to www's. An empty CMS returns empty
-arrays and `settings: null`, never an error.
+arrays and `settings: null`, never an error. Migration 0022 adds a Scholars link (`/scholars/`, en
+"Scholars", ar "العلماء") last in each language's header menu, unless that menu already has one or
+an editor deleted it.
 
 ## Scholars
 
