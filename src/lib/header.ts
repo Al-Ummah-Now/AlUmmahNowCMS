@@ -5,11 +5,11 @@
  * (NAV_CSS). Every CMS page uses them: the staff shell (src/admin/ui/layout.tsx), the themed pages
  * outside it (src/admin/ui/gate.tsx) and the plain status pages (src/lib/pages.ts).
  *
- * Order: [drawer toggle] brand · QA/STAGE · search · New · Website, Videos · language · sun/moon ·
- * account (or Sign in).
+ * Order: [drawer toggle] brand · QA/STAGE · search · New · language · sun/moon · account (or Sign in).
+ * No links to other sites in the bar (owner, 2026-11-15): the logo leads to the CMS home, and the
+ * other apps are in the account menu's "Al Ummah Now apps".
  */
-import { publicSiteLinks } from "./app-links.ts";
-import { HEADER_LABELS, MENU_ICON_BODY, appLinksHtml, brandHtml, envBadgeHtml, escapeHtml, langButtonHtml, signInHtml } from "./fanous-nav/header.js";
+import { HEADER_LABELS, MENU_ICON_BODY, brandHtml, envBadgeHtml, escapeHtml, langButtonHtml, signInHtml } from "./fanous-nav/header.js";
 import { MODE_ICON_ATTRS, modeIconSvg, modeToggleLabel } from "./fanous-nav/mode-toggle.js";
 
 export type HeaderLang = "en" | "ar";
@@ -74,13 +74,12 @@ export function modeLinksHtml(lang: HeaderLang, link: ParamLink): string {
 }
 
 /**
- * Slots 6 to 8: Website and Videos (this environment's hosts), the language button (the other
- * language's own name; `?lang=` saved in cms_lang, same page and query) and Light / Dark.
+ * The language button (the other language's own name; `?lang=` saved in cms_lang, same page and
+ * query) and Light / Dark.
  */
-export function headerSitePrefsHtml(o: { lang: HeaderLang; link: ParamLink; wwwUrl?: string; videosWebUrl?: string }): string {
+export function headerSitePrefsHtml(o: { lang: HeaderLang; link: ParamLink }): string {
    const other: HeaderLang = o.lang === "ar" ? "en" : "ar";
    return (
-      appLinksHtml({ lang: o.lang, links: publicSiteLinks(o.lang, { www: o.wwwUrl ?? "", videos: o.videosWebUrl ?? "" }) }) +
       langButtonHtml({ lang: o.lang, href: o.link("lang", other) }) +
       modeLinksHtml(o.lang, o.link)
    );
@@ -88,14 +87,12 @@ export function headerSitePrefsHtml(o: { lang: HeaderLang; link: ParamLink; wwwU
 
 /**
  * The whole header for the pages without a session (gate pages, status pages, passkey needed):
- * brand, badge, app links, language, Light / Dark, and a solid Sign in on the signed-out landings.
+ * brand, badge, language, Light / Dark, and a solid Sign in on the signed-out landings.
  */
 export function publicHeaderHtml(o: {
    lang: HeaderLang;
    environment: string | undefined;
    link: ParamLink;
-   wwwUrl?: string;
-   videosWebUrl?: string;
    /** The sign-in address, on pages a signed-out visitor lands on (Signed out, Sign-in failed). */
    signInHref?: string;
 }): string {

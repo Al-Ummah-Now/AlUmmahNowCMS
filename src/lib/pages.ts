@@ -28,8 +28,6 @@ export function statusPage(o: {
    mode?: "light" | "dark" | null;
    /** ENVIRONMENT: the header's QA / STAGE badge. */
    environment?: string;
-   /** The header's Videos link (Website comes from wwwUrl). */
-   videosWebUrl?: string;
 }): string {
    const t = STRINGS[o.lang];
    const [title, body] = {
@@ -60,7 +58,7 @@ export function statusPage(o: {
       lang: o.lang,
       nonce: o.nonce,
       mode: o.mode ?? null,
-      header: publicHeaderHtml({ lang: o.lang, environment: o.environment, link: (key, value) => withQuery(o.path, keep, key, value), wwwUrl: o.wwwUrl, videosWebUrl: o.videosWebUrl }),
+      header: publicHeaderHtml({ lang: o.lang, environment: o.environment, link: (key, value) => withQuery(o.path, keep, key, value) }),
       title: `${title} · ${t.cms}`,
       extraCss: chooser ? CSS + ACCOUNTS_CSS : CSS,
       script: chooser?.script,
@@ -90,9 +88,6 @@ export function passkeyNeededPage(o: {
    signInPath: string;
    /** ENVIRONMENT: the header's QA / STAGE badge. */
    environment?: string;
-   /** The header's app links (Website, Videos). */
-   wwwUrl?: string;
-   videosWebUrl?: string;
 }): string {
    const t = STRINGS[o.lang];
    const link = (key: string, value: string) => {
@@ -105,7 +100,7 @@ export function passkeyNeededPage(o: {
       nonce: o.nonce,
       mode: o.mode,
       // The shared header: language and Light / Dark keep the return path (no Sign in: the page offers its own)
-      header: publicHeaderHtml({ lang: o.lang, environment: o.environment, link, wwwUrl: o.wwwUrl, videosWebUrl: o.videosWebUrl }),
+      header: publicHeaderHtml({ lang: o.lang, environment: o.environment, link }),
       title: `${t.passkeyNeededTitle} · ${t.cms}`,
       extraCss: CSS,
       body: `<main id="main" data-testid="passkey-needed">

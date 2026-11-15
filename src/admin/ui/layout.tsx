@@ -24,7 +24,7 @@ export interface View {
    user: { email: string; name: string; role: "admin" | "editor" | "staff_writer" | "writer"; sub?: string | null };
    wwwUrl: string;
    adminWebUrl: string;
-   /** For the header's app links and the account menu's "Al Ummah Now apps" (src/lib/app-links.ts). */
+   /** For the account menu's "Al Ummah Now apps" (src/lib/app-links.ts) and the screens' links to www. */
    videosWebUrl?: string;
    /** ENVIRONMENT (src/env.ts): the header's QA / STAGE badge, none in production. */
    environment?: string;
@@ -271,7 +271,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                   </div>
                ) : null}
                {/* The shared header (AlUmmahNow docs/design/NAV.md "Header", src/lib/header.ts): [menu] brand ·
-                   QA/STAGE · search · New · Website, Videos · language · sun/moon · account */}
+                   QA/STAGE · search · New · language · sun/moon · account (no links to other sites) */}
                <header class="aun-header cms-hd hd">
                   {raw(drawerToggleHtml(prefs.lang))}
                   {raw(headerBrandHtml(prefs.lang, v.environment))}
@@ -294,7 +294,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                         <Icon name="search" />
                      </a>
                      <CreateMenu v={v} />
-                     {raw(headerSitePrefsHtml({ lang: prefs.lang, link: (key, value) => withParam(v, key, value), wwwUrl: v.wwwUrl, videosWebUrl: v.videosWebUrl }))}
+                     {raw(headerSitePrefsHtml({ lang: prefs.lang, link: (key, value) => withParam(v, key, value) }))}
                      <AccountMenu v={v} />
                   </div>
                </header>
