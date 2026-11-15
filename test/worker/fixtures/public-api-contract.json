@@ -20,6 +20,10 @@
          "nav": {
             "header": [
                {
+                  "label": "Scholars",
+                  "url": "/scholars/"
+               },
+               {
                   "label": "Videos",
                   "url": "/videos"
                }
@@ -40,7 +44,12 @@
       "body": {
          "settings": null,
          "nav": {
-            "header": [],
+            "header": [
+               {
+                  "label": "العلماء",
+                  "url": "/scholars/"
+               }
+            ],
             "footer": []
          }
       }
