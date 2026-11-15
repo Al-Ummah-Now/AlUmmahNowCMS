@@ -39,14 +39,14 @@ export type ParamLink = (key: string, value: string) => string;
 
 /**
  * Slot 1 on phones (below 768px, where the rail leaves): the drawer toggle, the videos site's own
- * (a 40px `.aun-icon-btn` with lucide `menu`, the contract's MENU_ICON_BODY, named "Menu" /
+ * (a 40px `.aun-icon-btn.aun-menu-btn` with lucide `menu`, the contract's MENU_ICON_BODY, named "Menu" /
  * "القائمة" from HEADER_LABELS). It opens the navigation drawer (`<dialog id="drawer">`,
  * client/shell.ts), so it is not the contract's popover menuButtonHtml.
  */
 export function drawerToggleHtml(lang: HeaderLang): string {
    const label = escapeHtml(HEADER_LABELS[lang].menu);
    return (
-      `<button class="aun-icon-btn only-phone" type="button" data-open-drawer aria-label="${label}" title="${label}" aria-controls="drawer" aria-expanded="false">` +
+      `<button class="aun-icon-btn aun-menu-btn only-phone" type="button" data-open-drawer aria-label="${label}" title="${label}" aria-controls="drawer" aria-expanded="false">` +
       `<svg ${MODE_ICON_ATTRS} class="lucide lucide-menu" aria-hidden="true" focusable="false">${MENU_ICON_BODY}</svg></button>`
    );
 }

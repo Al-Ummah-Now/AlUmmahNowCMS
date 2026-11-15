@@ -3,7 +3,7 @@
   "refs": {
     "tokens": "7f1bf3e9f01780c2e2c9359e73c03ec4e4435f83",
     "materials": "399086fcea954661bf720cb6d78832f7e09819a0",
-    "nav": "e2b7da3dac30e014c55a223eac795f09caa0d625"
+    "nav": "414bfca738565536dcdc5d114a77a9cdbe0dcf1a"
   },
   "sources": {
     "399086fcea95:apps/web/src/theme/demo-graphics.json": "bff543163815040efc4ad100d0afd8a46de64716724f60589afb207b06fc32ae",
@@ -26,16 +26,16 @@
     "7f1bf3e9f017:packages/fanous-tokens/themes/nahas/theme.json": "ec5e89700c1fdd5dadf2da5222553563ff99e03a883566e89f138685485bb23c",
     "7f1bf3e9f017:packages/fanous-tokens/generated/nahas/web/tokens.css": "e8d7d9b5bed33cb0369aefcd31b82e596e457ce63a4ecc0f4baa9db20b22da3b",
     "399086fcea95:apps/web/src/theme/materials/nahas.css": "3bf03acace56f541a350c87dde57484737a489056438a16749d48735e0f443c1",
-    "e2b7da3dac30:packages/fanous-tokens/nav/aun-nav.css": "37494cc3cf0eba482bf181e3a552761c4f65e749e1aeacb0765274d493084b43"
+    "414bfca73856:packages/fanous-tokens/nav/aun-nav.css": "c257b9bae6d84a23872763adbf9c79aeb2b2e0f4fa3ab2a4c0e6b6b24b6f4766"
   },
-  "output": "7c80e056fbbbd99a6a80b784fdb81a5764d8b25b851936aca3d86009d5fa5cf9",
-  "navIconsOutput": "d4623a2d33445df421c3fa8a8ce43e11c00b27c7681c8918426f4d8fb4791bdf",
+  "output": "886b772c5acd3125c60eb0dfa2a616c61a941725a90844fe5f7326346f72d0b4",
+  "navIconsOutput": "241efdbea5a4cceb30f30af2133e6cacc57741886fb57585bf5f36dce846652a",
   "street": {
     "src/admin/client/fanous-street.generated.js": "89d10b4fd2b09237891365c231916997a3ac7a180dc6e2a53cdebeb5ba12a552",
     "src/admin/client/fanous-street.generated.d.ts": "c66b19686e04dd83086f5c700389b82d222f922c9ff568a10866893d246484c1"
   },
   "navFiles": {
-    "src/lib/fanous-nav/header.js": "a3f37dbdcca0cea3d2e0f93758c18105388dc471cad8f6bb3b8e04790b71068d",
+    "src/lib/fanous-nav/header.js": "cf5c293650229e33899d953a0236c75fab8c740c13aa86a7d3c5c074da277cce",
     "src/lib/fanous-nav/header.d.ts": "2c9deda1ee5ae996a7efa0c95cbc5c2efb69416b55a2652db38c205830a7bf08",
     "src/lib/fanous-nav/mode-toggle.js": "a05f5544599c1364710427baf455213cbd5a2655a38e791e9cc055580db55a7b",
     "src/lib/fanous-nav/mode-toggle.d.ts": "c57c9674622027069eb1fa5b05b4268a187c557b0bd714c6698a39efce3c682e"

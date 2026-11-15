@@ -86,7 +86,7 @@ test("staff shell: the shared header across the spec's breakpoints, en and ar", 
          expect(s.logo!.w, `${at}: logo`).toBe(width < 640 ? 32 : 36);
          expect(!!s.brandText, `${at}: wordmark`).toBe(width >= 400);
          expect(!!s.search, `${at}: search in the bar`).toBe(width >= 1024);
-         expect(!!s.searchBtn, `${at}: search icon`).toBe(width < 1024 && width >= 768);
+         expect(!!s.searchBtn, `${at}: search icon`).toBe(width < 1024 && width >= 640);
          if (width < 1024) expect(s.create!.w, `${at}: New is a 40px icon`).toBeCloseTo(40, 0);
          expect(!!s.apps, `${at}: app links`).toBe(width >= 640);
          expect(!!s.appName, `${at}: app link names`).toBe(width >= 1280);
@@ -186,12 +186,15 @@ const line = (page: Page) =>
       };
    });
 
+/** Every 16px from 320 to 800, every 32px to 1440, and each breakpoint's last pixel. */
+const WIDTHS = [...new Set([...Array.from({ length: 31 }, (_, i) => 320 + i * 16), ...Array.from({ length: 20 }, (_, i) => 832 + i * 32), 399, 639, 767, 1023, 1279])].sort((a, b) => a - b);
+
 test("full width, one line from 320 to 1440px, in the contract's typeface (round 3)", async ({ page }) => {
    await signIn(page, `${RUN}-line`);
    await page.emulateMedia({ colorScheme: "dark" });
    for (const signedOut of [false, true]) {
       for (const lang of ["en", "ar"] as const) {
-         for (const width of [1440, 1280, 1024, 900, 768, 640, 390, 360, 320]) {
+         for (const width of WIDTHS) {
             await page.setViewportSize({ width, height: 800 });
             await page.goto(signedOut ? `/sso/logged-out?lang=${lang}` : `/pages?lang=${lang}`);
             const l = await line(page);
@@ -213,14 +216,14 @@ test("full width, one line from 320 to 1440px, in the contract's typeface (round
    }
 });
 
-test("phones: the drawer toggle is the videos site's (40px .aun-icon-btn, lucide menu, Menu / القائمة) and opens the drawer", async ({ page }) => {
+test("phones: the drawer toggle is the videos site's (40px .aun-icon-btn.aun-menu-btn, lucide menu, Menu / القائمة) and opens the drawer", async ({ page }) => {
    await signIn(page, `${RUN}-menu`);
    for (const lang of ["en", "ar"] as const) {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(`/pages?lang=${lang}`);
       const btn = page.locator("header.aun-header > button[data-open-drawer]");
       await expect(btn).toHaveAccessibleName(lang === "ar" ? "القائمة" : "Menu");
-      await expect(btn).toHaveClass("aun-icon-btn only-phone");
+      await expect(btn).toHaveClass("aun-icon-btn aun-menu-btn only-phone");
       await expect(btn.locator("svg.lucide.lucide-menu line")).toHaveCount(3);
       const box = (await btn.boundingBox())!;
       expect(box.width).toBeCloseTo(40, 0);
