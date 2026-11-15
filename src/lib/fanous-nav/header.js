@@ -55,16 +55,28 @@ export function escapeHtml(value) {
 }
 
 /**
- * The logo lockup: the owner's logo (round), the wordmark, and in every app but www a second line
- * naming the app ("Videos", "Admin", "Status", ...). `href` is the app's own home.
+ * A same-site path built from the request (a language switch keeping the page and query): leading
+ * slashes and backslashes collapse to one "/", so "//evil.example" or "/\\evil.example" can never
+ * become a protocol-relative link to another host. Anything that is not a path becomes "/".
  */
-export function brandHtml({ lang, href, app = '', logoSrc = '/brand/logo-64.webp' }) {
+export function samePath(path) {
+  const p = String(path ?? '');
+  if (!/^[/\\]/.test(p)) return '/';
+  return p.replace(/^[/\\]+/, '/');
+}
+
+/**
+ * The logo lockup: the owner's logo (round), the wordmark, and in every app but www a second line
+ * naming the app ("Videos", "Admin", "Status", ...). `href` is the app's own home. `name` replaces
+ * the wordmark for a white-label site (a scholar's own site name); by default it is "Al Ummah Now".
+ */
+export function brandHtml({ lang, href, app = '', name = '', logoSrc = '/brand/logo-64.webp' }) {
   const l = HEADER_LABELS[lc(lang)];
   const sub = app ? `<span class="aun-brand-app">${escapeHtml(app)}</span>` : '';
   return (
     `<a class="aun-brand" href="${escapeHtml(href)}">` +
     `<img class="aun-brand-mark" src="${escapeHtml(logoSrc)}" alt="" width="36" height="36">` +
-    `<span class="aun-brand-text"><span class="aun-brand-name">${l.siteName}</span>${sub}</span>` +
+    `<span class="aun-brand-text"><span class="aun-brand-name">${escapeHtml(name || l.siteName)}</span>${sub}</span>` +
     `</a>`
   );
 }
