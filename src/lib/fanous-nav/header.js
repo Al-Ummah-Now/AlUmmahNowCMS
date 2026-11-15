@@ -11,7 +11,7 @@
  *   drawer toggle · brand · environment badge · the app's own links/search · app actions ·
  *   app links · language · light/dark · account (or Sign in)
  */
-import { modeIconSvg, modeToggleLabel } from './mode-toggle.js';
+import { MODE_ICON_ATTRS, modeIconSvg, modeToggleLabel } from './mode-toggle.js';
 
 /** The slots of the header, in reading order. */
 export const HEADER_ORDER = ['menu', 'brand', 'env', 'primary', 'actions', 'apps', 'lang', 'mode', 'account'];
@@ -24,6 +24,7 @@ export const HEADER_LABELS = {
     www: 'Website',
     videos: 'Videos',
     signIn: 'Sign in',
+    menu: 'Menu',
     /** The language button's name: the action, then (visible) the other language's own name. */
     switchLang: 'Switch to Arabic',
     otherLang: 'العربية',
@@ -35,6 +36,7 @@ export const HEADER_LABELS = {
     www: 'الموقع',
     videos: 'المرئيات',
     signIn: 'تسجيل الدخول',
+    menu: 'القائمة',
     switchLang: 'التبديل إلى الإنجليزية',
     otherLang: 'English',
     env: { qa: 'بيئة الاختبار QA', stage: 'بيئة ما قبل الإطلاق STAGE' },
@@ -135,6 +137,27 @@ export function modeButtonHtml({ lang, dark, id = 'mode-toggle' }) {
     `<button type="button" class="aun-icon-btn aun-mode" id="${escapeHtml(id)}" data-testid="theme-toggle" ` +
     `aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">` +
     modeIconSvg(dark ? 'sun' : 'moon') +
+    `</button>`
+  );
+}
+
+/** lucide `menu` (0.487), the icon of the videos site's drawer toggle. */
+export const MENU_ICON_BODY =
+  '<line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line>';
+
+/**
+ * The menu button, first in the bar. Apps with a drawer (videos web, admin, CMS, Auth admin) render
+ * the same 40px round button for it. Sites whose own links sit in the bar (www, scholar sites, the
+ * dev site) pass `panel`: the id of an `.aun-header-panel` popover holding those links and search.
+ * The button then shows only below 1024px, where `.aun-header-primary.aun-collapse` leaves the
+ * bar, so the bar stays one 64px (56px) line on every screen. The popover opens without script.
+ */
+export function menuButtonHtml({ lang, panel }) {
+  const label = HEADER_LABELS[lc(lang)].menu;
+  return (
+    `<button type="button" class="aun-icon-btn aun-menu aun-menu-collapse" popovertarget="${escapeHtml(panel)}" ` +
+    `aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">` +
+    `<svg ${MODE_ICON_ATTRS} class="lucide lucide-menu" aria-hidden="true" focusable="false">${MENU_ICON_BODY}</svg>` +
     `</button>`
   );
 }

@@ -36,8 +36,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 /* Header: the shared bar (NAV_CSS .aun-header, src/lib/header.ts; AlUmmahNow docs/design/NAV.md
    "Header"). The CMS adds its search (the primary slot) and New; the brand, badge, app links,
-   language, sun/moon and account are the shared controls. Breakpoints: 1024px (the search moves
-   under the bar, opened by an icon), 640px (phone: New is its icon). */
+   language, sun/moon and account are the shared controls. One line at every width from 320px
+   (NAV.md "Per-app fit", as the videos site's Upload): below 1024px the search moves under the bar,
+   opened by an icon, and New is a 40px icon (its label stays its name); below 768px, where the
+   drawer toggle takes slot 1, the search icon leaves the bar as on phones (each list keeps its own). */
 .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 4px 4px;border-radius:var(--r-md);color:var(--fanous-c-nav-text);text-decoration:none;white-space:nowrap}
 .brand-name{font-weight:700;font-size:17px;line-height:1.1}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;border:0;border-radius:var(--r-pill);background:transparent;color:var(--fanous-c-nav-icon);cursor:pointer;text-decoration:none;transition:background-color var(--fanous-duration-fast),color var(--fanous-duration-fast)}
@@ -58,11 +60,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .hd .hd-search-btn{display:inline-flex}
 .hd.search-open .aun-header-primary{display:flex;position:absolute;inset-inline:0;inset-block-start:100%;padding:8px var(--aun-header-pad);background:var(--fanous-c-nav-bg);border-block-end:1px solid var(--fanous-c-nav-border)}
 .hd.search-open .ac{max-width:none}
-}
-@media(max-width:39.99rem){
-.hd .hd-search-btn{display:none}
 .hd .btn.sm{width:2.5rem;min-width:2.5rem;padding:0}
 .hd .btn.sm span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+@media(max-width:47.99rem){
+.hd .hd-search-btn{display:none}
 }
 
 /* Menus (details/summary popovers); the panels are the shared .aun-menu (NAV_CSS) */

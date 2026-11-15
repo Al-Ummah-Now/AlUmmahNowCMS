@@ -9,8 +9,8 @@
  * account (or Sign in).
  */
 import { publicSiteLinks } from "./app-links.ts";
-import { appLinksHtml, brandHtml, envBadgeHtml, escapeHtml, langButtonHtml, signInHtml } from "./fanous-nav/header.js";
-import { modeIconSvg, modeToggleLabel } from "./fanous-nav/mode-toggle.js";
+import { HEADER_LABELS, MENU_ICON_BODY, appLinksHtml, brandHtml, envBadgeHtml, escapeHtml, langButtonHtml, signInHtml } from "./fanous-nav/header.js";
+import { MODE_ICON_ATTRS, modeIconSvg, modeToggleLabel } from "./fanous-nav/mode-toggle.js";
 
 export type HeaderLang = "en" | "ar";
 
@@ -36,6 +36,20 @@ export function samePath(path: string): string {
 
 /** Builds a link to this page with one parameter changed (`withQuery`, or a page's own rule). */
 export type ParamLink = (key: string, value: string) => string;
+
+/**
+ * Slot 1 on phones (below 768px, where the rail leaves): the drawer toggle, the videos site's own
+ * (a 40px `.aun-icon-btn` with lucide `menu`, the contract's MENU_ICON_BODY, named "Menu" /
+ * "القائمة" from HEADER_LABELS). It opens the navigation drawer (`<dialog id="drawer">`,
+ * client/shell.ts), so it is not the contract's popover menuButtonHtml.
+ */
+export function drawerToggleHtml(lang: HeaderLang): string {
+   const label = escapeHtml(HEADER_LABELS[lang].menu);
+   return (
+      `<button class="aun-icon-btn only-phone" type="button" data-open-drawer aria-label="${label}" title="${label}" aria-controls="drawer" aria-expanded="false">` +
+      `<svg ${MODE_ICON_ATTRS} class="lucide lucide-menu" aria-hidden="true" focusable="false">${MENU_ICON_BODY}</svg></button>`
+   );
+}
 
 /** Slots 2 and 3: the logo lockup (to the CMS home) and the QA / STAGE badge (none in production). */
 export function headerBrandHtml(lang: HeaderLang, environment: string | undefined): string {
@@ -97,10 +111,9 @@ export function publicHeaderHtml(o: {
 
 /**
  * What the CMS adds to the shared header CSS (NAV_CSS), on every page: the material behind the bar,
- * the font, and the Light / Dark pair (only the link for the mode on screen shows).
+ * and the Light / Dark pair (only the link for the mode on screen shows).
  */
 export const HEADER_GLUE_CSS =
-   ".cms-hd{--aun-header-bg:var(--m-header,var(--fanous-c-nav-bg));font-family:var(--fanous-font-latin,system-ui,sans-serif);-webkit-backdrop-filter:var(--m-blur,none);backdrop-filter:var(--m-blur,none)}" +
-   "html[lang=ar] .cms-hd{font-family:var(--fanous-font-arabic,system-ui,sans-serif)}" +
+   ".cms-hd{--aun-header-bg:var(--m-header,var(--fanous-c-nav-bg));-webkit-backdrop-filter:var(--m-blur,none);backdrop-filter:var(--m-blur,none)}" +
    ".cms-hd a{text-underline-offset:.2em}" +
    "html.dark .cms-hd .mode-to-dark,html:not(.dark) .cms-hd .mode-to-light{display:none}";
