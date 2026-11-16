@@ -13,7 +13,7 @@ const between = (html: string) => html.split(/<[^>]*>/).join(" ");
 const texts = (html: string, re: RegExp) => [...html.matchAll(re)].map((m) => between(m[1]).trim()).filter(Boolean);
 /** What a reader sees: no scripts, styles, tags or attributes. */
 const visible = (html: string) =>
-   between(html.split(/<(?:script|style|svg|template)\b[\s\S]*?<\/(?:script|style|svg|template)>/).join(" ")).replace(/\s+/g, " ");
+   between(html.split(/<(?:script|style|svg|template)\b[\s\S]*?<\/(?:script|style|svg|template)[^>]*>/gi).join(" ")).replace(/\s+/g, " ");
 
 describe("Arabic admin numerals", () => {
    it("overview counts and the posts list (dates, result count) use Eastern Arabic (Hindi) numerals", async () => {
