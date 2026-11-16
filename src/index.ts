@@ -6,6 +6,7 @@
  *   /api/preview/v1/*        draft preview for www (one row per signed, expiring token; no CORS)
  *   /api/release/v1/*        release pipeline only (one-time D1 token; src/routes/release-api.ts)
  *   /internal/refs/*         api-videos' scholar post reference outbox (X-API-Key; src/routes/internal-refs.ts)
+ *   /internal/glossary       the translation glossary, read by the videos processor (X-API-Key; src/routes/internal-glossary.ts)
  *   /preview/:kind/:id       staff: mint a preview token, 303 → www/preview (session required)
  *   /sso/*                   SSO login/callback/logout (PKCE public client)
  *   /admin-assets/*          staff screens' CSS/JS (public, immutable, no data)
@@ -34,6 +35,7 @@ import { isFeedDlq, isFeedQueue } from "./lib/feed/queues.ts";
 import { checkFeedFormat } from "./lib/feed/auto-rebuild.ts";
 import { releaseApi } from "./routes/release-api.ts";
 import { internalRefsApi } from "./routes/internal-refs.ts";
+import { internalGlossaryApi } from "./routes/internal-glossary.ts";
 import { fillPrimaryChannels } from "./lib/scholars/refs.ts";
 import { isReconcileSlot, reconcileRefs } from "./lib/scholars/reconcile.ts";
 import { pruneJobs } from "./lib/ai/jobs.ts";
@@ -218,6 +220,8 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    app.route("/api/release/v1", releaseApi() as unknown as Hono<AppEnv>);
    // Scholar post references from api-videos (docs/SCHOLARS.md §7): its own key check, no session.
    app.route("/internal/refs", internalRefsApi() as unknown as Hono<AppEnv>);
+   // The translation glossary for the videos platform's staff-field translation: its own key check, no session.
+   app.route("/internal/glossary", internalGlossaryApi() as unknown as Hono<AppEnv>);
 
    // Staff screens' CSS/JS: public, immutable, no data (content-hashed names).
    app.route("/admin-assets", adminAssets() as unknown as Hono<AppEnv>);
