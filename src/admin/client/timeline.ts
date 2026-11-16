@@ -7,7 +7,7 @@
 import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
 import { askConfirm } from "./dialogs.ts";
 import { openPicker } from "./picker.ts";
-import { initLocalizedPairs, pairValues, translateInto, validatePair } from "./localized-pair.ts";
+import { initLocalizedPairs, num, pairValues, translateInto, validatePair } from "./localized-pair.ts";
 
 interface S {
    failed: string;
@@ -150,7 +150,7 @@ export function initTimeline(): void {
          if (await translateInto(fs, v.en ? "ar" : "en", { quiet: true })) n++;
       }
       b.disabled = false;
-      const msg = n ? fmt(T.missingDone, n) : T.missingNone;
+      const msg = n ? fmt(T.missingDone, num(n)) : T.missingNone;
       if (live) live.textContent = msg;
       toast(msg, n ? "ok" : "bad");
       $<HTMLElement>("li[data-key] [data-l10n-pair].dirty [data-l10n-input]", root)?.focus();

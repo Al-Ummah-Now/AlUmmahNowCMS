@@ -154,5 +154,8 @@ describe("home timeline: en/ar title on the site", () => {
       expect(missing).toContain("data-tl-translate-missing");
       expect(missing).not.toContain("data-pins");
       expect(html).not.toContain("Leave empty");
+      // Arabic counts use ٠–٩ (owner rule 2026-11-15).
+      const arHtml = await (await f("/timeline?locale=ar&lang=ar", { headers: { cookie } })).text();
+      expect(arHtml).toContain('<span class="badge l10n-miss">٢</span>');
    });
 });

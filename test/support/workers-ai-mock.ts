@@ -66,7 +66,9 @@ export function defaultReply(req: MockRequest): MockReply {
    if (s.includes("You translate short interface")) {
       const text = tag(req.user, "text");
       const toAr = s.includes("into Modern Standard Arabic");
-      return { kind: "json", data: { text: toAr ? `ترجمة: ${text}` : `Translated: ${text}`, quran: "none" }, input: 220, output: 20 };
+      // Known phrases read like a real answer (local review shots); anything else is marked as translated.
+      const known: Record<string, string> = { "Ramadan nights, live": "ليالي رمضان، بث مباشر", "This week's khutbah": "خطبة هذا الأسبوع", "خطبة هذا الأسبوع": "This week's khutbah" };
+      return { kind: "json", data: { text: known[text] ?? (toAr ? `ترجمة: ${text}` : `Translated: ${text}`), quran: "none" }, input: 220, output: 20 };
    }
    // "Re-translate selection" (src/lib/translation-flags/retranslate.ts): alternatives for the marked span.
    if (s.includes("alternative") && s.includes("between ⟦ and ⟧")) {

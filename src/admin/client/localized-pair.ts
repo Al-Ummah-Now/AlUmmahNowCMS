@@ -32,6 +32,8 @@ interface S {
 
 const fmt = (s: string, ...a: (string | number)[]) => a.reduce<string>((out, v, i) => out.split(`{${i}}`).join(String(v)), s);
 const other = (l: L): L => (l === "en" ? "ar" : "en");
+/** A number in the page's language: Arabic uses ٠–٩ (explicit numbering system, owner rule 2026-11-15). */
+export const num = (n: number) => new Intl.NumberFormat(document.documentElement.lang === "ar" ? "ar-u-nu-arab" : "en").format(n);
 
 function stringsOf(fs: HTMLElement): S {
    try {
@@ -127,7 +129,7 @@ export async function translateInto(fs: HTMLElement, to: L, o: { quiet?: boolean
       if (code === "quran") {
          const a = el("a", { href: String(body?.quranUrl ?? "https://quran.com"), target: "_blank", rel: "noopener" }, T.officialText);
          status(fs, T.quran, "bad", a);
-      } else if (code === "rate_limited") status(fs, fmt(T.busy, body?.retryAfter ?? 60), "bad");
+      } else if (code === "rate_limited") status(fs, fmt(T.busy, num(body?.retryAfter ?? 60)), "bad");
       else if (code === "daily_cap") status(fs, T.dailyCap, "bad");
       else if (e instanceof ApiError && e.status === 503) status(fs, T.unavailable, "bad");
       else status(fs, T.failed, "bad");

@@ -24,6 +24,9 @@ function kindLabel(v: View, e: AdminEntry): string {
 /** Date input value (YYYY-MM-DD, UTC) of an ISO date. */
 const dateInput = (iso: string) => iso.slice(0, 10);
 
+/** A count in the screen's language: Arabic uses ٠–٩ (explicit numbering system, owner rule 2026-11-15). */
+const num = (n: number, lang: "en" | "ar") => new Intl.NumberFormat(lang === "ar" ? "ar-u-nu-arab" : "en").format(n);
+
 function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: string; index: number; home: boolean; lang: "en" | "ar" }) {
    const { v, e, pinned } = props;
    const t = v.t.timeline;
@@ -281,7 +284,7 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
             ) : null}
             {home && (missing > 0 || missingOnly) ? (
                <a class="btn ghost sm" href={missingOnly ? q() : q("&missing=1")} aria-current={missingOnly ? "true" : undefined} aria-describedby="tl-missing-help">
-                  <Icon name="languages" size={16} /> {v.t.l10n.missingFilter} <span class="badge l10n-miss">{missing}</span>
+                  <Icon name="languages" size={16} /> {v.t.l10n.missingFilter} <span class="badge l10n-miss">{num(missing, v.prefs.lang)}</span>
                </a>
             ) : null}
             {home && missingOnly && missing > 0 ? (
