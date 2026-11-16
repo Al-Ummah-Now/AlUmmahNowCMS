@@ -52,6 +52,11 @@ glossary**. The `/glossary` screen opens with the newest terms listed and search
 Editors and admins add terms. Admins delete them (soft delete, restorable for 30 days, then purged by
 the 30-minute cron) and restore them.
 
+This table is the one glossary for the whole platform. The videos admin's Translate button for
+staff-set en/ar fields (AlUmmahNow processor `src/captions/admin-fields.ts`) reads it from
+`GET /internal/glossary?from=en&to=ar` (`src/routes/internal-glossary.ts`, `X-API-Key` =
+`VIDEOS_INTERNAL_API_KEY`, live entries, longest term first, never cached) instead of keeping a copy.
+
 ## 5. Qur'an
 
 Qur'an is never machine-translated. A flag is marked Qur'an when the editor ticks "This is Qur'an", or
