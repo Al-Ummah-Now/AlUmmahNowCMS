@@ -9,7 +9,7 @@
  * rows; nothing public says so; a failure offers Try again. Items the caller already has
  * (`added`, or the opener's data-picker-added="kind:id …") are marked and cannot be chosen again.
  */
-import { $, $$, api, el, strings } from "./dom.ts";
+import { $, $$, api, el, strings, pageNum } from "./dom.ts";
 import { latestOnly, liveSearch } from "./live-search.ts";
 
 export interface PickedItem {
@@ -143,7 +143,7 @@ export function initPicker(): void {
       } else if (browsed.items.length === 0) {
          status.textContent = T.empty;
       } else {
-         status.textContent = typed ? (items.length ? `${items.length} · ${T.kinds[browsed.kind] ?? browsed.kind}` : T.noResults) : fill(browsed.kind === "channel" ? T.popular : T.newest, browsed.kind);
+         status.textContent = typed ? (items.length ? `${pageNum(items.length)} · ${T.kinds[browsed.kind] ?? browsed.kind}` : T.noResults) : fill(browsed.kind === "channel" ? T.popular : T.newest, browsed.kind);
          if (browsed.state === "more") tail.push(el("li", { class: "picker-more muted", "data-picker-loading-more": "" }, T.loadingMore));
          else if (browsed.next && !typed) {
             const more = el("button", { type: "button", class: "btn sm", "data-picker-more": "" }, T.loadMore);
@@ -216,7 +216,7 @@ export function initPicker(): void {
          // A newer search started while this one was in flight: its answer is the one to show.
          if (!isCurrent()) return;
          results.setAttribute("aria-busy", "false");
-         status.textContent = items.length ? `${items.length} · ${T.kinds[kind] ?? kind}` : T.noResults;
+         status.textContent = items.length ? `${pageNum(items.length)} · ${T.kinds[kind] ?? kind}` : T.noResults;
          results.replaceChildren(...items.map(row));
       } catch {
          if (!isCurrent()) return;

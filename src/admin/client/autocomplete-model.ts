@@ -7,6 +7,7 @@
  * input, the active option is pointed at with aria-activedescendant, nothing is chosen until Enter
  * or a click. Enter with no option active still submits the search form (the full search).
  */
+import { docLang, num } from "../../lib/format.ts";
 
 export interface Suggestion {
    kind: string;
@@ -116,7 +117,7 @@ export function announcement(state: State, T: { searching: string; failed: strin
    if (state.status === "loading" && state.options.length === 0) return T.searching;
    if (state.status === "error") return T.failed;
    if (n === 0) return T.none;
-   return T.count.split("{0}").join(String(n));
+   return T.count.split("{0}").join(num(n, docLang()));
 }
 
 /** `const isCurrent = begin();` … after the await: `if (!isCurrent()) return;` — only the last begun call is current. */

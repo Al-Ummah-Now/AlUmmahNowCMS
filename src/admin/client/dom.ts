@@ -1,4 +1,10 @@
 /** Small DOM helpers shared by the client modules. */
+import { num, toAsciiNumber } from "../../lib/format.ts";
+
+/** The page language ("en" | "ar"), for formatting numbers and dates. */
+export const pageLang = (): string => document.documentElement.lang;
+/** A number for a {placeholder} in the page language (Arabic: Eastern Arabic (Hindi) numerals). */
+export const pageNum = (v: unknown): string => num(v, pageLang());
 export const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel);
 export const $$ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => [...root.querySelectorAll<T>(sel)];
 
@@ -182,4 +188,24 @@ export function fitToViewport(el: HTMLElement | null | undefined): void {
    }
    if (cap !== null) el.style.maxBlockSize = `${Math.max(cap, 0)}px`;
    if (dx || dy) el.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
+}
+
+/**
+ * Number fields (inputmode numeric/decimal, type text so every keyboard works) accept Eastern Arabic
+ * (Hindi) numerals ٠–٩ and the Arabic decimal mark: they become Arabic numerals 0–9 as they are typed.
+ */
+export function initDigitInputs(root: Document = document): void {
+   root.addEventListener(
+      "input",
+      (ev) => {
+         const t = ev.target;
+         if (!(t instanceof HTMLInputElement) || !/^(numeric|decimal)$/.test(t.inputMode)) return;
+         const next = toAsciiNumber(t.value);
+         if (next === t.value) return;
+         const at = t.selectionStart;
+         t.value = next;
+         if (at !== null) t.setSelectionRange(at, at);
+      },
+      true,
+   );
 }

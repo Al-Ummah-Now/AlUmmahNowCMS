@@ -3,7 +3,7 @@
  * src/admin/client.generated.ts). Pages work without it for reading; it adds the drawer, menus,
  * toasts, the session watcher and the editors' behaviour, all driven by data-* attributes.
  */
-import { $$, api, strings, toast } from "./dom.ts";
+import { $$, api, initDigitInputs, strings, toast, pageNum } from "./dom.ts";
 import { initBlocks } from "./blocks.ts";
 // The lantern street (Fawanees): vendored by scripts/sync-fanous.ts, draws only when the theme switches it on
 import { startStreet } from "./fanous-street.generated.js";
@@ -26,6 +26,7 @@ import { initTranslationFlags } from "./translation-flags.ts";
 import { initGlossary } from "./glossary.ts";
 
 initShell();
+initDigitInputs();
 startStreet();
 initAutocomplete();
 initLeaveGuard();
@@ -53,7 +54,7 @@ for (const b of $$<HTMLButtonElement>("[data-retry-videos]")) {
       try {
          const res = await api<{ data: { requeued: number } }>("POST", "/admin/api/video-snapshots/retry");
          const n = res.data.requeued;
-         toast(n === 1 ? String(b.dataset.doneOne) : String(b.dataset.done).split("{0}").join(String(n)));
+         toast(n === 1 ? String(b.dataset.doneOne) : String(b.dataset.done).split("{0}").join(pageNum(n)));
          b.closest("[data-video-flag]")?.remove();
       } catch {
          toast(String(b.dataset.failed), "bad");

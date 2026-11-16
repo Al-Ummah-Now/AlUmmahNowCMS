@@ -3,22 +3,13 @@
  * the zone); this rewrites them with the browser's zone and fills `[data-tz]` with its name.
  */
 import { $$ } from "./dom.ts";
+import { browserTimeZone, formatLocalLong } from "../../lib/format.ts";
 
-const tag = () => (document.documentElement.lang === "ar" ? "ar-u-nu-latn" : "en-GB");
+const lang = () => document.documentElement.lang;
 
-export function formatLocal(d: Date, locale = tag()): string {
-   return new Intl.DateTimeFormat(locale, {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZoneName: "short",
-   }).format(d);
-}
+export const formatLocal = (d: Date): string => formatLocalLong(d, lang());
 
-export const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+export const timeZone = browserTimeZone;
 
 /** "2026-11-10T14:30" in the browser's zone, for a datetime-local input. */
 export function toLocalInput(d: Date): string {

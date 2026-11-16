@@ -8,6 +8,10 @@ import { adminTimeline, postCounts, recentChanges, type AdminEntry, type Change 
 import { pageCounts, pageList, type ListPageRow } from "../../lib/page-entries.ts";
 import { feedStatus, type FeedStatus } from "../../lib/feed/jobs.ts";
 import { relative } from "../format.ts";
+
+/** Placeholders for numeric string templates (rendered as "{0}" / "{1}"). */
+const P0 = "{0}" as unknown as number;
+const P1 = "{1}" as unknown as number;
 import { Icon, type IconName } from "../ui/icons.tsx";
 import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { ConfirmDialog, I18nScript, LocalTime } from "../ui/parts.tsx";
@@ -226,9 +230,9 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                conflict: t.conflict,
                removePost: page ? t.listRemovePost : t.removePost,
                removeVideo: page ? t.listRemoveVideo : t.removeVideo,
-               moved: t.moved(-1, -2).replace("-1", "{0}").replace("-2", "{1}"),
+               moved: t.moved(P0, P1),
                candidatesNone: t.candidatesNone(lang),
-               candidatesAllOn: (page ? t.listAllOn : t.candidatesAllOn)(-1).replace("-1", "{0}"),
+               candidatesAllOn: (page ? t.listAllOn : t.candidatesAllOn)(P0),
                candidatesAllOnOne: (page ? t.listAllOn : t.candidatesAllOn)(1),
                candidatesNoMatch: page ? t.listNoMatch : t.candidatesNoMatch,
                add: t.add,

@@ -201,7 +201,7 @@ function word(raw: string): string {
    return out.replace(/([aiu])\1+/g, "$1");
 }
 
-/** Arabic script → Latin letters; other text is kept as it is. Arabic-Indic digits become 0–9. */
+/** Arabic script → Latin letters; other text is kept as it is. Eastern Arabic (Hindi) numerals ٠–٩ become Arabic numerals 0–9. */
 export function transliterate(text: string): string {
    const digits = text.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
    if (!ARABIC.test(digits)) return digits;

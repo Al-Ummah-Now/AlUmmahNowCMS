@@ -4,7 +4,7 @@
  * Alt+↑/↓), add a post (chooser) or a video (the picker). Every change goes to
  * /admin/api/timeline/* and the page reloads where the list itself changes.
  */
-import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
+import { $, $$, api, ApiError, el, strings, toast, pageNum } from "./dom.ts";
 import { askConfirm } from "./dialogs.ts";
 import { openPicker } from "./picker.ts";
 
@@ -27,7 +27,7 @@ interface S {
    required: string;
 }
 
-const fmt = (s: string, ...a: (string | number)[]) => a.reduce<string>((out, v, i) => out.split(`{${i}}`).join(String(v)), s);
+const fmt = (s: string, ...a: (string | number)[]) => a.reduce<string>((out, v, i) => out.split(`{${i}}`).join(pageNum(v)), s);
 
 const reload = () => location.reload();
 
@@ -205,7 +205,7 @@ export function initTimeline(): void {
                `${base}/candidates?locale=${locale}&q=${encodeURIComponent(typed)}`,
             );
             list.replaceChildren();
-            status.textContent = items.length ? String(items.length) : emptyCandidates(T, typed, published, off);
+            status.textContent = items.length ? pageNum(items.length) : emptyCandidates(T, typed, published, off);
             for (const it of items) {
                const li = el("li");
                li.append(el("span", { class: "ph", "aria-hidden": "true" }));

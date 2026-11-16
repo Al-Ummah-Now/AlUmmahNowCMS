@@ -7,7 +7,7 @@
  */
 import { latestOnly, liveSearch } from "./live-search.ts";
 import { BlockError, blockSummary, isComplete, newBlockId, normalizeBlocks, normalizeSlides, validBlockUrl, validEmail, type Block, type Slide } from "../../lib/blocks.ts";
-import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
+import { $, $$, api, ApiError, el, strings, toast, pageNum } from "./dom.ts";
 import { askLink } from "./dialogs.ts";
 import { openPicker, type PickedItem } from "./picker.ts";
 import { initPageBuilder } from "./page-builder.ts";
@@ -22,7 +22,7 @@ interface S {
 }
 
 let T: S;
-export const fmt = (tpl: string, ...args: (string | number)[]) => args.reduce<string>((s, a, i) => s.split(`{${i}}`).join(String(a)), tpl);
+export const fmt = (tpl: string, ...args: (string | number)[]) => args.reduce<string>((s, a, i) => s.split(`{${i}}`).join(pageNum(a)), tpl);
 
 const changed = (from: Element) => from.closest("form")?.dispatchEvent(new CustomEvent("seq:change", { bubbles: true }));
 
@@ -190,9 +190,9 @@ export function refresh(list: Element): void {
    const blocks = list.matches("[data-seq-list=blocks]");
    items.forEach((li, i) => {
       const pos = $(":scope > .blk-h [data-seq-pos]", li);
-      if (pos) pos.textContent = list.matches("[data-seq-list=slides]") ? String(i + 1) : `, ${fmt(T.blocks.position, i + 1, items.length)}`;
+      if (pos) pos.textContent = list.matches("[data-seq-list=slides]") ? pageNum(i + 1) : `, ${fmt(T.blocks.position, i + 1, items.length)}`;
       const subPos = $(":scope > .sub-hd [data-seq-pos]", li);
-      if (subPos) subPos.textContent = String(i + 1);
+      if (subPos) subPos.textContent = pageNum(i + 1);
       const tools = ":scope > .blk-h [data-seq=X], :scope > .sub-hd [data-seq=X], :scope > .row-tools [data-seq=X]";
       $<HTMLButtonElement>(tools.split("X").join("up"), li)?.toggleAttribute("disabled", i === 0);
       $<HTMLButtonElement>(tools.split("X").join("down"), li)?.toggleAttribute("disabled", i === items.length - 1);
@@ -234,7 +234,7 @@ export function refresh(list: Element): void {
       if (badge) {
          const n = items.length;
          const s = T.slides;
-         badge.textContent = n === 1 ? s.count1 : n === 2 ? s.count2 : n >= 3 && n <= 10 ? s.count10.replace("3", String(n)) : fmt(s.count, n);
+         badge.textContent = n === 1 ? s.count1 : n === 2 ? s.count2 : n >= 3 && n <= 10 ? fmt(s.count10, n) : fmt(s.count, n);
       }
    }
 }
@@ -940,7 +940,7 @@ export function initBlocks(): void {
                last = appendFromTemplate(list, "slide", (s) => setImage($("[data-image-slot]", s)!, p));
             }
             if (last) {
-               announce(list, fmt(T.blocks.added, `${picks.length} × ${T.slides.one}`));
+               announce(list, fmt(T.blocks.added, `${pageNum(picks.length)} × ${T.slides.one}`));
                $<HTMLElement>("input[data-k=heading]", last)?.focus();
             }
          } else if (btn.matches("[data-choose-image]")) {
@@ -955,7 +955,7 @@ export function initBlocks(): void {
             const list = $("ol[data-k=items]", li)!;
             const picks = await chooseMedia(true, btn);
             for (const p of picks) appendFromTemplate(list, "gallery", (s) => setImage($("[data-image-slot]", s)!, p));
-            if (picks.length) announce(list, fmt(T.blocks.added, `${picks.length} × ${T.blocks.types.image}`));
+            if (picks.length) announce(list, fmt(T.blocks.added, `${pageNum(picks.length)} × ${T.blocks.types.image}`));
          } else if (btn.matches("[data-pick-posts]") && li) {
             postsTarget = li;
             const dlg = $<HTMLDialogElement>("#posts-dlg");

@@ -77,8 +77,8 @@ jobs:
         uses: ./.github/actions/playwright-install
         with:
           runner: npx
-          browsers: chromium
-      - name: E2E (desktop + phone, en/ar, light/dark, axe)
+          browsers: chromium webkit
+      - name: E2E (desktop + phone, en/ar, light/dark, axe; Arabic numerals in WebKit)
         run: npx playwright test -c playwright.local.config.ts
 
       - uses: actions/upload-artifact@v4

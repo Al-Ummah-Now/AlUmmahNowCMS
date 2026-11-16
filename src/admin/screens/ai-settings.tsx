@@ -134,13 +134,13 @@ function HttpCard(props: { v: View }) {
                </label>
             </div>
             <Field k="timeoutSeconds" label={a.timeout}>
-               <input class="input" data-k="timeoutSeconds" type="number" min={1} max={300} step={1} inputmode="numeric" dir="ltr" />
+               <input class="input" data-k="timeoutSeconds" type="text" min={1} max={300} step={1} inputmode="numeric" pattern="[0-9]*" dir="ltr" />
             </Field>
             <Field k="pricing.inputPer1k" label={a.priceIn}>
-               <input class="input" data-k="pricing.inputPer1k" type="number" min={0} max={10} step="any" inputmode="decimal" dir="ltr" />
+               <input class="input" data-k="pricing.inputPer1k" type="text" min={0} max={10} step="any" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" dir="ltr" />
             </Field>
             <Field k="pricing.outputPer1k" label={a.priceOut}>
-               <input class="input" data-k="pricing.outputPer1k" type="number" min={0} max={10} step="any" inputmode="decimal" dir="ltr" />
+               <input class="input" data-k="pricing.outputPer1k" type="text" min={0} max={10} step="any" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" dir="ltr" />
             </Field>
          </div>
          <Field k="models" label={a.models} help={a.modelsHelp} wide>
@@ -230,7 +230,7 @@ export async function aiSettingsScreen(v: View, env: Env) {
                </h2>
                <div class="field" style="max-width:280px">
                   <label for="ai-budget">{a.budgetLabel}</label>
-                  <input id="ai-budget" class="input" data-budget type="number" min={1} max={500} step="any" inputmode="decimal" dir="ltr" aria-describedby="ai-budget-help ai-budget-spent" />
+                  <input id="ai-budget" class="input" data-budget type="text" min={1} max={500} step="any" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" dir="ltr" aria-describedby="ai-budget-help ai-budget-spent" />
                </div>
                <p class="help" id="ai-budget-help">
                   {a.budgetHelp}

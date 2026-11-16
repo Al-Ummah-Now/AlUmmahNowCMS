@@ -5,6 +5,7 @@
  */
 import { $, $$, api, ApiError, strings, toast } from "./dom.ts";
 import { attachCombobox } from "./combobox.ts";
+import { formatDateTime, formatMoney, formatNumber } from "../../lib/format.ts";
 
 type Json = Record<string, unknown>;
 interface Provider extends Json {
@@ -105,9 +106,9 @@ export function initAiSettings(): void {
    const removeDlg = $<HTMLDialogElement>("#ai-remove")!;
    const errorsBox = $("[data-ai-errors]", form)!;
    let uid = 0;
-   const usd = (n: number) => new Intl.NumberFormat(lang, { style: "currency", currency: "USD", maximumFractionDigits: n < 1 ? 4 : 2 }).format(n);
-   const ms = (n: number) => new Intl.NumberFormat(lang, { style: "unit", unit: "millisecond", unitDisplay: "short" }).format(Math.round(n));
-   const intl = (n: number) => new Intl.NumberFormat(lang).format(n);
+   const usd = (n: number) => formatMoney(n, "USD", lang, { maximumFractionDigits: n < 1 ? 4 : 2 });
+   const ms = (n: number) => formatNumber(Math.round(n), lang, { style: "unit", unit: "millisecond", unitDisplay: "short" });
+   const intl = (n: number) => formatNumber(n, lang);
    const cards = () => $$<HTMLElement>("[data-provider]", host);
 
    // ---- budget ----
@@ -325,7 +326,7 @@ export function initAiSettings(): void {
       for (const e of entries) {
          const li = document.createElement("li");
          const who = e.email ?? "—";
-         const when = new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(e.at));
+         const when = formatDateTime(e.at, lang);
          const strong = document.createElement("strong");
          strong.textContent = `${fmt(e.action === "test" ? a.tested : a.changed, who)} · ${when}`;
          const code = document.createElement("div");
