@@ -18,7 +18,7 @@
 import type { FeedItem, HeadDoc, WeekDoc, WeekTombstone, YearDoc } from "./model.ts";
 import type { postSummaries, snapshotOf } from "../../routes/public-api.ts";
 
-export const FEED_FORMAT = 5;
+export const FEED_FORMAT = 6;
 
 /**
  * Format → fingerprint of the FeedShapeRoots type it was released with. APPEND-ONLY: never edit or
@@ -31,6 +31,10 @@ export const FEED_FORMAT = 5;
  *      `ref` (the community post) and `v2` (its kind-specific summary).
  *   5: link posts carry the page's site name: PostSummary `v2.link.site_name` (wiki AUN-SCHOLAR-SITES
  *      SS14; www and the sites render the preview card's site name, else the host).
+ *   6: what fills a video item's `title_override` changed: an entry shown in both
+ *      languages carries the override of the feed's own language only (migration 0023,
+ *      docs/LOCALIZED_FIELDS.md), never the other language's. The rebuild drops legacy overrides
+ *      from the language they are not written in.
  */
 export const FEED_FORMAT_HISTORY: Readonly<Record<number, string>> = {
    1: "afcfa9ffd2ba7bdb",
@@ -38,6 +42,7 @@ export const FEED_FORMAT_HISTORY: Readonly<Record<number, string>> = {
    3: "2556b53d1803e307",
    4: "e2c2ae044efbc5f8",
    5: "3cf78e655a5a162e",
+   6: "1a310cea884ef1ea",
 };
 
 /** Everything whose shape is part of the stored feed (the test fingerprints this type). */
@@ -47,6 +52,8 @@ export interface FeedShapeRoots {
    snapshot: NonNullable<ReturnType<typeof snapshotOf>>;
    /** Fields snapshotOf adds for videos (format 3); snapshotOf itself returns a loose record. */
    videoSnapshot: { width: number | null; height: number | null; channel_names: Partial<Record<"en" | "ar", string>> };
+   /** Format 6: a video item's title_override is in the feed's own language only (docs/LOCALIZED_FIELDS.md). */
+   videoTitleOverride: { feed_language_only: string | null };
    head: HeadDoc;
    week: WeekDoc;
    tombstone: WeekTombstone;

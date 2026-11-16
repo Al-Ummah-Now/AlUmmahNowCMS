@@ -607,4 +607,19 @@ button.badge.published{border:0;font:inherit;font-size:12px;font-weight:700;curs
 @media(hover:hover){button.badge.published:hover{box-shadow:inset 0 0 0 1px currentColor}}
 button.badge.published .icon{width:14px;height:14px}
 @media(max-width:600px){.gate-av{display:none}.gate-accounts .li-end{margin-inline-start:0}}
+/* Localized pair (ui/localized-pair.tsx): English | العربية, Translate under each, live status + Undo */
+.l10n-pair{border:0;margin:0;padding:0;min-width:0;display:grid;gap:8px}
+.l10n-pair>legend{padding:0;margin-bottom:4px}
+.l10n-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}
+.l10n-side{display:grid;gap:6px;align-content:start}
+.l10n-side .l10n-go{justify-self:start}
+.l10n-side .field-err{margin:0;font-size:13px;font-weight:600;color:var(--fanous-c-form-error)}
+.l10n-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.l10n-status{margin:0;flex:1 1 14rem;min-width:0}
+.l10n-status:empty{display:none}
+.l10n-status.bad{color:var(--fanous-c-form-error);font-weight:600}
+.l10n-status a{color:inherit;text-decoration:underline}
+.l10n-pair.dirty .l10n-save{box-shadow:0 0 0 2px var(--fanous-color-primary)}
+.badge.l10n-miss{background:transparent;color:var(--fanous-color-text-primary);box-shadow:inset 0 0 0 1px var(--fanous-c-form-error)}
+.badge.l10n-miss::before{background:var(--fanous-c-form-error)}
 `;

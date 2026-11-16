@@ -12,6 +12,7 @@ import { markDirty } from "./jobs.ts";
 import { softDelete } from "../trash.ts";
 import { MAIN_SITE_SQL, mainSiteSql } from "../scholars/main-site.ts";
 import { addToLibrary } from "../library.ts";
+import { missingLocale, overrideFor, overridePair, type OverridePair } from "./overrides.ts";
 
 type Row = Record<string, unknown>;
 
@@ -35,6 +36,10 @@ export interface AdminEntry {
    slug?: string;
    refId?: string;
    titleOverride?: string | null;
+   /** Rows shown in both languages: the en/ar "Title on the site" pair (src/lib/feed/overrides.ts). */
+   overrides?: OverridePair;
+   /** The language the pair lacks (a legacy row, or a language change): marked and translatable. */
+   missing?: "en" | "ar" | null;
    channel?: string | null;
 }
 
@@ -80,13 +85,14 @@ export function postEntry(r: Row, now: number): AdminEntry {
    };
 }
 
-export function videoEntry(r: Row, videosWebUrl: string): AdminEntry {
+export function videoEntry(r: Row, videosWebUrl: string, l?: "en" | "ar"): AdminEntry {
    const s = snap(r.snapshot);
+   const shown = overrideFor(r, l);
    return {
       key: `v${r.id}`,
       type: "video",
       id: Number(r.id),
-      title: String(r.title_override || s.title || r.ref_id),
+      title: String(shown || s.title || r.ref_id),
       date: toIso(r.d) ?? new Date(0).toISOString(),
       hidden: Number(r.hidden ?? 0) === 1,
       unavailable: s.public === false || !r.snapshot,
@@ -98,6 +104,8 @@ export function videoEntry(r: Row, videosWebUrl: string): AdminEntry {
       locale: String(r.locale ?? "all"),
       refId: String(r.ref_id),
       titleOverride: typeof r.title_override === "string" ? r.title_override : null,
+      overrides: r.locale === "all" ? overridePair(r) : undefined,
+      missing: missingLocale(r),
       channel: typeof s.channel_name === "string" ? s.channel_name : null,
    };
 }
@@ -106,7 +114,8 @@ const POST_COLS = `p.id, p.title, p.slug, p.locale, p.kind, p.publish_at, ${PDAT
    (SELECT m.path FROM media m WHERE m.reference = 'posts.cover' AND m.entity_id = CAST(p.id AS TEXT) ORDER BY m.id DESC LIMIT 1) AS cover_path`;
 
 /** Pinned entries (all, in pin order) and one page of the rest, newest first, by cursor. */
-export async function adminTimeline(env: Env, l: "en" | "ar", before: string | null, size = 30): Promise<{ pinned: AdminEntry[]; items: AdminEntry[]; next: string | null }> {
+export async function adminTimeline(env: Env, l: "en" | "ar", before: string | null, size = 30, missingOnly = false): Promise<{ pinned: AdminEntry[]; items: AdminEntry[]; next: string | null }> {
+   if (missingOnly) return missingTimeline(env, l);
    const now = Date.now();
    const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
    const c = parseCursor(before);
@@ -121,13 +130,30 @@ export async function adminTimeline(env: Env, l: "en" | "ar", before: string | n
          .bind(l, ...(cIso ? [cIso] : []))
          .all<Row>(),
    ]);
-   const pinned = [...pp.results.map((r) => postEntry(r, now)), ...pv.results.map((r) => videoEntry(r, videosWebUrl))].sort((a, b) => (a.pinRank ?? 0) - (b.pinRank ?? 0) || a.key.localeCompare(b.key));
-   const sorted = [...up.results.map((r) => postEntry(r, now)), ...uv.results.map((r) => videoEntry(r, videosWebUrl))]
+   const pinned = [...pp.results.map((r) => postEntry(r, now)), ...pv.results.map((r) => videoEntry(r, videosWebUrl, l))].sort((a, b) => (a.pinRank ?? 0) - (b.pinRank ?? 0) || a.key.localeCompare(b.key));
+   const sorted = [...up.results.map((r) => postEntry(r, now)), ...uv.results.map((r) => videoEntry(r, videosWebUrl, l))]
       .filter((e) => !c || isOlder(e, c))
       .sort((a, b) => compareSort(Date.parse(a.date), a.key, Date.parse(b.date), b.key));
    const items = sorted.slice(0, size);
    const last = items[items.length - 1];
    return { pinned, items, next: sorted.length > size && last ? `${Date.parse(last.date)}-${last.key}` : null };
+}
+
+/** The "Missing a language" filter: video entries shown in both languages whose title pair is half set. */
+export const MISSING_SQL = `te.locale = 'all' AND (coalesce(trim(te.title_override), '') <> '') <> (coalesce(trim(te.title_override_ar), '') <> '')`;
+
+async function missingTimeline(env: Env, l: "en" | "ar"): Promise<{ pinned: AdminEntry[]; items: AdminEntry[]; next: string | null }> {
+   const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
+   const { results } = await env.DB.prepare(`SELECT te.*, ${VDATE} AS d, vs.snapshot ${VIDEOS} AND ${MISSING_SQL} ORDER BY ${VDATE} DESC, te.id DESC LIMIT 200`)
+      .bind(l)
+      .all<Row>();
+   return { pinned: [], items: results.map((r) => videoEntry(r, videosWebUrl, l)), next: null };
+}
+
+/** How many entries the "Missing a language" filter has (the toolbar shows it). */
+export async function missingCount(env: Env): Promise<number> {
+   const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM timeline_entries te WHERE te.kind = 'video' AND ${MISSING_SQL}`).first<{ n: number }>();
+   return Number(r?.n ?? 0);
 }
 
 /**
@@ -197,7 +223,7 @@ export async function recentChanges(env: Env, limit = 20, pageId: number | null 
    const { results } = await env.DB.prepare(
       `SELECT c.*, CASE WHEN c.entry_kind = 'feed' THEN NULL WHEN json_extract(c.detail, '$.page_id') IS NOT NULL THEN json_extract(c.detail, '$.title')
          WHEN c.entry_kind = 'post' THEN (SELECT title FROM posts WHERE id = CAST(substr(c.entry_ref, 2) AS INTEGER))
-         ELSE (SELECT coalesce(te.title_override, json_extract(vs.snapshot, '$.title')) FROM timeline_entries te LEFT JOIN video_snapshots vs ON vs.kind = te.video_kind AND vs.ref_id = te.ref_id WHERE te.id = CAST(substr(c.entry_ref, 2) AS INTEGER)) END AS title
+         ELSE (SELECT coalesce(te.title_override, te.title_override_ar, json_extract(vs.snapshot, '$.title')) FROM timeline_entries te LEFT JOIN video_snapshots vs ON vs.kind = te.video_kind AND vs.ref_id = te.ref_id WHERE te.id = CAST(substr(c.entry_ref, 2) AS INTEGER)) END AS title
        FROM timeline_changes c WHERE json_valid(coalesce(c.detail, 'null')) AND ${scope} ORDER BY c.id DESC LIMIT ?1`,
    )
       .bind(limit, ...(pageId === null ? [] : [pageId]))
@@ -311,7 +337,18 @@ export async function reorderPins(env: Env, l: "en" | "ar", keys: string[], acto
    await markDirty(env, [`head:${l}`], "pins reordered");
 }
 
-export async function setVideoFields(env: Env, key: string, fields: { entry_date?: string; title_override?: string | null; locale?: string }, actor: Actor): Promise<void> {
+export interface VideoFields {
+   entry_date?: string;
+   /** The override in the row's language; for a row shown in both languages, the English one. */
+   title_override?: string | null;
+   /** The Arabic override of a row shown in both languages (migration 0023). */
+   title_override_ar?: string | null;
+   locale?: string;
+}
+
+const cleanTitle = (v: string | null | undefined) => (v ? String(v).trim().slice(0, 200) || null : null);
+
+export async function setVideoFields(env: Env, key: string, fields: VideoFields, actor: Actor): Promise<void> {
    const { type } = parseKey(key);
    if (type !== "v") throw new TimelineError(400, "bad_key");
    const set: Record<string, unknown> = {};
@@ -320,20 +357,38 @@ export async function setVideoFields(env: Env, key: string, fields: { entry_date
       if (!d) throw new TimelineError(400, "bad_date");
       set.entry_date = d;
    }
-   if (fields.title_override !== undefined) set.title_override = fields.title_override ? String(fields.title_override).trim().slice(0, 200) || null : null;
    if (fields.locale !== undefined) {
       if (!["en", "ar", "all"].includes(fields.locale)) throw new TimelineError(400, "bad_locale");
       set.locale = fields.locale;
    }
-   if (!Object.keys(set).length) throw new TimelineError(400, "nothing_to_change");
+   const titles = fields.title_override !== undefined || fields.title_override_ar !== undefined;
+   if (!titles && !Object.keys(set).length) throw new TimelineError(400, "nothing_to_change");
    const before = await videoRow(env, parseKey(key).id);
+   const was = String(before.locale ?? "all");
+   const now = String(set.locale ?? was);
+   if (titles || now !== was) {
+      // The overrides as a pair (docs/LOCALIZED_FIELDS.md, src/lib/feed/overrides.ts), then this request's edits.
+      const pair: OverridePair = was === "all" ? overridePair(before) : { en: was === "en" ? cleanTitle(before.title_override as string | null) : null, ar: was === "ar" ? cleanTitle(before.title_override as string | null) : null };
+      if (fields.title_override !== undefined) pair[now === "ar" ? "ar" : "en"] = cleanTitle(fields.title_override);
+      if (fields.title_override_ar !== undefined) pair.ar = cleanTitle(fields.title_override_ar);
+      if (now === "all") {
+         // Both languages or neither: a missing one is never filled from the other. A language change
+         // alone may leave one side empty; the screen then marks the row "… missing".
+         if (titles && !!pair.en !== !!pair.ar) throw new TimelineError(400, pair.en ? "ar_missing" : "en_missing");
+         set.title_override = pair.en;
+         set.title_override_ar = pair.ar;
+      } else {
+         set.title_override = pair[now as "en" | "ar"];
+         set.title_override_ar = null;
+      }
+   }
    try {
       await updateEntry(env, key, set, actor);
    } catch (error) {
       if (/UNIQUE/i.test(String(error))) throw new TimelineError(409, "duplicate");
       throw error;
    }
-   await logChange(env, actor, "edit", key, null, { before: { entry_date: before.entry_date, title_override: before.title_override, locale: before.locale }, after: set });
+   await logChange(env, actor, "edit", key, null, { before: { entry_date: before.entry_date, title_override: before.title_override, title_override_ar: before.title_override_ar ?? null, locale: before.locale }, after: set });
    await markDirty(env, [key], "video entry edited");
 }
 
