@@ -66,7 +66,10 @@ export function defaultReply(req: MockRequest): MockReply {
    if (s.includes("You translate short interface")) {
       const text = tag(req.user, "text");
       const toAr = s.includes("into Modern Standard Arabic");
-      return { kind: "json", data: { text: toAr ? `ترجمة: ${text}` : `Translated: ${text}`, quran: "none" }, input: 220, output: 20 };
+      const mark = (x: string) => (toAr ? `ترجمة: ${x}` : `Translated: ${x}`);
+      // Page-builder blocks (src/lib/block-translate.ts) pack pieces as "[1] …" lines: each line answered.
+      const out = /^\[1\] /.test(text) ? text.split("\n").map((l) => l.replace(/^(\[\d+\] )(.*)$/, (_m, n: string, x: string) => `${n}${mark(x)}`)).join("\n") : mark(text);
+      return { kind: "json", data: { text: out, quran: "none" }, input: 220, output: 20 };
    }
    // "Re-translate selection" (src/lib/translation-flags/retranslate.ts): alternatives for the marked span.
    if (s.includes("alternative") && s.includes("between ⟦ and ⟧")) {

@@ -51,6 +51,21 @@ describe("POST /admin/api/translate (mocked Workers AI)", () => {
       expect(await back.json()).toEqual({ text: "Translated: مرئيات جديدة" });
    });
 
+   it("a page block's packed pieces: one call, numbered lines back, mapped one to one by the builder", async () => {
+      const { pack, segment, rebuild, unpack } = await import("../../src/lib/block-translate.ts");
+      const ai = mockWorkersAi();
+      const call = caller(await session(["Moderator"], "l10n-ed-blk"), { AI: ai.binding });
+      const seg = segment("## Our **videos**\n\nWatch [live](https://x.test/live)", true);
+      const [chunk] = pack(seg.pieces);
+      const res = await call("POST", "/admin/api/translate", { text: chunk!.text, from: "en", to: "ar" });
+      expect(res.status).toBe(200);
+      expect(ai.requests).toHaveLength(1);
+      expect(ai.requests[0].system).toContain("numbered lines");
+      expect(ai.requests[0].user).not.toContain("https://");
+      const pieces = unpack(chunk!, ((await res.json()) as { text: string }).text);
+      expect(rebuild(seg, pieces!)).toBe("## ترجمة: Our **ترجمة: videos**\n\nترجمة: Watch [ترجمة: live](https://x.test/live)");
+   });
+
    it("Arabic output never says فيديو", async () => {
       const ai = mockWorkersAi(() => ({ kind: "json", data: { text: "أحدث الفيديوهات وفيديو واحد", quran: "none" } }));
       const call = caller(await session(["Moderator"], "l10n-ed-2"), { AI: ai.binding });

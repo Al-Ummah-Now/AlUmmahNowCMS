@@ -150,6 +150,7 @@ html.bld-lock,html.bld-lock body{overflow:hidden}
 .bt-note a{color:inherit;text-decoration:underline}
 .bt-note[data-bt-note=mt]::before{content:"";flex:none;width:8px;height:8px;margin-block-start:6px;border-radius:50%;background:var(--fanous-color-primary)}
 .bt-progress{flex-basis:100%;display:flex;align-items:center;gap:10px;font-size:13px}
+.bld-open .bt-progress{color:var(--fanous-c-nav-text)}
 .bt-progress[hidden]{display:none}
 .bt-progress progress{flex:0 1 220px;accent-color:var(--fanous-color-primary)}
 .bt-progress [data-bt-progress-text]{flex:1;min-width:0}
