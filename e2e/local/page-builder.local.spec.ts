@@ -119,8 +119,8 @@ for (const lang of ["en", "ar"] as const) {
       const qs = faq.locator("ol[data-k=items] > li");
       await qs.nth(0).locator("[data-k=q]").fill("Is it free to watch?");
       await qs.nth(0).locator("[data-k=a]").fill("Yes, every public video is free to watch.");
-      await qs.nth(1).locator("[data-k=q]").fill("Can I upload?");
-      await qs.nth(1).locator("[data-k=a]").fill("Creators invited by the team can upload.");
+      await qs.nth(1).locator("[data-k=q]").fill("Can I watch on my phone?");
+      await qs.nth(1).locator("[data-k=a]").fill("Yes, on any phone browser, in Arabic or English.");
       await expect(frame(page).locator("[data-block-type=faq] summary").first()).toHaveText("Is it free to watch?");
 
       const cta = await addBlock(page, "ctaband");
@@ -166,7 +166,7 @@ for (const lang of ["en", "ar"] as const) {
       expect(enPage.blocks.map((b) => b.type)).toEqual(["hero", "stats", "faq", "cta"]);
       expect(enPage.blocks[0].title).toBe("Watch, share and subscribe");
       expect(enPage.blocks[1].items?.map((x) => x.label)).toEqual(featureLabels);
-      expect(enPage.blocks[2].items?.map((x) => x.q)).toEqual(["Is it free to watch?", "Can I upload?"]);
+      expect(enPage.blocks[2].items?.map((x) => x.q)).toEqual(["Is it free to watch?", "Can I watch on my phone?"]);
       expect(enPage.blocks[3].appearance).toMatchObject({ tone: "night", width: "full" });
 
       // ── Arabic page: copy the English blocks, translate, publish. ──
