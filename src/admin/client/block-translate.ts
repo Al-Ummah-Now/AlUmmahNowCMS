@@ -318,7 +318,8 @@ export function decorateFields(list: HTMLElement, c: FieldContext): void {
       for (const f of blockFields(li)) {
          const next = f.input.nextElementSibling;
          if (next?.matches("[data-bt-row]")) continue;
-         const btn = el("button", { type: "button", class: "btn ghost sm bt-go", "data-bt-field": pathString(f.path), "aria-label": fmt(c.T.translateFieldLabel, fieldLabel(f.input), otherName) }, fmt(c.T.translateField, otherName));
+         // The accessible name starts with the visible text (WCAG 2.5.3) and names the field after it.
+         const btn = el("button", { type: "button", class: "btn ghost sm bt-go", "data-bt-field": pathString(f.path) }, fmt(c.T.translateField, otherName), el("span", { class: "vh" }, fmt(c.T.translateFieldLabel, fieldLabel(f.input))));
          f.input.after(el("div", { class: "bt-row", "data-bt-row": "" }, btn));
       }
    }

@@ -5,10 +5,9 @@
  * translate, a failing block doesn't stop the rest, and per-field Translate fills from the other
  * page's block with Undo when it replaced text. Nothing is saved: no other request is made.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { blockFields, decorateFields, translateBlocks, translateOneField, type BtStrings } from "../../src/admin/client/block-translate.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
-import { BlockItem, emptyRefs } from "../../src/admin/screens/blocks.tsx";
 import { normalizePageBlocks, pageBlockTexts, type PageBlock } from "../../src/lib/page-blocks.generated.ts";
 import { samplePageBlocks } from "../../src/lib/page-blocks.sample.generated.ts";
 
@@ -16,7 +15,7 @@ const t = ADMIN_STRINGS.en;
 const T: BtStrings = {
    ...t.blocks.bt,
    translateField: t.blocks.bt.translateField("{0}"),
-   translateFieldLabel: t.blocks.bt.translateFieldLabel("{0}", "{1}"),
+   translateFieldLabel: t.blocks.bt.translateFieldLabel("{0}"),
    fieldFilled: t.blocks.bt.fieldFilled("{0}", "{1}"),
    fieldReplaced: t.blocks.bt.fieldReplaced("{0}", "{1}"),
    nothingToTranslate: t.blocks.bt.nothingToTranslate("{0}"),
@@ -27,9 +26,19 @@ const T: BtStrings = {
    l10n: t.l10n,
 };
 
+// The editor's own server markup. Imported at run time only: this file is type-checked by the client
+// project (tsconfig.client.json), which must not compile server code (worker types).
+type BlockItemFn = (p: { c: unknown; b: PageBlock }) => unknown;
+let BlockItem: BlockItemFn;
+let emptyRefs: () => unknown;
+beforeAll(async () => {
+   const screens = "../../src/admin/screens/blocks.tsx";
+   ({ BlockItem, emptyRefs } = (await import(/* @vite-ignore */ screens)) as { BlockItem: BlockItemFn; emptyRefs: () => unknown });
+});
+
 function render(raw: Record<string, unknown>[], locale: "en" | "ar" = "ar") {
    const blocks = normalizePageBlocks(raw);
-   const c = { v: { t: ADMIN_STRINGS.en, user: { role: "admin" } } as never, locale, refs: emptyRefs() };
+   const c = { v: { t: ADMIN_STRINGS.en, user: { role: "admin" } }, locale, refs: emptyRefs() };
    document.body.innerHTML = `<form><ol data-k="blocks">${blocks.map((b) => String(BlockItem({ c, b }))).join("")}</ol></form>`;
    return { list: document.querySelector<HTMLElement>("ol[data-k=blocks]")!, items: [...document.querySelectorAll<HTMLElement>("ol[data-k=blocks] > li")] };
 }
@@ -68,8 +77,10 @@ describe("block fields in the editor", () => {
       decorateFields(list, { locale: "ar", otherLocale: "en", T, otherBlocks: async () => null });
       const btns = items[0]!.querySelectorAll<HTMLButtonElement>("[data-bt-field]");
       expect(btns.length).toBe(3);
-      expect(btns[0]!.textContent).toBe("Translate from English");
-      expect(btns[0]!.getAttribute("aria-label")).toMatch(/^Translate “.+” from English$/);
+      // Accessible name = the visible text, then the field (label-content-name-match).
+      expect(btns[0]!.textContent).toMatch(/^Translate from English: .+/);
+      expect(btns[0]!.querySelector(".vh")!.textContent).toMatch(/^: .+/);
+      expect(btns[0]!.hasAttribute("aria-label")).toBe(false);
    });
 });
 

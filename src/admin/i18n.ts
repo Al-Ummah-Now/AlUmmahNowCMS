@@ -477,7 +477,7 @@ const en = {
       translateStop: "Stop",
       bt: {
          translateField: (lang: string) => `Translate from ${lang}`,
-         translateFieldLabel: (field: string, lang: string) => `Translate “${field}” from ${lang}`,
+         translateFieldLabel: (field: string) => `: ${field}`,
          machineNote: "Machine-translated, check before publishing.",
          fieldFilled: (field: string, lang: string) => `“${field}” translated from ${lang}.`,
          fieldReplaced: (field: string, lang: string) => `“${field}” replaced with a translation from ${lang}.`,
@@ -1824,7 +1824,7 @@ const ar: Strings = {
       translateStop: "أوقف",
       bt: {
          translateField: (lang: string) => `ترجم من ${lang}`,
-         translateFieldLabel: (field: string, lang: string) => `ترجم «${field}» من ${lang}`,
+         translateFieldLabel: (field: string) => `: ${field}`,
          machineNote: "ترجمة آلية، راجعها قبل النشر.",
          fieldFilled: (field: string, lang: string) => `تُرجم «${field}» من ${lang}.`,
          fieldReplaced: (field: string, lang: string) => `استُبدل «${field}» بترجمة من ${lang}.`,

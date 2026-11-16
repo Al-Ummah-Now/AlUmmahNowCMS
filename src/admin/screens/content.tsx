@@ -430,7 +430,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
             ? {
                  ...t.blocks.bt,
                  translateField: t.blocks.bt.translateField("{0}"),
-                 translateFieldLabel: t.blocks.bt.translateFieldLabel("{0}", "{1}"),
+                 translateFieldLabel: t.blocks.bt.translateFieldLabel("{0}"),
                  fieldFilled: t.blocks.bt.fieldFilled("{0}", "{1}"),
                  fieldReplaced: t.blocks.bt.fieldReplaced("{0}", "{1}"),
                  nothingToTranslate: t.blocks.bt.nothingToTranslate("{0}"),
