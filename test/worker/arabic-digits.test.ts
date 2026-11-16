@@ -37,10 +37,10 @@ describe("Arabic admin numerals", () => {
       }
 
       const list = await (await f("/posts", { headers: { cookie } })).text();
-      const times = texts(list, /<time[^>]*>([\s\S]*?)<\/time>/g);
-      const counts = texts(list, /<p[^>]*class="[^"]*\bcount\b[^"]*"[^>]*>([\s\S]*?)<\/p>/g);
-      const rel = texts(list, /آخر تحديث ([^<]*)/g);
-      for (const s of [...times, ...counts, ...rel]) expect(s, s).not.toMatch(ASCII);
+      // Everything a reader sees on the list (titles here have no digits; slugs are code and stay 0–9).
+      const page = visible(list).replace(/\/articles\/[a-z0-9-]+/g, " ");
+      expect(page).toMatch(EASTERN);
+      expect(page.match(/\S*[0-9]\S*/g) ?? []).toEqual([]);
       // The result count line (e.g. «١٢ نتيجة») is there and formatted.
       expect(list).toMatch(/[٠-٩]+ نتيجة/);
    });

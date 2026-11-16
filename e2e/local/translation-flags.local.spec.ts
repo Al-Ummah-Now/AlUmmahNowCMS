@@ -8,6 +8,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
+import { num } from "../../src/lib/format.ts";
 
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
@@ -99,7 +100,7 @@ for (const lang of ["en", "ar"] as const) {
       await expect(item).toContainText("endurance");
       await expect(item).toContainText(F.reasons.term);
       await expect(page.locator(".trf-mirror mark")).toHaveText("endurance");
-      await expect(card.locator("[data-trf-count]")).toHaveText(F.openCount.replace("{0}", "1"));
+      await expect(card.locator("[data-trf-count]")).toHaveText(F.openCount.replace("{0}", num(1, lang)));
       await axe(page);
       await shot(page, `flagged-${lang}`);
 
@@ -158,7 +159,7 @@ for (const lang of ["en", "ar"] as const) {
 
       // The list shows the open count.
       await page.goto(`${ON}/posts?lang=${lang}&locale=en`);
-      await expect(page.locator(`a[href="/posts/${en}"]`).locator("xpath=../..").locator("[data-trf-badge]")).toContainText(F.openCount.replace("{0}", "2"));
+      await expect(page.locator(`a[href="/posts/${en}"]`).locator("xpath=../..").locator("[data-trf-badge]")).toContainText(F.openCount.replace("{0}", num(2, lang)));
       await page.goto(`${ON}/posts/${en}?lang=${lang}`);
 
       // Re-translate selection: alternatives from the (mocked) provider, pick one.
