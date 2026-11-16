@@ -8,13 +8,12 @@ import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
 
 const ASCII = /[0-9]/;
 const EASTERN = /[٠-٩]/;
-const texts = (html: string, re: RegExp) => [...html.matchAll(re)].map((m) => m[1].replace(/<[^>]+>/g, "").trim()).filter(Boolean);
+/** Text between tags (a test reading markup, not a sanitizer). */
+const between = (html: string) => html.split(/<[^>]*>/).join(" ");
+const texts = (html: string, re: RegExp) => [...html.matchAll(re)].map((m) => between(m[1]).trim()).filter(Boolean);
 /** What a reader sees: no scripts, styles, tags or attributes. */
 const visible = (html: string) =>
-   html
-      .replace(/<(script|style|svg|template)\b[\s\S]*?<\/\1>/g, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ");
+   between(html.split(/<(?:script|style|svg|template)\b[\s\S]*?<\/(?:script|style|svg|template)>/).join(" ")).replace(/\s+/g, " ");
 
 describe("Arabic admin numerals", () => {
    it("overview counts and the posts list (dates, result count) use Eastern Arabic (Hindi) numerals", async () => {
