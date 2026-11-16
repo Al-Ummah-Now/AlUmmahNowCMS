@@ -234,7 +234,7 @@ interface SearchHit {
   characters of the body) are normalised the same way (`src/lib/search/normalize.ts`, a port of the
   monorepo's `packages/shared-types/src/search/normalize.ts`): Arabic tashkeel, Quranic marks and
   tatweel removed, alef forms → ا, ى/ی → ي, ة → ه, ؤ → و, ئ → ي, standalone ء dropped,
-  Arabic-Indic digits → 0-9, NFKC, lower case, Latin accents removed. Every query word (≤ 8, `q`
+  Eastern Arabic (Hindi) numerals ٠–٩ → Arabic numerals 0–9, NFKC, lower case, Latin accents removed. Every query word (≤ 8, `q`
   cut at 100 characters) must match; a leading Arabic article is optional on both sides
   (الحديث ~ حديث). The newest 2000 live posts per locale are searched.
 - **Ranking.** Title starts with the query > every word starts a title word > title contains it >

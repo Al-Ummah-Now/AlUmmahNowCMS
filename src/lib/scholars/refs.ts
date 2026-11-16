@@ -19,6 +19,7 @@ import { markDirty } from "../feed/jobs.ts";
 import { slugify, slugCandidates } from "../slug.ts";
 import { isPostKind, isPublicPost, postSummary, type PostLike, type PostSummaryV2 } from "../post-schema.generated.ts";
 import { scholarName } from "./profiles.ts";
+import { formatDate } from "../format.ts";
 
 type Row = Record<string, unknown>;
 
@@ -62,7 +63,7 @@ export const wwwPostUrl = (env: Env, locale: string, slug: string) => `${trimSla
 function fallbackTitle(scholar: Row, locale: "en" | "ar", at: string): string {
    const name = scholarName({ name_en: (scholar.name_en as string | null) ?? null, name_ar: (scholar.name_ar as string | null) ?? null, slug: String(scholar.slug) }, locale);
    const day = new Date(at);
-   const date = Number.isNaN(day.getTime()) ? "" : day.toLocaleDateString(locale === "ar" ? "ar" : "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+   const date = Number.isNaN(day.getTime()) ? "" : formatDate(day, locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
    return date ? `${name} · ${date}` : name;
 }
 

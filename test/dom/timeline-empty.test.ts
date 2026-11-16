@@ -2,7 +2,7 @@
  * The "Add a post" chooser's empty message (src/admin/client/timeline.ts emptyCandidates): no posts in
  * the language at all is never worded as "every post is already on the timeline" (owner report 2026-11-11).
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { emptyCandidates } from "../../src/admin/client/timeline.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
 
@@ -10,11 +10,15 @@ for (const lang of ["en", "ar"] as const) {
    const t = ADMIN_STRINGS[lang].timeline;
    const T = {
       candidatesNone: t.candidatesNone(ADMIN_STRINGS[lang].locales.en),
-      candidatesAllOn: t.candidatesAllOn(-1).replace("-1", "{0}"),
+      candidatesAllOn: t.candidatesAllOn("{0}" as unknown as number),
       candidatesAllOnOne: t.candidatesAllOn(1),
       candidatesNoMatch: t.candidatesNoMatch,
    };
    describe(`emptyCandidates (${lang})`, () => {
+      // The count is formatted in the page language (Arabic: Eastern Arabic (Hindi) numerals).
+      beforeEach(() => {
+         document.documentElement.lang = lang;
+      });
       it("no published posts in the language", () => {
          expect(emptyCandidates(T, "", 0, 0)).toBe(T.candidatesNone);
          expect(emptyCandidates(T, "tafsir", 0, 0)).toBe(T.candidatesNone);

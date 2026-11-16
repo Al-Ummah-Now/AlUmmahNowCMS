@@ -4,6 +4,7 @@ import { AiFailuresCard } from "../ui/ai.tsx";
 import { raw } from "hono/html";
 import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
+import { formatNumber } from "../../lib/format.ts";
 import { publishState } from "../../lib/schedule.ts";
 import { LocalTime, StateBadge } from "../ui/parts.tsx";
 import { THEMES } from "../theme/vendor.generated.ts";
@@ -177,14 +178,14 @@ export async function overviewScreen(v: View, data: Data, db?: D1Database, aiFai
                   </span>
                   <span class="stat-nums">
                      <span>
-                        <span class="stat-n">{counts[i].published}</span> <span class="stat-l">{t.overview.published}</span>
+                        <span class="stat-n">{formatNumber(counts[i].published, v.prefs.lang)}</span> <span class="stat-l">{t.overview.published}</span>
                      </span>
                      <span>
-                        <span class="stat-n">{counts[i].draft}</span> <span class="stat-l">{t.overview.drafts}</span>
+                        <span class="stat-n">{formatNumber(counts[i].draft, v.prefs.lang)}</span> <span class="stat-l">{t.overview.drafts}</span>
                      </span>
                      {counts[i].scheduled ? (
                         <span data-stat-scheduled>
-                           <span class="stat-n">{counts[i].scheduled}</span> <span class="stat-l">{t.overview.scheduled}</span>
+                           <span class="stat-n">{formatNumber(counts[i].scheduled, v.prefs.lang)}</span> <span class="stat-l">{t.overview.scheduled}</span>
                         </span>
                      ) : null}
                   </span>

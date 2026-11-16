@@ -9,8 +9,9 @@
  * their flag only when the post is saved (src/admin/client/save-hooks.ts): until then the flag shows
  * "Resolves when you save", and leaving without saving leaves it open.
  */
-import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
+import { $, $$, api, ApiError, el, strings, toast, pageNum } from "./dom.ts";
 import { addSaveHook } from "./save-hooks.ts";
+import { formatDateTime } from "../../lib/format.ts";
 import { resolveAnchor, type Range } from "../../lib/translation-flags/anchor.ts";
 
 type Locale = "en" | "ar";
@@ -94,7 +95,7 @@ function ask(dlg: HTMLDialogElement): Promise<string> {
    return new Promise((resolve) => dlg.addEventListener("close", () => resolve(dlg.returnValue), { once: true }));
 }
 
-const fmt = (s: string, ...a: (string | number)[]) => a.reduce<string>((acc, v, i) => acc.split(`{${i}}`).join(String(v)), s);
+const fmt = (s: string, ...a: (string | number)[]) => a.reduce<string>((acc, v, i) => acc.split(`{${i}}`).join(pageNum(v)), s);
 
 export function initTranslationFlags(): void {
    const form = $<HTMLFormElement>("form[data-editor]");
@@ -400,7 +401,7 @@ export function initTranslationFlags(): void {
 
    const time = (ms: number) => {
       const d = new Date(ms);
-      return el("time", { datetime: d.toISOString() }, new Intl.DateTimeFormat(document.documentElement.lang === "ar" ? "ar-u-nu-latn" : "en-GB", { dateStyle: "medium", timeStyle: "short" }).format(d));
+      return el("time", { datetime: d.toISOString() }, formatDateTime(d, document.documentElement.lang));
    };
    const btn = (label: string, attrs: Record<string, string>, onClick: () => void, cls = "btn sm") => {
       const b = el("button", { class: cls, type: "button", ...attrs }, label);

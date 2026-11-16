@@ -53,7 +53,7 @@ describe("content history", () => {
       page = await ok(editor, "PATCH", `/api/data/entity/pages/${page.id}`, { body: "سطر أول\nسطر جديد", updated_at: page.updated_at });
       const html = await (await f(`/pages/${page.id}/history?lang=ar`, { headers: { cookie: editor } })).text();
       expect(html).toContain('dir="rtl"');
-      expect(html).toContain("النسخة 2");
+      expect(html).toContain("النسخة ٢");
       expect(html).toContain("<del>سطر ثان</del>");
       expect(html).toContain("<ins>سطر جديد</ins>");
       expect(html).toContain("هذه هي النسخة الحالية.");

@@ -31,5 +31,7 @@ export default defineConfig({
    projects: [
       { name: "desktop", use: { ...devices["Desktop Chrome"] } },
       { name: "mobile", use: { ...devices["Pixel 7"] } },
+      // Arabic numerals in WebKit (plain `ar` formats differently there than on the server): see the spec.
+      { name: "webkit", testMatch: /arabic-digits\.local\.spec\.ts$/, use: { ...devices["Desktop Safari"] } },
    ],
 });

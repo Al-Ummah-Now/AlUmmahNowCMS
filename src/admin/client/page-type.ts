@@ -3,7 +3,7 @@
  * chosen type's panel, confirms a change of type on a saved page (in-app dialog), and keeps the
  * filter's live preview. readPageType() is what the editor saves (list_kind, list_filter).
  */
-import { $, $$, api, el, strings } from "./dom.ts";
+import { $, $$, api, el, strings, pageNum } from "./dom.ts";
 import { askConfirm } from "./dialogs.ts";
 
 interface S {
@@ -83,7 +83,7 @@ export function initPageType(): void {
          const res = await api<{ data: { items: { key: string; kind: string; title: string; date: string }[]; total: number } }>("GET", `/admin/api/lists/preview?${params}`);
          if (mine !== seq) return; // a newer preview is on its way
          const n = res.data.total;
-         count.textContent = n === 0 ? T.pageList.previewEmpty : n === 1 ? T.pageList.previewCount1 : T.pageList.previewCount.split("{0}").join(String(n));
+         count.textContent = n === 0 ? T.pageList.previewEmpty : n === 1 ? T.pageList.previewCount1 : T.pageList.previewCount.split("{0}").join(pageNum(n));
          listEl.replaceChildren(
             ...res.data.items.map((i) =>
                el("li", { class: "li" }, el("div", { class: "li-body" }, el("span", { class: "li-title", dir: "auto" }, i.title), el("div", { class: "li-meta" }, el("span", {}, T.pageList.kindNames[i.kind] ?? i.kind), el("span", { dir: "ltr" }, i.date.slice(0, 10))))),

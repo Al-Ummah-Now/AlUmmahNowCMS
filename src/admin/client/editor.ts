@@ -1,5 +1,5 @@
 /** Page/post editor: save, publish, slug rules, conflict check, markdown, tags, cover, translations, delete. */
-import { $, $$, api, ApiError, takeReason, toast, strings } from "./dom.ts";
+import { $, $$, api, ApiError, takeReason, toast, strings, pageNum } from "./dom.ts";
 import { runSaveHooks } from "./save-hooks.ts";
 import { addLeaveGuard, askConfirm, askLink } from "./dialogs.ts";
 import { renderMarkdownInto } from "./markdown.ts";
@@ -217,7 +217,7 @@ export function initEditor(): void {
          const input = document.getElementById(c.dataset.counter!) as HTMLInputElement | null;
          const n = input?.value.length ?? 0;
          const max = Number(c.dataset.max);
-         c.textContent = `${n} / ${max}`;
+         c.textContent = `${pageNum(n)} / ${pageNum(max)}`;
          c.style.color = n > max ? "var(--fanous-c-form-error)" : "";
       }
       if (serpTitle) serpTitle.textContent = seoTitle?.value || title.value;

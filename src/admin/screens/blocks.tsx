@@ -36,6 +36,7 @@ import {
 } from "../../lib/blocks.ts";
 import { Icon, type IconName } from "../ui/icons.tsx";
 import type { View } from "../ui/layout.tsx";
+import { num } from "../../lib/format.ts";
 
 export interface MediaInfo {
    url: string;
@@ -615,7 +616,7 @@ function BlockBody(props: { c: Ctx; uid: string; b: Block }) {
       case "gallery":
          return (
             <div class="stack-sm">
-               <Choice uid={uid} k="columns" type="int" label={tb.columns} value={b.columns} options={[[2, "2"], [3, "3"], [4, "4"]]} />
+               <Choice uid={uid} k="columns" type="int" label={tb.columns} value={b.columns} options={[2, 3, 4].map((n): [number, string] => [n, num(n, c.v.prefs.lang)])} />
                <ol class="subs gal" data-k="items" data-seq-list="gallery" data-empty={tb.galleryEmpty} aria-label={tb.types.gallery}>
                   {b.items.map((x) => (
                      <GalleryItem c={c} uid={nextUid()} item={x} />
@@ -631,7 +632,7 @@ function BlockBody(props: { c: Ctx; uid: string; b: Block }) {
       case "layout":
          return (
             <div class="stack-sm">
-               <Choice uid={uid} k="columns" type="int" label={tb.columnsCount} value={b.columns} options={[[2, "2"], [3, "3"]]} />
+               <Choice uid={uid} k="columns" type="int" label={tb.columnsCount} value={b.columns} options={[2, 3].map((n): [number, string] => [n, num(n, c.v.prefs.lang)])} />
                <SubList k="items" list="layout-cols" label={tb.columnsCount} empty={tb.itemsEmpty} add={tb.addItem} addIcon="columns" max={3}>
                   {b.items.map((x) => (
                      <LayoutColItem c={c} uid={nextUid()} item={x} />
@@ -648,7 +649,7 @@ function BlockBody(props: { c: Ctx; uid: string; b: Block }) {
                <Field uid={uid} k="intro" label={tb.intro2}>
                   <ProseArea c={c} uid={uid} k="intro" value={b.intro} max={600} rows={2} />
                </Field>
-               <Choice uid={uid} k="columns" type="int" label={tb.cardsPerRow} value={b.columns} options={[[2, "2"], [3, "3"], [4, "4"]]} />
+               <Choice uid={uid} k="columns" type="int" label={tb.cardsPerRow} value={b.columns} options={[2, 3, 4].map((n): [number, string] => [n, num(n, c.v.prefs.lang)])} />
                <SubList k="items" list="cards" label={tb.types.cardgrid} empty={tb.cardsEmpty} add={tb.addCard} addIcon="plus" max={MAX_CARD_ITEMS} cls="subs-cards">
                   {b.items.map((x) => (
                      <CardItemRow c={c} uid={nextUid()} item={x} />
@@ -715,7 +716,7 @@ function BlockBody(props: { c: Ctx; uid: string; b: Block }) {
                <div class="row2">
                   <div data-when="mode=latest,tag">
                      <Field uid={uid} k="limit" label={tb.limit}>
-                        <input id={`${uid}-limit`} class="input" type="number" inputmode="numeric" min={1} max={MAX_POSTS_LIMIT} data-k="limit" data-type="int" value={String(b.limit)} />
+                        <input id={`${uid}-limit`} class="input" type="text" inputmode="numeric" pattern="[0-9]*" min={1} max={MAX_POSTS_LIMIT} data-k="limit" data-type="int" value={String(b.limit)} />
                      </Field>
                   </div>
                   <div data-when="mode=tag">
@@ -749,7 +750,7 @@ function BlockBody(props: { c: Ctx; uid: string; b: Block }) {
                      <Prose c={c} uid={uid} k="tag" value={b.tag} max={40} help />
                   </Field>
                   <Field uid={uid} k="page_size" label={tb.pageSize}>
-                     <input id={`${uid}-page_size`} class="input" type="number" inputmode="numeric" min={3} max={MAX_CARDS_PAGE} data-k="page_size" data-type="int" value={String(b.page_size)} />
+                     <input id={`${uid}-page_size`} class="input" type="text" inputmode="numeric" pattern="[0-9]*" min={3} max={MAX_CARDS_PAGE} data-k="page_size" data-type="int" value={String(b.page_size)} />
                   </Field>
                </div>
                <label class="switch">

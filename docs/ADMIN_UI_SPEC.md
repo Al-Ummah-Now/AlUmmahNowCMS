@@ -259,7 +259,9 @@ same-origin `Origin`.
 
 `<html dir>` from the UI language; logical CSS properties only (`margin-inline-start`, `inset-inline-*`,
 `border-inline-start`); the rail's selected bar is on the start side; icons that point (back,
-chevrons, move up/down are vertical so unaffected) flip in RTL; numbers stay Western digits (as www);
+chevrons, move up/down are vertical so unaffected) flip in RTL; formatted numbers, counts, dates and times use Eastern Arabic (Hindi) numerals ٠–٩ in Arabic
+(owner 2026-11-15; one formatter, `src/lib/format.ts`, with `ar-u-nu-arab`), while ids, slugs, URLs, codes and typed
+input keep Arabic numerals 0–9 and number fields accept ٠–٩;
 content fields take `dir`/`lang` from the row's locale (X2). Arabic typography uses the token's Arabic
 scale (`--fanous-type-arabic-*`).
 

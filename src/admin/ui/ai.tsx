@@ -4,6 +4,7 @@
  * skeletons; src/admin/client/ai.ts fills them. Rendered only when AI assist is configured, except
  * the admin-only "isn't set up" card. Editors see nothing when it isn't configured.
  */
+import { formatDateTime, formatNumber } from "../../lib/format.ts";
 import { Icon } from "./icons.tsx";
 import { isAdmin, type View } from "./layout.tsx";
 
@@ -238,11 +239,10 @@ export function AiFailuresCard(props: { v: View; failures: { total: number; item
    const { v, failures } = props;
    if (!isAdmin(v) || !failures || failures.total === 0) return null;
    const a = v.t.ai;
-   const fmt = new Intl.DateTimeFormat(v.prefs.lang === "ar" ? "ar-u-nu-latn" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
    return (
       <section class="card stack" aria-labelledby="ai-fail-h" data-ai-failures style="gap:12px;margin-top:32px">
          <h2 id="ai-fail-h" style="margin:0;display:flex;align-items:center;gap:8px">
-            <Icon name="alert" size={18} /> {a.failuresTitle} <span class="badge draft">{failures.total}</span>
+            <Icon name="alert" size={18} /> {a.failuresTitle} <span class="badge draft">{formatNumber(failures.total, v.prefs.lang)}</span>
          </h2>
          <p class="help">{a.failuresBody}</p>
          <ul class="list">
@@ -259,7 +259,7 @@ export function AiFailuresCard(props: { v: View; failures: { total: number; item
                      <div class="li-meta">
                         <span>{a.reasons[f.error ?? ""] ?? f.error ?? ""}</span>
                         {f.email ? <span dir="ltr">{f.email}</span> : null}
-                        <time datetime={new Date(f.updated_at).toISOString()}>{fmt.format(new Date(f.updated_at))}</time>
+                        <time datetime={new Date(f.updated_at).toISOString()}>{formatDateTime(f.updated_at, v.prefs.lang)}</time>
                      </div>
                   </div>
                   <button class="btn ghost sm" type="button" data-ai-dismiss={f.id}>

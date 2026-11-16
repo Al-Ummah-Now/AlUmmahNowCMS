@@ -3,6 +3,7 @@
  * delete (admins, in-app confirm; restorable for 30 days) and restore.
  */
 import { $, api, ApiError, el, strings, toast } from "./dom.ts";
+import { fill, formatDateTime } from "../../lib/format.ts";
 import { askConfirm } from "./dialogs.ts";
 import { liveSearch, latestOnly } from "./live-search.ts";
 
@@ -49,7 +50,6 @@ export function initGlossary(): void {
    const G = strings<{ glossary: GStrings }>().glossary;
    const deleted = list.dataset.deleted === "1";
    const count = $("[data-gl-count]");
-   const fmt = new Intl.DateTimeFormat(G.lang === "ar" ? "ar-u-nu-latn" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
 
    const row = (e: Entry) => {
       const when = new Date(deleted ? (e.deleted_at ?? e.created_at) : e.created_at);
@@ -60,7 +60,7 @@ export function initGlossary(): void {
          ...(e.flag_id ? [el("span", { class: "badge trf" }, G.fromFlag)] : []),
          ...(e.note ? [el("span", { dir: "auto" }, e.note)] : []),
          ...(deleted ? [el("span", {}, G.deletedBy.replace("{0}", e.deleted_by_email ?? "—"))] : e.created_by_email ? [el("span", {}, G.by.replace("{0}", e.created_by_email))] : []),
-         el("time", { datetime: when.toISOString() }, fmt.format(when)),
+         el("time", { datetime: when.toISOString() }, formatDateTime(when, G.lang)),
       );
       const terms = el(
          "div",
@@ -79,7 +79,7 @@ export function initGlossary(): void {
    };
 
    const showCount = (n: number, q: string) => {
-      if (count) count.textContent = n === 1 ? G.result1 : G.results.split("{0}").join(String(n));
+      if (count) count.textContent = n === 1 ? G.result1 : fill(G.results, [n], G.lang);
       let empty = $("[data-gl-empty]");
       if (!n) {
          if (!empty) {
