@@ -1322,6 +1322,8 @@ export function BlocksEditor(props: { v: View; locale: Locale; blocks: Block[]; 
    const bi = props.builder;
    const names = tb.langNames;
    const otherName = names[bi.other.locale] ?? bi.other.locale;
+   // Translate is for staff (POST /admin/api/translate answers admins and editors only).
+   const staff = props.v.user.role === "admin" || props.v.user.role === "editor";
    return (
       <section
          class="card stack bld"
@@ -1391,8 +1393,13 @@ export function BlocksEditor(props: { v: View; locale: Locale; blocks: Block[]; 
                </label>
                <span class="bld-sp" />
                <button type="button" class="btn sm" data-copy-from={bi.other.locale} disabled={!bi.other.id} title={tb.copyFromHelp(otherName)}>
-                  <Icon name="languages" size={16} /> <span class="bld-l">{tb.copyFrom(otherName)}</span>
+                  <Icon name="copy" size={16} /> <span class="bld-l">{tb.copyFrom(otherName)}</span>
                </button>
+               {staff ? (
+                  <button type="button" class="btn sm" data-copy-translate={bi.other.locale} disabled={!bi.other.id} title={tb.copyTranslateHelp(otherName)} aria-label={tb.copyTranslate(otherName)}>
+                     <Icon name="languages" size={16} /> <span class="bld-l">{tb.copyTranslateShort}</span>
+                  </button>
+               ) : null}
                <button type="button" class="btn sm primary" data-builder-save>
                   <Icon name="check" size={16} /> <span data-builder-save-label>{tb.saveFromBuilder}</span>
                </button>
@@ -1400,6 +1407,15 @@ export function BlocksEditor(props: { v: View; locale: Locale; blocks: Block[]; 
                   {tb.done}
                </button>
             </div>
+            {staff ? (
+               <div class="bt-progress" data-bt-progress hidden>
+                  <progress max={1} value={0} aria-labelledby="bt-progress-text" />
+                  <span id="bt-progress-text" role="status" aria-live="polite" data-bt-progress-text />
+                  <button type="button" class="btn sm" data-bt-stop>
+                     {tb.translateStop}
+                  </button>
+               </div>
+            ) : null}
          </div>
          <div class="bld-main">
             <div class="bld-edit" data-blocks-edit>

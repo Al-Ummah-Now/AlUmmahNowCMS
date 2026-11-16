@@ -421,7 +421,26 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
          copyFrom: t.blocks.copyFrom("{0}"),
          copyConfirm: t.blocks.copyConfirm("{0}"),
          copied: t.blocks.copied("{0}"),
+         copyTranslate: t.blocks.copyTranslate("{0}"),
+         bt: undefined,
       },
+      // Translate in the page builder (src/admin/client/block-translate.ts): staff only, like the endpoint.
+      bt:
+         v.user.role === "admin" || v.user.role === "editor"
+            ? {
+                 ...t.blocks.bt,
+                 translateField: t.blocks.bt.translateField("{0}"),
+                 translateFieldLabel: t.blocks.bt.translateFieldLabel("{0}", "{1}"),
+                 fieldFilled: t.blocks.bt.fieldFilled("{0}", "{1}"),
+                 fieldReplaced: t.blocks.bt.fieldReplaced("{0}", "{1}"),
+                 nothingToTranslate: t.blocks.bt.nothingToTranslate("{0}"),
+                 progress: t.blocks.bt.progress(P0, P1),
+                 waiting: t.blocks.bt.waiting(P0),
+                 done: t.blocks.bt.done(P0, P1),
+                 langNames: t.blocks.langNames,
+                 l10n: t.l10n,
+              }
+            : undefined,
       slides: { ...t.slides, count: t.slides.count(P0), count1: t.slides.count(1), count2: t.slides.count(2), count10: t.slides.count(3) },
       invalid: t.blocks.invalid,
       status: t.status,
