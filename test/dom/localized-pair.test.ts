@@ -68,7 +68,7 @@ describe("localized pair", () => {
       expect(input("ar").getAttribute("aria-invalid")).toBe("true");
       const err = document.getElementById(input("ar").getAttribute("aria-describedby")!.split(" ")[0])!;
       expect(err.hidden).toBe(false);
-      expect(err.textContent).toContain("العربية");
+      expect(err.textContent).toBe("Arabic is required. Type it or use Translate.");
       input("ar").value = "إنجليزي فقط";
       expect(validatePair(fs)).toBe(true);
       expect(input("ar").hasAttribute("aria-invalid")).toBe(false);
