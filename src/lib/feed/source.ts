@@ -11,6 +11,7 @@ import { trimSlash, type Env } from "../../env.ts";
 import { postSummaries, POST_SUMMARY_COLS, snapshotOf, toIso } from "../../routes/public-api.ts";
 import { LIVE_SQL } from "../schedule.ts";
 import { mainSiteSql } from "../scholars/main-site.ts";
+import { overrideFor } from "./overrides.ts";
 import { compareItems, compareSort, MAX_POST_VIDEOS, type FeedItem, type FeedLocale, type FeedVideo } from "./model.ts";
 
 type Row = Record<string, unknown>;
@@ -73,9 +74,9 @@ export function where(sel: Selection, date: string, type: "p" | "v", base: numbe
 /**
  * Rows → feed items (covers, card faces, body videos and their snapshots), in row order (posts first).
  * Video rows have timeline_entries' columns (id, video_kind, ref_id, entry_date, created_at, pin_rank,
- * title_override) plus the snapshot; list pages (src/lib/lists.ts) map their own rows to that shape.
+ * title_override, title_override_ar, locale) plus the snapshot; list pages (src/lib/lists.ts) map their own rows to that shape.
  */
-export async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<FeedItem[]> {
+export async function toItems(env: Env, posts: Row[], videos: Row[], l?: FeedLocale): Promise<FeedItem[]> {
    const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
    const summaries = await postSummaries(env, posts);
    const refs = new Set<string>();
@@ -110,7 +111,8 @@ export async function toItems(env: Env, posts: Row[], videos: Row[]): Promise<Fe
          type: "video",
          date,
          pinned: r.pin_rank !== null && r.pin_rank !== undefined,
-         video: { kind, ref_id: String(r.ref_id), snapshot, title_override: typeof r.title_override === "string" && r.title_override ? r.title_override : null },
+         // The override in this language only (src/lib/feed/overrides.ts): a missing one is the video's own title.
+         video: { kind, ref_id: String(r.ref_id), snapshot, title_override: overrideFor(r, l) },
       });
    }
    return out;
@@ -150,7 +152,7 @@ export async function feedItems(env: Env, l: FeedLocale, sel: Selection): Promis
          .bind(l, ...vw.binds)
          .all<Row>(),
    ]);
-   const items = await toItems(env, posts.results, videos.results);
+   const items = await toItems(env, posts.results, videos.results, l);
    if (sel.pinned) {
       const rank = new Map<string, number>();
       for (const r of posts.results) rank.set(`p${Number(r.id)}`, Number(r.pin_rank));
