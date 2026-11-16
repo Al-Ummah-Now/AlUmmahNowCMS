@@ -66,3 +66,48 @@ input with its own `lang`/`dir`, a labelled Translate button under each (into th
   result is reviewed and saved row by row.
 
 Use it for any new staff-set field that has both languages.
+
+## Page blocks (page builder)
+
+A page's blocks live on that language's page row, so the English and Arabic blocks are two lists, not
+pairs. The builder links them by **block id**: "Copy from English/Arabic" keeps the other page's ids, so a
+copied block knows its source. Code: `src/lib/block-translate.ts` (fields, segmenting, packing) and
+`src/admin/client/block-translate.ts` (editor). Staff only, like the endpoint; writers see neither button.
+
+- **Copy and translate** (builder toolbar, next to Copy): copies the other page's blocks, then translates
+  every text field of every block into this page's language. One request per block (its pieces packed as
+  `[1] …` lines under the endpoint's 2000-character cap), with a progress bar and Stop; a rate limit counts
+  down and carries on. Structure, links, media, ids and styling are never touched: only the text inputs.
+- **Translate** under each text field fills it from the other page's block with the same id (saved
+  version); with no such block, from the field's own text when it is still in the other language.
+- **Rich text** (markdown fields) sends text only: heading/list/quote markers, `**bold**`, `*italic*`,
+  `` `code` ``, link targets and `::video[ID]` lines stay where they are; link labels are translated. Bare
+  URLs and email addresses are never sent, in any field.
+- **Review**: nothing is saved or published. Each translated block shows "Machine-translated, check before
+  publishing"; a per-field Translate that replaced text offers Undo in that note; the whole Copy and
+  translate has Undo in its toast.
+- **Qur'an**: the endpoint refuses the block (any of its text); it stays as copied, with the official-text
+  link in its note, and the other blocks still translate.
+- **Failures**: a failed block keeps its copied text and says so; the rest go on. A daily cap or an
+  unavailable service stops the run and marks the remaining blocks "Not translated".
+
+| Block | Text fields (markdown in bold) |
+| --- | --- |
+| hero | eyebrow, title, subtitle, alt, buttons[].label |
+| markdown | **text** |
+| image | alt, caption |
+| gallery | items[].alt, items[].caption |
+| layout | items[].heading, **items[].text**, items[].label, items[].alt |
+| columns | **text**, alt, caption |
+| cardgrid | heading, intro, items[].title, items[].text, items[].label, items[].alt |
+| cta | heading, text, label |
+| quote | text, cite |
+| faq | heading, items[].q, **items[].a** |
+| video | caption |
+| videos | heading, items[].title_override |
+| posts, cards | heading |
+| stats | heading, items[].value, items[].label, **items[].text** |
+| contact | heading, text, label |
+| divider | none |
+
+Never sent: ids, types, URLs, emails, tags, media and video refs, appearance.

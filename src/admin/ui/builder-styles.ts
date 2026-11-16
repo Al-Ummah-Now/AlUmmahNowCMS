@@ -142,6 +142,18 @@ html.bld-lock,html.bld-lock body{overflow:hidden}
 .bld-frame{direction:ltr;overflow:hidden;border-radius:12px;background:var(--fanous-color-background);box-shadow:0 0 0 1px var(--fanous-c-form-section-border),0 24px 48px -24px rgb(0 0 0/.55)}
 .bld-frame[data-device=phone]{border-radius:30px;box-shadow:0 0 0 9px #0b0d12,0 0 0 10px color-mix(in srgb,var(--fanous-color-text-secondary) 40%,transparent),0 30px 60px -20px rgb(0 0 0/.6);margin-block-start:10px}
 .bld-iframe{display:block;border:0;transform-origin:0 0;background:transparent}
+/* Translate (src/admin/client/block-translate.ts) */
+.bt-row{display:flex;justify-content:flex-end;margin-block-start:4px}
+.bt-go{min-height:28px;padding:0 10px;font-size:12.5px;gap:4px}
+.bt-note{margin:0;padding:8px 12px;font-size:13px}
+.bt-note .bt-msg{margin:0}
+.bt-note a{color:inherit;text-decoration:underline}
+.bt-note[data-bt-note=mt]::before{content:"";flex:none;width:8px;height:8px;margin-block-start:6px;border-radius:50%;background:var(--fanous-color-primary)}
+.bt-progress{flex-basis:100%;display:flex;align-items:center;gap:10px;font-size:13px}
+.bld-open .bt-progress{color:var(--fanous-c-nav-text)}
+.bt-progress[hidden]{display:none}
+.bt-progress progress{flex:0 1 220px;accent-color:var(--fanous-color-primary)}
+.bt-progress [data-bt-progress-text]{flex:1;min-width:0}
 @media(max-width:1000px){
 .bld-open .bld-main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1.1fr) minmax(0,1fr)}
 .bld-open .bld-edit{box-shadow:inset 0 -1px 0 var(--fanous-c-divider-line)}

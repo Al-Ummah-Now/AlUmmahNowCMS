@@ -10,6 +10,7 @@
  */
 import { leadsWithHero, normalizePageBlocks as normalizeBlocks, renderPageBlocks, servePageBlocks, type MediaRef, type PageBlock, type PostSummaryLite, type ServeRefs, type VideoSnapshot } from "../../lib/page-blocks.generated.ts";
 import { announce, applyWhen, fmt, listItems, readItem, refresh, reuid, unfold } from "./blocks.ts";
+import { initFieldTranslate, num, translateBlocks, type BtStrings } from "./block-translate.ts";
 import { askConfirm } from "./dialogs.ts";
 import { $, $$, api, el, toast } from "./dom.ts";
 
@@ -17,6 +18,8 @@ type Locale = "en" | "ar";
 type Dict = Record<string, string>;
 interface Strings {
    blocks: Dict & { langNames: Dict };
+   /** Translate in the builder (staff only: absent for other roles). */
+   bt?: BtStrings;
 }
 
 interface Snapshot {
@@ -371,11 +374,14 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
 
    /* ── Copy from the other language ─────────────────────────────────────────────────────────── */
 
-   $<HTMLButtonElement>("[data-copy-from]", root)?.addEventListener("click", async (e) => {
-      const btn = e.currentTarget as HTMLButtonElement;
-      if (!otherId) return;
+   /** Replaces this page's blocks with the other page's (asking first when there are blocks). Null when cancelled or failed. */
+   async function copyBlocks(btn: HTMLButtonElement, title: string): Promise<{ before: Element[]; items: HTMLElement[] } | null> {
+      if (!otherId) return null;
       const name = tb.langNames[otherLocale] ?? otherLocale;
-      if (listItems(list).length && !(await askConfirm({ title: fmt(tb.copyFrom, name), body: fmt(tb.copyConfirm, name), ok: fmt(tb.copyFrom, name), noIcon: true }))) return btn.focus();
+      if (listItems(list).length && !(await askConfirm({ title, body: fmt(tb.copyConfirm, name), ok: title, noIcon: true }))) {
+         btn.focus();
+         return null;
+      }
       let html: string;
       try {
          // Rendered for THIS page's language (spell check, direction), with the other page's content.
@@ -383,7 +389,7 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
          html = r.data.html;
       } catch {
          toast(tb.copyFailed, "bad");
-         return;
+         return null;
       }
       const before = [...list.children];
       const tpl = document.createElement("template");
@@ -394,13 +400,16 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
       for (const li of items) applyWhen(li);
       refresh(list);
       list.closest("form")?.dispatchEvent(new CustomEvent("seq:change", { bubbles: true }));
-      announce(list, fmt(tb.copied, name));
       schedule();
-      // Undo, in a toast with a real button (10 s).
+      return { before, items };
+   }
+
+   /** Undo, in a toast with a real button: puts the blocks from before the copy back. */
+   function undoToast(message: string, before: Element[], btn: HTMLButtonElement, ms: number): void {
       const host = document.getElementById("toasts");
       if (!host) return;
       const undo = el("button", { type: "button", class: "btn sm" }, tb.undo);
-      const toastBox = el("div", { class: "toast ok", "data-undo": "" }, `${fmt(tb.copied, name)} `, undo);
+      const toastBox = el("div", { class: "toast ok", "data-undo": "" }, `${message} `, undo);
       undo.addEventListener("click", () => {
          list.replaceChildren(...before);
          refresh(list);
@@ -410,7 +419,104 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
          btn.focus();
       });
       host.append(toastBox);
-      setTimeout(() => toastBox.remove(), 10_000);
+      setTimeout(() => toastBox.remove(), ms);
+   }
+
+   $<HTMLButtonElement>("[data-copy-from]", root)?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const name = tb.langNames[otherLocale] ?? otherLocale;
+      const copy = await copyBlocks(btn, fmt(tb.copyFrom, name));
+      if (!copy) return;
+      announce(list, fmt(tb.copied, name));
+      undoToast(fmt(tb.copied, name), copy.before, btn, 10_000);
    });
 
+   /* ── Translate (src/admin/client/block-translate.ts) ──────────────────────────────────────── */
+
+   const bt = T.bt;
+   if (!bt) return;
+   let otherBlocks: Promise<PageBlock[] | null> | null = null;
+   const fieldCtx = {
+      locale,
+      otherLocale,
+      T: bt,
+      // The other page's saved blocks, read once (and again after a failure).
+      otherBlocks: () =>
+         (otherBlocks ??= otherId
+            ? api<{ data: Snapshot }>("GET", `/pages/${otherId}/blocks-fragment?locale=${otherLocale}`)
+                 .then((r) => r.data.blocks)
+                 .catch(() => ((otherBlocks = null), null))
+            : Promise.resolve(null)),
+   };
+   initFieldTranslate(list, fieldCtx);
+
+   const prog = $<HTMLElement>("[data-bt-progress]", root);
+   const bar = $<HTMLProgressElement>("progress", prog ?? root);
+   const progText = $<HTMLElement>("[data-bt-progress-text]", root);
+   const stopBtn = $<HTMLButtonElement>("[data-bt-stop]", root);
+   let stopped = false;
+   let wake: (() => void) | null = null;
+   stopBtn?.addEventListener("click", () => {
+      stopped = true;
+      wake?.();
+   });
+
+   $<HTMLButtonElement>("[data-copy-translate]", root)?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const name = tb.langNames[otherLocale] ?? otherLocale;
+      const copy = await copyBlocks(btn, fmt(tb.copyTranslate, name));
+      if (!copy) return;
+      stopped = false;
+      const copyBtn = $<HTMLButtonElement>("[data-copy-from]", root);
+      btn.disabled = true;
+      if (copyBtn) copyBtn.disabled = true;
+      if (prog) prog.hidden = false;
+      const say = (s: string) => {
+         if (progText) progText.textContent = s;
+      };
+      try {
+         const r = await translateBlocks(copy.items, otherLocale, locale, bt, {
+            progress: (i, n) => {
+               if (bar) {
+                  bar.max = Math.max(1, n);
+                  bar.value = i;
+               }
+               say(i < n ? fmt(bt.progress, num(i + 1), num(n)) : "");
+            },
+            stopped: () => stopped,
+            // Rate limited mid-page: count down, then go on (Stop ends it).
+            onWait: (seconds) =>
+               new Promise<boolean>((resolve) => {
+                  let left = seconds;
+                  say(fmt(bt.waiting, num(left)));
+                  const tick = setInterval(() => {
+                     left -= 1;
+                     if (left > 0) return say(fmt(bt.waiting, num(left)));
+                     finish();
+                  }, 1000);
+                  const finish = () => {
+                     clearInterval(tick);
+                     wake = null;
+                     resolve(!stopped);
+                  };
+                  wake = finish;
+               }),
+         });
+         const summary = fmt(bt.done, num(r.done), num(r.done + r.quran + r.failed + r.stopped));
+         announce(list, summary);
+         schedule();
+         undoToast(summary, copy.before, btn, 20_000);
+         // The first block that needs the editor (refused, failed or not reached) opens and scrolls into view.
+         const first = copy.items.find((li) => li.querySelector("[data-bt-note]:not([data-bt-note=mt])"));
+         if (first) {
+            unfold(first);
+            first.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
+         }
+      } finally {
+         btn.disabled = !otherId;
+         if (copyBtn) copyBtn.disabled = !otherId;
+         if (prog) prog.hidden = true;
+         say("");
+      }
+   });
 }
