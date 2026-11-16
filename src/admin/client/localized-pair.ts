@@ -11,8 +11,9 @@ import { $, $$, api, ApiError, el } from "./dom.ts";
 
 type L = "en" | "ar";
 interface S {
-   english: string;
-   arabic: string;
+   /** The languages' names in the screen's language, for messages ("Arabic is required"). */
+   nameEn: string;
+   nameAr: string;
    translating: string;
    filled: string;
    replaced: string;
@@ -41,7 +42,7 @@ function stringsOf(fs: HTMLElement): S {
 }
 
 export const pairInput = (fs: HTMLElement, l: L) => $<HTMLInputElement | HTMLTextAreaElement>(`[data-l10n-input="${l}"]`, fs)!;
-const langName = (T: S, l: L) => (l === "en" ? T.english : T.arabic);
+const langName = (T: S, l: L) => (l === "en" ? T.nameEn : T.nameAr);
 
 function status(fs: HTMLElement, text: string, kind: "ok" | "bad" = "ok", extra?: Node) {
    const st = $("[data-l10n-status]", fs);

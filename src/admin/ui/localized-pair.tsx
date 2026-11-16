@@ -36,8 +36,8 @@ export interface LocalizedPairProps {
 export function pairStrings(v: View) {
    const t = v.t.l10n;
    return JSON.stringify({
-      english: t.english,
-      arabic: t.arabic,
+      nameEn: t.nameEn,
+      nameAr: t.nameAr,
       translating: t.translating,
       filled: t.filled,
       replaced: t.replaced,
