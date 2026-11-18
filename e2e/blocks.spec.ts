@@ -66,13 +66,27 @@ const items = (page: Page, list = "blocks") => page.locator(`ol[data-seq-list=${
 /** Block titles without the screen-reader position (", 2 of 7"). */
 const titles = async (page: Page) => (await items(page).locator(".blk-t").allTextContents()).map((t) => t.replace(/, \d+ of \d+$/, "").trim());
 
-/** Adds a block and returns a locator for it that survives reordering (by its uid). */
-const TYPES: Record<string, string> = { Text: "markdown", Image: "image", Gallery: "gallery", "Quote or callout": "quote", "Call to action": "cta", "Divider or space": "divider", "Card posts": "cards" };
-async function addBlock(page: Page, name: string): Promise<Locator> {
-   // The button's name is its title and description ("Text Headings, paragraphs, lists and links").
-   const add = page.locator(`button[data-add-block=${TYPES[name]}]`);
-   await expect(add).toHaveAccessibleName(new RegExp(`^${name} `));
-   await add.click();
+/** Adds a block from the picker (the list's own "Add a block" button) and returns a locator for it that survives reordering (by its uid). */
+// Picker preset per block title: the preset's name is what the editor announces ("Divider added.").
+const PRESETS: Record<string, [key: string, name: string]> = {
+   Text: ["markdown", "Text"],
+   Image: ["image", "Image"],
+   Gallery: ["gallery", "Gallery"],
+   "Quote or callout": ["quote", "Quote or callout"],
+   "Call to action": ["cta", "Call to action"],
+   "Divider or space": ["divider", "Divider"],
+   "Card posts": ["cards", "Card posts"],
+};
+async function addBlock(page: Page, title: string): Promise<Locator> {
+   const [key, name] = PRESETS[title]!;
+   await page.locator("[data-open-picker=end]").click();
+   const picker = page.getByRole("dialog", { name: "Add a block" });
+   await expect(picker).toBeVisible();
+   // The card's name is its title and description ("Text Headings, paragraphs, lists and links").
+   const card = picker.locator(`button[data-preset=${key}]`);
+   await expect(card).toHaveAccessibleName(new RegExp(`^${name} `));
+   await card.click();
+   await expect(picker).toBeHidden();
    await expect(page.locator("[data-blocks-editor] [data-seq-live]")).toHaveText(`${name} added.`);
    const uid = await items(page).last().getAttribute("data-uid");
    return page.locator(`ol[data-seq-list=blocks] > li[data-uid="${uid}"]`);
@@ -189,13 +203,13 @@ test.describe("page blocks", () => {
       await expect(page).toHaveURL(/\/pages\/new/);
       await cta.getByLabel("Button link").fill("/contact");
 
-      // Preview reads the blocks as the site will order them.
-      await page.getByRole("button", { name: "Preview", exact: true }).click();
-      const preview = page.locator("[data-blocks-preview-body]");
+      // The live preview (the sites' own renderer) shows the blocks in the order the site will.
+      await page.locator("[data-builder-open]").click();
+      const preview = page.frameLocator("[data-pv-frame]").locator("main");
       await expect(preview.locator("strong")).toHaveText("composed");
       await expect(preview.locator("blockquote")).toContainText("Kindness");
       await expect(preview.locator("img")).toHaveCount(3);
-      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await page.locator("[data-builder-close]").click();
 
       await page.getByRole("button", { name: "Publish" }).first().click();
       await expect(page).toHaveURL(/\/pages\/\d+$/, { timeout: 30_000 });
@@ -228,7 +242,11 @@ test.describe("page blocks", () => {
       await sessionPage(context, page, ACCOUNTS.admin, `/pages/${id}?lang=ar`);
       await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
       await expect(page.getByRole("heading", { name: "محتوى الصفحة" })).toBeVisible();
-      await expect(page.getByRole("button", { name: "نص عناوين وفقرات وقوائم وروابط" })).toBeVisible();
+      await page.locator("[data-open-picker=end]").click();
+      const picker = page.getByRole("dialog", { name: "أضف كتلة" });
+      await expect(picker.locator("button[data-preset=markdown]")).toHaveAccessibleName("نص عناوين وفقرات وقوائم وروابط");
+      await page.keyboard.press("Escape");
+      await expect(picker).toBeHidden();
       await expectNoAxeViolations(page);
       await shot(page, "blocks-page-editor-ar");
    });
