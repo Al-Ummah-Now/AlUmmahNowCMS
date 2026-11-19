@@ -51,7 +51,7 @@ export interface GateContent {
     * The error-page family's card (404, 500, 503; wiki guides/error-pages.md) instead of the gate card:
     * the same badge, "Error 404" line, words and actions as every Al Ummah Now app.
     */
-   family?: { status: number; codeLabel: string; iconSvg: string; helpHtml: string; backLabel: string };
+   family?: { status: number; codeLabel: string; iconSvg: string; helpHtml: string; backLabel: string; backIconSvg: string };
 }
 
 const withParam = (v: GateView, key: string, value: string) => withQuery(v.path, v.search, key, value);
@@ -102,7 +102,7 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
                         <footer class="ep-foot">
                            <p class="ep-help">{raw(c.family.helpHtml)}</p>
                            <div class="ep-actions">
-                              <button type="button" class="btn ep-btn" data-ep-back hidden>{c.family.backLabel}</button>
+                              <button type="button" class="btn ep-btn" data-ep-back hidden>{raw(c.family.backIconSvg)}<span>{c.family.backLabel}</span></button>
                               {raw(c.actionsHtml)}
                            </div>
                         </footer>
