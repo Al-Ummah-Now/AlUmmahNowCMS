@@ -4,7 +4,7 @@
  * with hidden and scheduled items marked; add a post or a video, pin, reorder pins, hide, remove;
  * recent changes (who, when); the KV publishing state. Behaviour: src/admin/client/timeline.ts.
  */
-import { adminTimeline, postCounts, recentChanges, type AdminEntry, type Change } from "../../lib/feed/admin.ts";
+import { adminTimeline, missingCount, postCounts, recentChanges, type AdminEntry, type Change } from "../../lib/feed/admin.ts";
 import { pageCounts, pageList, type ListPageRow } from "../../lib/page-entries.ts";
 import { feedStatus, type FeedStatus } from "../../lib/feed/jobs.ts";
 import { relative } from "../format.ts";
@@ -12,6 +12,7 @@ import { Icon, type IconName } from "../ui/icons.tsx";
 import { Empty, isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { ConfirmDialog, I18nScript, LocalTime } from "../ui/parts.tsx";
 import { PickerDialog } from "../ui/picker.tsx";
+import { LocalizedPair } from "../ui/localized-pair.tsx";
 
 const KIND_ICON: Record<string, IconName> = { article: "newspaper", cards: "images", video: "film", playlist: "playlist", channel: "users" };
 
@@ -23,12 +24,17 @@ function kindLabel(v: View, e: AdminEntry): string {
 /** Date input value (YYYY-MM-DD, UTC) of an ISO date. */
 const dateInput = (iso: string) => iso.slice(0, 10);
 
-function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: string; index: number; home: boolean }) {
+/** A count in the screen's language: Arabic uses ٠–٩ (explicit numbering system, owner rule 2026-11-15). */
+const num = (n: number, lang: "en" | "ar") => new Intl.NumberFormat(lang === "ar" ? "ar-u-nu-arab" : "en").format(n);
+
+function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: string; index: number; home: boolean; lang: "en" | "ar" }) {
    const { v, e, pinned } = props;
    const t = v.t.timeline;
    const label = e.title || e.refId || e.key;
    const href = e.type === "post" ? `/posts/${e.id}` : `${props.videosWebUrl}/${e.kind === "playlist" ? "playlist" : e.kind === "channel" ? "channel" : "watch"}/${encodeURIComponent(e.refId ?? "")}`;
    const unavailable = e.unavailable;
+   // A row in one language: its override is in that language (a curated page's list: the page's).
+   const rowLang: "en" | "ar" = e.locale === "en" || e.locale === "ar" ? e.locale : props.lang;
    return (
       <li class={`row vrow card tl-row${e.hidden ? " is-hidden" : ""}`} data-key={e.key} data-title={label} draggable={pinned ? "true" : undefined}>
          {pinned ? (
@@ -65,6 +71,11 @@ function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: s
                      </span>
                   ) : null}
                   {unavailable ? <span class="badge draft">{t.unavailable}</span> : null}
+                  {e.missing ? (
+                     <span class="badge l10n-miss" data-l10n-missing={e.missing}>
+                        {e.missing === "ar" ? v.t.l10n.missingAr : v.t.l10n.missingEn}
+                     </span>
+                  ) : null}
                </div>
             </div>
             {e.type === "video" ? (
@@ -88,9 +99,20 @@ function Entry(props: { v: View; e: AdminEntry; pinned: boolean; videosWebUrl: s
                      </select>
                   </div>
                   ) : null}
-                  <div class="field" style="grid-column:1/-1">
-                     <label for={`to-${e.key}`}>{t.override}</label>
-                     <input id={`to-${e.key}`} spellcheck={true} class="input" data-entry-field="title_override" value={e.titleOverride ?? ""} maxlength={200} dir="auto" />
+                  <div style="grid-column:1/-1">
+                     {e.overrides ? (
+                        // Shown in both languages: the en/ar pair, saved together (docs/LOCALIZED_FIELDS.md).
+                        <LocalizedPair v={v} id={`to-${e.key}`} legend={t.override} values={e.overrides} names={{ en: "title_override", ar: "title_override_ar" }} max={200}>
+                           <button type="button" class="btn sm l10n-save" data-tl-save-titles>
+                              <Icon name="check" size={16} /> {v.t.l10n.save}
+                           </button>
+                        </LocalizedPair>
+                     ) : (
+                        <div class="field">
+                           <label for={`to-${e.key}`}>{t.override}</label>
+                           <input id={`to-${e.key}`} spellcheck={true} class="input" data-entry-field="title_override" value={e.titleOverride ?? ""} maxlength={200} lang={rowLang} dir={rowLang === "ar" ? "rtl" : "ltr"} />
+                        </div>
+                     )}
                   </div>
                </div>
             ) : null}
@@ -193,17 +215,19 @@ function Changes(props: { v: View; items: Change[] }) {
  * Home's timeline, or (page set) a curated page's list: the same editor and client
  * (docs/specs/WWW-PAGES.md). A page has one language, no KV publishing state and no paging.
  */
-export async function timelineScreen(v: View, env: Parameters<typeof adminTimeline>[0], locale: "en" | "ar", before: string | null, videosWebUrl: string, page: ListPageRow | null = null) {
+export async function timelineScreen(v: View, env: Parameters<typeof adminTimeline>[0], locale: "en" | "ar", before: string | null, videosWebUrl: string, page: ListPageRow | null = null, missingOnly = false) {
    const t = v.t.timeline;
    if (page) {
       locale = page.locale;
       before = null;
    }
-   const [list, status, changes, counts] = await Promise.all([
-      page ? pageList(env, page).then((l) => ({ ...l, next: null as string | null })) : adminTimeline(env, locale, before),
+   if (page) missingOnly = false;
+   const [list, status, changes, counts, missing] = await Promise.all([
+      page ? pageList(env, page).then((l) => ({ ...l, next: null as string | null })) : adminTimeline(env, locale, before, 30, missingOnly),
       feedStatus(env.DB),
       recentChanges(env, 12, page?.id ?? null),
       page ? pageCounts(env, page) : postCounts(env, locale),
+      page ? Promise.resolve(0) : missingCount(env),
    ]);
    const home = !page;
    const apiBase = page ? `/admin/api/lists/${page.id}` : "/admin/api/timeline";
@@ -235,6 +259,8 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                rebuildQueued: t.rebuildQueued,
                retried: v.t.overview.feedRetried,
                required: v.t.common.required,
+               missingDone: v.t.l10n.translateMissingDone,
+               missingNone: v.t.l10n.translateMissingNone,
                picker: v.t.picker,
             }}
          />
@@ -256,10 +282,25 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                ))}
             </div>
             ) : null}
+            {home && (missing > 0 || missingOnly) ? (
+               <a class="btn ghost sm" href={missingOnly ? q() : q("&missing=1")} aria-current={missingOnly ? "true" : undefined} aria-describedby="tl-missing-help">
+                  <Icon name="languages" size={16} /> {v.t.l10n.missingFilter} <span class="badge l10n-miss">{num(missing, v.prefs.lang)}</span>
+               </a>
+            ) : null}
+            {home && missingOnly && missing > 0 ? (
+               <button type="button" class="btn sm" data-tl-translate-missing>
+                  <Icon name="languages" size={16} /> {v.t.l10n.translateMissing}
+               </button>
+            ) : null}
             <a class="btn ghost sm" href={page ? `${v.wwwUrl}/${locale}/${page.slug}/` : `${v.wwwUrl}/${locale}/`} target="_blank" rel="noopener">
                <Icon name="external" size={16} class="flip" /> {page ? t.openPage : t.openSite}
             </a>
          </div>
+         {home && (missing > 0 || missingOnly) ? (
+            <p class="help" id="tl-missing-help" style="margin:0">
+               {v.t.l10n.missingFilterHelp}
+            </p>
+         ) : null}
          <div class="tl-layout" data-timeline data-locale={locale} data-api={apiBase}>
             <div class="stack">
                {!before ? (
@@ -275,7 +316,7 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                      {list.pinned.length ? (
                         <ol class="rows vrows" data-pins aria-describedby="tl-pinned-help">
                            {list.pinned.map((e, i) => (
-                              <Entry v={v} e={e} pinned={true} videosWebUrl={videosWebUrl} index={i} home={home} />
+                              <Entry v={v} e={e} pinned={true} videosWebUrl={videosWebUrl} index={i} home={home} lang={locale} />
                            ))}
                         </ol>
                      ) : (
@@ -290,7 +331,7 @@ export async function timelineScreen(v: View, env: Parameters<typeof adminTimeli
                   {list.items.length ? (
                      <ol class="rows vrows tl-list" data-entries>
                         {list.items.map((e, i) => (
-                           <Entry v={v} e={e} pinned={false} videosWebUrl={videosWebUrl} index={i + list.pinned.length} home={home} />
+                           <Entry v={v} e={e} pinned={false} videosWebUrl={videosWebUrl} index={i + list.pinned.length} home={home} lang={locale} />
                         ))}
                      </ol>
                   ) : (

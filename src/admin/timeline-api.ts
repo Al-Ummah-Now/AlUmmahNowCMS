@@ -5,7 +5,8 @@
  *                                                     locale's published / switched-off post counts
  *   POST   /admin/api/timeline/videos                { kind, ref_id, locale, entry_date? }  (Add video)
  *   POST   /admin/api/timeline/posts/:id             { on }  a post on / off the timeline
- *   PATCH  /admin/api/timeline/entries/:key          { hidden?, pinned?, entry_date?, title_override?, locale? }
+ *   PATCH  /admin/api/timeline/entries/:key          { hidden?, pinned?, entry_date?, title_override?, title_override_ar?, locale? }
+ *          (an entry shown in both languages takes both titles or neither: 400 ar_missing / en_missing)
  *   DELETE /admin/api/timeline/entries/:key          a video entry { reason? } (soft: to the trash, docs/SOFT_DELETE.md)
  *   PUT    /admin/api/timeline/pins                  { locale, keys }  the pinned order
  *   GET    /admin/api/timeline/status                the KV build's state
@@ -17,7 +18,7 @@
  */
 import { Hono, type Context } from "hono";
 import { feedStatus, requestFullRebuild, retryFeed } from "../lib/feed/jobs.ts";
-import { addVideo, logRebuild, offTimeline, postCounts, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor } from "../lib/feed/admin.ts";
+import { addVideo, logRebuild, offTimeline, postCounts, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor, type VideoFields } from "../lib/feed/admin.ts";
 import { withActor } from "../lib/revisions.ts";
 import { TrashError } from "../lib/trash.ts";
 import { lookupForSnapshot, putSnapshot } from "../lib/video-snapshots.ts";
@@ -100,9 +101,10 @@ export function timelineApi(deps: Deps): Hono<AppEnv> {
       try {
          if (typeof b.hidden === "boolean") await setHidden(c.env, key, b.hidden, actorOf(c));
          if (typeof b.pinned === "boolean") await setPinned(c.env, key, b.pinned, actorOf(c));
-         const fields: { entry_date?: string; title_override?: string | null; locale?: string } = {};
+         const fields: VideoFields = {};
          if (typeof b.entry_date === "string") fields.entry_date = b.entry_date;
          if (b.title_override === null || typeof b.title_override === "string") fields.title_override = b.title_override as string | null;
+         if (b.title_override_ar === null || typeof b.title_override_ar === "string") fields.title_override_ar = b.title_override_ar as string | null;
          if (typeof b.locale === "string") fields.locale = b.locale;
          if (Object.keys(fields).length) await setVideoFields(c.env, key, fields, actorOf(c));
          return c.json({ data: { key } });

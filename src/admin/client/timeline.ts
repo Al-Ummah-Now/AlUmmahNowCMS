@@ -7,6 +7,7 @@
 import { $, $$, api, ApiError, el, strings, toast } from "./dom.ts";
 import { askConfirm } from "./dialogs.ts";
 import { openPicker } from "./picker.ts";
+import { initLocalizedPairs, num, pairValues, translateInto, validatePair } from "./localized-pair.ts";
 
 interface S {
    failed: string;
@@ -25,6 +26,8 @@ interface S {
    rebuildQueued: string;
    retried: string;
    required: string;
+   missingDone: string;
+   missingNone: string;
 }
 
 const fmt = (s: string, ...a: (string | number)[]) => a.reduce<string>((out, v, i) => out.split(`{${i}}`).join(String(v)), s);
@@ -106,6 +109,51 @@ export function initTimeline(): void {
       } catch (e) {
          fail(e);
       }
+   });
+
+   // "Title on the site" of an entry shown in both languages: the en/ar pair, saved together with its
+   // own button (both or neither; Translate results are only saved here, after the editor saw them).
+   initLocalizedPairs(root);
+   root.addEventListener("click", async (ev) => {
+      const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-tl-save-titles]");
+      const fs = btn?.closest<HTMLElement>("[data-l10n-pair]");
+      const li = btn?.closest<HTMLLIElement>("li[data-key]");
+      if (!btn || !fs || !li) return;
+      if (!validatePair(fs)) return;
+      const v = pairValues(fs);
+      btn.disabled = true;
+      try {
+         await patch(li.dataset.key!, { title_override: v.en || null, title_override_ar: v.ar || null });
+         fs.classList.remove("dirty");
+         li.classList.add("saved");
+         setTimeout(() => li.classList.remove("saved"), 1200);
+         toast(T.saved);
+         li.querySelector("[data-l10n-missing]")?.remove();
+      } catch (e) {
+         const code = e instanceof ApiError ? (e.body as { error?: string } | null)?.error : null;
+         if (code === "ar_missing" || code === "en_missing") validatePair(fs);
+         else fail(e);
+      } finally {
+         btn.disabled = false;
+      }
+   });
+
+   // "Translate missing" (the Missing a language filter): fills each listed pair's empty side, one at a
+   // time, and leaves every result in its form to be checked and saved row by row. Nothing is saved here.
+   $<HTMLButtonElement>("[data-tl-translate-missing]")?.addEventListener("click", async (ev) => {
+      const b = ev.currentTarget as HTMLButtonElement;
+      b.disabled = true;
+      let n = 0;
+      for (const fs of $$<HTMLElement>("li[data-key] [data-l10n-pair]", root)) {
+         const v = pairValues(fs);
+         if (!!v.en === !!v.ar) continue;
+         if (await translateInto(fs, v.en ? "ar" : "en", { quiet: true })) n++;
+      }
+      b.disabled = false;
+      const msg = n ? fmt(T.missingDone, num(n)) : T.missingNone;
+      if (live) live.textContent = msg;
+      toast(msg, n ? "ok" : "bad");
+      $<HTMLElement>("li[data-key] [data-l10n-pair].dirty [data-l10n-input]", root)?.focus();
    });
 
    // Pinned order: buttons, Alt+↑/↓, drag. Saved as the whole order (409 if it changed meanwhile).

@@ -38,6 +38,7 @@ import { suggestApi } from "./suggest-api.ts";
 import { timelineScreen } from "./screens/timeline.tsx";
 import { parseCursor } from "../lib/feed/model.ts";
 import { aiRoutes } from "./ai-api.ts";
+import { translateApi } from "./translate-api.ts";
 import { aiSettingsScreen } from "./screens/ai-settings.tsx";
 import { aiReady } from "../lib/ai/router.ts";
 import { flaggedFailures } from "../lib/ai/jobs.ts";
@@ -180,6 +181,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    r.route("/admin/api/featuring", featuringApi());
    r.route("/admin/api/suggest", suggestApi(deps));
    r.route("/admin/api/ai", aiRoutes(deps));
+   r.route("/admin/api/translate", translateApi(deps));
    r.route("/admin/api/trash", trashApi());
    r.route("/admin/api/translation-flags", translationFlagsApi(deps));
    r.route("/admin/api/glossary", glossaryApi());
@@ -218,7 +220,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       const v = await buildView(c, deps);
       const raw = c.req.query("before") ?? null;
       const before = raw && parseCursor(raw) ? raw : null;
-      return render(c, v, v.t.timeline.title, await timelineScreen(v, c.env, loc(c.req.query("locale"), v.prefs.lang), before, c.get("cfg").videosWebUrl));
+      return render(c, v, v.t.timeline.title, await timelineScreen(v, c.env, loc(c.req.query("locale"), v.prefs.lang), before, c.get("cfg").videosWebUrl, null, c.req.query("missing") === "1"));
    });
 
    r.get("/site", async (c) => {
