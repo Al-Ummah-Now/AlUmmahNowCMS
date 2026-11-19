@@ -479,8 +479,8 @@ test.describe("content history (#8)", () => {
 
       await page.goto(`/posts/${id}/history?lang=ar`);
       await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-      await expect(page.getByRole("heading", { level: 2, name: "النسخة 3" })).toBeVisible();
-      await expect(page.getByText("مستعادة من النسخة 1")).toBeVisible();
+      await expect(page.getByRole("heading", { level: 2, name: ADMIN_STRINGS.ar.history.version(3) })).toBeVisible();
+      await expect(page.getByText(ADMIN_STRINGS.ar.history.restoredFrom(1))).toBeVisible();
       await expectNoAxeViolations(page);
       await shot(page, "admin-history-ar");
       await page.goto(`/posts/${id}/history?lang=en&mode=dark`);
