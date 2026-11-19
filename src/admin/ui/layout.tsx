@@ -11,6 +11,7 @@ import { Autocomplete, comboboxProps } from "./autocomplete.tsx";
 import { LeaveDialog, LinkDialog } from "./dialogs.tsx";
 import { appLinks, type AppLinkId } from "../../lib/app-links.ts";
 import { absolute } from "../format.ts";
+import { pluralTemplates } from "../../lib/format.ts";
 import { drawerToggleHtml, headerBrandHtml, headerSitePrefsHtml, withQuery } from "../../lib/header.ts";
 
 export interface View {
@@ -340,6 +341,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                      acFailed: t.autocomplete.failed,
                      acNone: t.autocomplete.none,
                      acCount: t.autocomplete.count,
+                     acCountN: pluralTemplates(t.autocomplete.countN, prefs.lang),
                      acSearchAll: t.autocomplete.searchAll,
                      // Scholars and featuring (src/admin/client/scholars.ts).
                      sch: {

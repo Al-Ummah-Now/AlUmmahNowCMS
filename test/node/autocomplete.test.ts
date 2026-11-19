@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { announcement, failed, initialState, keyDown, MIN_QUERY, optionsFor, received, typed, type State, type Suggestion } from "../../src/admin/client/autocomplete-model.ts";
+import { pluralTemplates } from "../../src/lib/format.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
 
 const s = (id: string, label: string): Suggestion => ({ kind: "posts", id, label, secondary: "Post · Published", imageUrl: null, href: `/posts/${id}` });
@@ -47,8 +48,9 @@ describe("search suggestions: model (same behaviour as the videos admin)", () =>
    it("announces the count, nothing found, a failure and the wait, in both languages", () => {
       for (const lang of ["en", "ar"] as const) {
          const t = ADMIN_STRINGS[lang].autocomplete;
-         const T = { searching: t.searching, failed: t.failed, none: t.none, count: t.count };
-         expect(announcement(ready(), T)).toBe(t.count.replace("{0}", "2"));
+         const T = { searching: t.searching, failed: t.failed, none: t.none, count: t.count, countN: pluralTemplates(t.countN, lang) };
+         // Two suggestions: «اقتراحان» in Arabic (the dual), "2 suggestions" in English.
+         expect(announcement(ready(), T, lang)).toBe(t.count.replace("{0}", t.countN(2)));
          expect(announcement(ready("zzzz", []), T)).toBe(t.none);
          expect(announcement(typed(initialState(), "rama"), T)).toBe(t.searching);
          expect(announcement(failed(typed(initialState(), "rama"), "rama"), T)).toBe(t.failed);

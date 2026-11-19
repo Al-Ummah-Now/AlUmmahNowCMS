@@ -3,7 +3,7 @@
  * delete (admins, in-app confirm; restorable for 30 days) and restore.
  */
 import { $, api, ApiError, el, strings, toast } from "./dom.ts";
-import { fill, formatDateTime } from "../../lib/format.ts";
+import { formatDateTime, pickPlural, type PluralForms } from "../../lib/format.ts";
 import { askConfirm } from "./dialogs.ts";
 import { liveSearch, latestOnly } from "./live-search.ts";
 
@@ -37,8 +37,7 @@ interface GStrings {
    empty: string;
    emptySearch: string;
    admin: boolean;
-   results: string;
-   result1: string;
+   results: PluralForms;
    lang: "en" | "ar";
 }
 
@@ -79,7 +78,7 @@ export function initGlossary(): void {
    };
 
    const showCount = (n: number, q: string) => {
-      if (count) count.textContent = n === 1 ? G.result1 : fill(G.results, [n], G.lang);
+      if (count) count.textContent = pickPlural(G.results, n, G.lang);
       let empty = $("[data-gl-empty]");
       if (!n) {
          if (!empty) {

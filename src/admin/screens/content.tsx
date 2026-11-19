@@ -5,7 +5,7 @@ import { TrFlagsCard, TrFlagsDialogs, TrFlagsPopover, trFlagsClientStrings } fro
 import { openCounts } from "../../lib/translation-flags/store.ts";
 import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
-import { num } from "../../lib/format.ts";
+import { num, pluralTemplates } from "../../lib/format.ts";
 import { publishState, timeOf, type PublishState } from "../../lib/schedule.ts";
 import { Icon } from "../ui/icons.tsx";
 import { Empty, isAdmin, isStaffWriter, isWriter, PageHead, type View } from "../ui/layout.tsx";
@@ -284,8 +284,6 @@ function tagsOf(v: unknown): string[] {
 /** Placeholders for numeric string templates (rendered as "{0}" / "{1}"). */
 const P0 = "{0}" as unknown as number;
 const P1 = "{1}" as unknown as number;
-/** The "few" plural (3–10 in Arabic) as a "{0}" template: the sentence for 3 with its formatted 3 swapped out. */
-const fewTemplate = (f: (n: number) => string, lang: string) => f(3).replace(num(3, lang), "{0}");
 
 function Counter(props: { for: string; max: number }) {
    return <span class="muted" style="font-size:12px" data-counter={props.for} data-max={String(props.max)} aria-hidden="true" />;
@@ -417,15 +415,14 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
          mediaUseOne: t.blocks.mediaUseMany(1),
          mediaUploading: t.blocks.mediaUploading("{0}"),
          blocksCount: t.blocks.blocksCount(P0),
-         blocksCount1: t.blocks.blocksCount(1),
-         blocksCount2: t.blocks.blocksCount(2),
-         blocksCount10: fewTemplate(t.blocks.blocksCount, v.prefs.lang),
          noTranslation: t.blocks.noTranslation("{0}"),
          copyFrom: t.blocks.copyFrom("{0}"),
          copyConfirm: t.blocks.copyConfirm("{0}"),
          copied: t.blocks.copied("{0}"),
       },
-      slides: { ...t.slides, count: t.slides.count(P0), count1: t.slides.count(1), count2: t.slides.count(2), count10: fewTemplate(t.slides.count, v.prefs.lang) },
+      slides: { ...t.slides, count: t.slides.count(P0) },
+      // Count sentences in every plural form of the language (Arabic: zero, one, two, few, many, other).
+      counts: { blocks: pluralTemplates(t.blocks.blocksCount, v.prefs.lang), slides: pluralTemplates(t.slides.count, v.prefs.lang), mediaUse: pluralTemplates(t.blocks.mediaUseMany, v.prefs.lang) },
       invalid: t.blocks.invalid,
       status: t.status,
       slugBad: t.content.slugBad,
@@ -467,7 +464,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       coverRemoveTitle: t.common.coverRemoveTitle,
       coverRemoveBody: t.common.coverRemoveBody,
       picker: t.picker,
-      pageList: { ...t.pageList, previewCount: t.pageList.previewCount(P0), previewCount1: t.pageList.previewCount(1), tagCount: undefined },
+      pageList: { ...t.pageList, previewCount: pluralTemplates(t.pageList.previewCount, v.prefs.lang), tagCount: undefined },
       ai: v.ai ? aiClientStrings(v) : undefined,
       trFlags: flags ? trFlagsClientStrings(v) : undefined,
    };

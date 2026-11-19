@@ -40,7 +40,7 @@ button,input,select,textarea{font:inherit;color:inherit}
    (NAV.md "Per-app fit", as the videos site's Upload): below 1024px the search moves under the bar,
    opened by an icon, and New is a 40px icon (its label stays its name); below 640px the search icon
    leaves the bar (each list keeps its own). The bar never wraps (NAV_CSS nowrap): the brand's wordmark
-   ends in an ellipsis where room runs out. */
+   leaves the bar where room runs out (below). */
 .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 4px 4px;border-radius:var(--r-md);color:var(--fanous-c-nav-text);text-decoration:none;white-space:nowrap}
 .brand-name{font-weight:700;font-size:17px;line-height:1.1}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;border:0;border-radius:var(--r-pill);background:transparent;color:var(--fanous-c-nav-icon);cursor:pointer;text-decoration:none;transition:background-color var(--fanous-duration-fast),color var(--fanous-duration-fast)}
@@ -66,6 +66,12 @@ button,input,select,textarea{font:inherit;color:inherit}
 }
 @media(max-width:39.99rem){
 .hd .hd-search-btn{display:none}
+}
+/* The CMS bar holds New as well, so the wordmark runs out of room up to ~430px: below 27.5rem it
+   leaves the bar (the mark stays; the name is still the link's accessible name), as the shared
+   header does below 25rem, instead of ending in an ellipsis. */
+@media(max-width:27.49rem){
+.hd .aun-brand-text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
 
 /* Menus (details/summary popovers); the panels are the shared .aun-menu (NAV_CSS) */
@@ -95,8 +101,8 @@ html[lang=ar] .rail-group{letter-spacing:0;font-size:12px}
 .bar{display:none}
 @media(max-width:47.99rem){
 .layout{grid-template-columns:minmax(0,1fr)}.rail{display:none}
-.bar{position:fixed;inset-inline:0;inset-block-end:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);padding-block-end:env(safe-area-inset-bottom);background:var(--m-header);box-shadow:0 -1px 0 color-mix(in srgb,var(--fanous-color-primary) 40%,transparent);-webkit-backdrop-filter:var(--m-blur);backdrop-filter:var(--m-blur)}
-.bar .ri{min-height:58px;border-radius:0;font-size:11px;color:var(--fanous-c-nav-icon)}.bar .ri[aria-current=page]{color:var(--fanous-c-nav-active-text);background:var(--fanous-c-nav-active-bg)}
+.bar{position:fixed;inset-inline:0;inset-block-end:0;z-index:40;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);padding-block-end:env(safe-area-inset-bottom);background:var(--m-header);box-shadow:0 -1px 0 color-mix(in srgb,var(--fanous-color-primary) 40%,transparent);-webkit-backdrop-filter:var(--m-blur);backdrop-filter:var(--m-blur)}
+.bar .ri{min-height:58px;min-width:0;padding-inline:2px;border-radius:0;font-size:11px;line-height:1.25;text-align:center;color:var(--fanous-c-nav-icon)}.bar .ri[aria-current=page]{color:var(--fanous-c-nav-active-text);background:var(--fanous-c-nav-active-bg)}
 .bar .ri[aria-current=page]::before{inset-block:auto 0;inset-inline:25%;width:auto;height:3px}
 body{padding-block-end:64px}
 }
@@ -147,7 +153,7 @@ html[lang=ar] .hero-copy h1{font-size:var(--fanous-type-arabic-display-size);lin
 .stat-top{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:600}
 .stat-ic{width:40px;height:40px;border-radius:var(--r-md);display:grid;place-items:center;background:color-mix(in srgb,var(--fanous-color-primary) 18%,transparent);color:var(--fanous-color-text-primary);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fanous-color-primary) 40%,transparent)}
 .stat-nums{display:flex;gap:18px;align-items:baseline}
-.stat-n{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.stat-n{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;display:inline-block;min-inline-size:.6em;text-align:center}
 .stat-l{font-size:13px;color:var(--fanous-color-text-secondary)}
 
 /* Buttons */
@@ -179,7 +185,7 @@ html[lang=ar] .field>label,html[lang=ar] .label{font-size:var(--fanous-type-arab
 .textarea{min-height:120px;resize:vertical;line-height:1.6}
 .textarea.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;min-height:360px}
 .select{appearance:none;padding-inline-end:40px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:5px 5px;background-repeat:no-repeat}
-[dir=rtl] .select{background-position:20px 50%,15px 50%}
+[dir=rtl] .select{background-position:15px 50%,20px 50%}
 .row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
 .stack{display:grid;gap:18px}
 .switch{display:inline-flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;font-weight:600}

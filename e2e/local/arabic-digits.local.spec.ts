@@ -8,10 +8,12 @@
  * DIGITS_SHOTS=<dir> also saves owner-review screenshots there.
  */
 import { expect, test, type Page } from "@playwright/test";
+import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
+import { toAsciiDigits } from "../../src/lib/format.ts";
 
 // Browser globals used inside page.evaluate (the CMS typechecks e2e without the DOM lib)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const document: any;
+declare const document: any, getComputedStyle: any;
 
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
@@ -73,12 +75,36 @@ test("Arabic admin: Eastern Arabic (Hindi) numerals everywhere, no page errors",
    for (const s of stats) expect(s.trim()).toMatch(/^[٠-٩٬]+$/);
    await shot(page, `overview-ar-dark-${p}`);
 
+   // Phone: the bottom tab bar is one row, every label whole and the same size; the header never cuts
+   // the brand's wordmark (it is either whole or out of the bar).
+   const layout = await page.evaluate(() => {
+      const links = [...document.querySelectorAll("nav.bar a")].filter((a: any) => a.offsetParent);
+      const name = document.querySelector(".hd .aun-brand-name");
+      const nameShown = name && name.getBoundingClientRect().width > 1;
+      return {
+         rows: new Set(links.map((a: any) => Math.round(a.getBoundingClientRect().top))).size,
+         clipped: links.filter((a: any) => a.scrollWidth > a.clientWidth + 1).map((a: any) => a.textContent.trim()),
+         sizes: new Set(links.map((a: any) => getComputedStyle(a).fontSize)).size,
+         brandCut: nameShown ? name.scrollWidth > name.clientWidth + 1 : false,
+      };
+   });
+   if (info.project.name === "mobile") {
+      expect(layout.rows).toBe(1);
+      expect(layout.clipped).toEqual([]);
+      expect(layout.sizes).toBe(1);
+   }
+   expect(layout.brandCut).toBe(false);
+
    await page.goto(`${ON}/posts?lang=ar`);
    await expect(page.locator("time[data-local]").first()).toBeVisible();
    const values = await formatted(page);
    expect(values.length).toBeGreaterThan(0);
    expect(values.filter((v) => ASCII.test(v))).toEqual([]);
    expect(values.join(" ")).toMatch(/[٠-٩]/);
+   // The result count takes the Arabic plural form («٣ نتائج», not «٣ نتيجة»).
+   const status = (await page.locator("main [role=status]").first().textContent())!.trim();
+   const n = Number(toAsciiDigits(status.match(/[٠-٩٬]+/)?.[0]?.replace(/٬/g, "") ?? "NaN"));
+   expect(status).toBe(ADMIN_STRINGS.ar.common.results(n));
    await shot(page, `posts-list-ar-dark-${p}`);
 
    // The editor's character counters are written by the client script.

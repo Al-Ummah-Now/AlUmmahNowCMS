@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { fill, formatCompact, formatDate, formatDateTime, formatDuration, formatMoney, formatNumber, formatPercent, formatRelative, formatTime, intlLocale, num, toAsciiDigits, toAsciiNumber } from "../../src/lib/format.ts";
+import { fill, formatCompact, formatDate, formatDateTime, formatDuration, formatMoney, formatNumber, formatPercent, formatRelative, formatTime, intlLocale, num, pickPlural, pluralTemplates, toAsciiDigits, toAsciiNumber } from "../../src/lib/format.ts";
 import { absolute, bytes, relative } from "../../src/admin/format.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
 import { LocalTime } from "../../src/admin/ui/parts.tsx";
@@ -90,6 +90,8 @@ describe("Arabic admin strings", () => {
    const source = readFileSync(join(import.meta.dirname, "../../src/admin/i18n.ts"), "utf8");
    const arSource = source.slice(source.indexOf("const ar: Strings"));
    const numeric = new Set([...arSource.matchAll(/(\w+): \(([^)]*)\) =>/g)].filter(([, , p]) => p.split(",").every((x) => /:\s*number\s*$/.test(x))).map(([, k]) => k));
+   // Count sentences built from plural forms (P({...}) in src/admin/i18n.ts) take a number too.
+   for (const [, k] of arSource.matchAll(/(\w+): P\(/g)) numeric.add(k);
 
    it("every Arabic sentence function formats its numbers", () => {
       const bad: string[] = [];
@@ -102,6 +104,20 @@ describe("Arabic admin strings", () => {
          }
       }
       expect(bad).toEqual([]);
+   });
+
+   it("Arabic counts use the right plural form", () => {
+      const r = ADMIN_STRINGS.ar.common.results;
+      expect([0, 1, 2, 3, 10, 11, 99, 100].map(r)).toEqual(["لا نتائج", "نتيجة واحدة", "نتيجتان", "٣ نتائج", "١٠ نتائج", "١١ نتيجة", "٩٩ نتيجة", "١٠٠ نتيجة"]);
+      expect(ADMIN_STRINGS.ar.trash.daysLeft(5)).toBe("بقيت ٥ أيام");
+      expect(ADMIN_STRINGS.en.common.results(3)).toBe("3 results");
+   });
+
+   it("plural templates for the client pick the same form as the server", () => {
+      for (const lang of ["ar", "en"] as const) {
+         const forms = pluralTemplates(ADMIN_STRINGS[lang].common.results, lang);
+         for (const n of [0, 1, 2, 3, 7, 11, 42, 100, 999]) expect(pickPlural(forms, n, lang)).toBe(ADMIN_STRINGS[lang].common.results(n));
+      }
    });
 
    it("a rendered time in Arabic", () => {

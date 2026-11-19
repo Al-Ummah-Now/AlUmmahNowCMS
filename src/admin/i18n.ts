@@ -1,9 +1,12 @@
 /** Strings for the staff screens (docs/ADMIN_UI_SPEC.md). Every key exists in en and ar. */
 import type { Lang } from "../lib/i18n.ts";
-import { num } from "../lib/format.ts";
+import { num, plural, type PluralForms } from "../lib/format.ts";
 
 /** Numbers in Arabic strings: Eastern Arabic (Hindi) numerals ٠–٩ (placeholders like "{0}" pass through). */
 const N = (v: unknown) => num(v, "ar");
+/** An Arabic count sentence with its plural forms (zero, one, two, few 3–10, many 11–99, other 100+). */
+const P = (forms: PluralForms) => (n: number) => plural(n, forms, "ar");
+const weeks = P({ one: "أسبوع واحد", two: "أسبوعين", few: "{n} أسابيع", many: "{n} أسبوعًا", other: "{n} أسبوع" });
 
 const en = {
    cms: "Content",
@@ -36,7 +39,8 @@ const en = {
       searching: "Searching…",
       failed: "Suggestions are unavailable right now. Press Enter to search.",
       none: "No matches. Press Enter to search anyway.",
-      count: "{0} suggestions. Use the up and down arrows to choose, Enter to open.",
+      count: "{0}. Use the up and down arrows to choose, Enter to open.",
+      countN: (n: number) => (n === 1 ? "1 suggestion" : `${n} suggestions`),
       searchAll: "Search everything for",
    },
    header: {
@@ -1337,7 +1341,8 @@ const ar: Strings = {
       searching: "جارٍ البحث…",
       failed: "الاقتراحات غير متاحة الآن. اضغط Enter للبحث.",
       none: "لا نتائج مطابقة. اضغط Enter للبحث على أي حال.",
-      count: "{0} اقتراحات. استخدم السهمين للأعلى والأسفل للاختيار، وEnter للفتح.",
+      count: "{0}. استخدم السهمين للأعلى والأسفل للاختيار، وEnter للفتح.",
+      countN: P({ one: "اقتراح واحد", two: "اقتراحان", few: "{n} اقتراحات", many: "{n} اقتراحًا", other: "{n} اقتراح" }),
       searchAll: "البحث في كل شيء عن",
    },
    header: {
@@ -1470,7 +1475,7 @@ const ar: Strings = {
       sortPublished: "الأحدث نشرًا",
       sortTitle: "العنوان أبجديًا",
       sortSlug: "العنوان في الرابط أبجديًا",
-      results: (n: number) => (n === 1 ? "نتيجة واحدة" : `${N(n)} نتيجة`),
+      results: P({ zero: "لا نتائج", one: "نتيجة واحدة", two: "نتيجتان", few: "{n} نتائج", many: "{n} نتيجة", other: "{n} نتيجة" }),
       page: (p: number, n: number) => `الصفحة ${N(p)} من ${N(n)}`,
       prev: "السابق",
       next: "التالي",
@@ -1601,7 +1606,7 @@ const ar: Strings = {
       empty: "فارغ",
       yes: "نعم",
       no: "لا",
-      unchangedLines: (n: number) => (n === 1 ? "سطر واحد بلا تغيير" : `${N(n)} أسطر بلا تغيير`),
+      unchangedLines: P({ one: "سطر واحد بلا تغيير", two: "سطران بلا تغيير", few: "{n} أسطر بلا تغيير", many: "{n} سطرًا بلا تغيير", other: "{n} سطر بلا تغيير" }),
       restore: "استعد هذه النسخة",
       restoreNote: "تعيد نصها وإعداداتها. تبقى الحالة والجدولة وصورة الغلاف كما هي الآن.",
       confirmTitle: "استعادة هذه النسخة؟",
@@ -1754,7 +1759,7 @@ const ar: Strings = {
       builderHelp: "أضف الأقسام ورتّبها وشاهد الصفحة كما يراها الزوار، بكل السمات.",
       done: "تم",
       saveFromBuilder: "حفظ",
-      blocksCount: (n: number) => (n === 1 ? "كتلة واحدة" : n === 2 ? "كتلتان" : n <= 10 ? `${N(n)} كتل` : `${N(n)} كتلة`),
+      blocksCount: P({ zero: "لا كتل", one: "كتلة واحدة", two: "كتلتان", few: "{n} كتل", many: "{n} كتلة", other: "{n} كتلة" }),
       livePreview: "معاينة مباشرة",
       previewDevice: "الجهاز",
       desktop: "حاسوب",
@@ -1889,7 +1894,7 @@ const ar: Strings = {
       mediaLoading: "جارٍ تحميل المكتبة…",
       mediaFailed: "تعذّر تحميل المكتبة. حاول مرة أخرى.",
       mediaUse: "استخدم هذه الصورة",
-      mediaUseMany: (n: number) => (n === 1 ? "استخدم صورة واحدة" : `استخدم ${N(n)} صور`),
+      mediaUseMany: P({ zero: "استخدم الصور", one: "استخدم صورة واحدة", two: "استخدم صورتين", few: "استخدم {n} صور", many: "استخدم {n} صورة", other: "استخدم {n} صورة" }),
       mediaUploading: (name: string) => `جارٍ رفع ${name}…`,
       mediaUploadFailed: `تعذّر رفع هذا الملف. تأكد أنه صورة أصغر من ${N(10)} ميغابايت وحاول مجددًا.`,
       mediaSelected: "مختارة",
@@ -1921,7 +1926,7 @@ const ar: Strings = {
       overlay: "كيف يُقرأ النص على الصورة",
       overlayHelp: "يضع الموقع ظلًا خلف النص ليبقى مقروءًا على الصور الفاتحة والداكنة.",
       needsImage: "تحتاج إلى صورة لتظهر في الموقع",
-      count: (n: number) => (n === 1 ? "شريحة واحدة" : n === 2 ? "شريحتان" : n <= 10 ? `${N(n)} شرائح` : `${N(n)} شريحة`),
+      count: P({ zero: "لا شرائح", one: "شريحة واحدة", two: "شريحتان", few: "{n} شرائح", many: "{n} شريحة", other: "{n} شريحة" }),
    },
    picker: {
       title: "اختر مرئيًا",
@@ -1980,9 +1985,9 @@ const ar: Strings = {
       kindsRequired: "اختر نوعًا واحدًا على الأقل.",
       tag: "الوسم (اختياري)",
       tagHelp: "المقالات التي تحمل هذا الوسم فقط. الوسم يخص المقالات، لذا تُستبعد المرئيات.",
-      tagCount: (n: number) => (n === 1 ? "مقال واحد" : `${N(n)} مقالات`),
+      tagCount: P({ zero: "لا مقالات", one: "مقال واحد", two: "مقالان", few: "{n} مقالات", many: "{n} مقالًا", other: "{n} مقال" }),
       preview: "معاينة",
-      previewCount: (n: number) => (n === 1 ? "عنصر واحد مطابق." : `${N(n)} عناصر مطابقة.`),
+      previewCount: P({ zero: "لا عناصر مطابقة.", one: "عنصر واحد مطابق.", two: "عنصران مطابقان.", few: "{n} عناصر مطابقة.", many: "{n} عنصرًا مطابقًا.", other: "{n} عنصر مطابق." }),
       previewEmpty: "لا شيء مطابق بعد.",
       switchTitle: "تغيير نوع الصفحة؟",
       switchBody: "تعرض الصفحة النوع الجديد عند الحفظ. ما في النوع الآخر (الكتل أو عناصر القائمة) يبقى محفوظًا: ارجع إليه لتستعيده.",
@@ -2062,12 +2067,12 @@ const ar: Strings = {
       } as Record<string, string>,
       status: "النشر إلى الموقع",
       statusOk: (when: string) => `محدَّث · ${when}`,
-      statusPending: (n: number) => (n === 1 ? "يُنشر تغيير واحد…" : `يُنشر ${N(n)} تغييرات…`),
+      statusPending: P({ one: "يُنشر تغيير واحد…", two: "يُنشر تغييران…", few: "يُنشر {n} تغييرات…", many: "يُنشر {n} تغييرًا…", other: "يُنشر {n} تغيير…" }),
       statusNever: "لم يُنشر بعد",
       rebuild: "أعد بناء الخط كله",
       rebuildHelp: "نادرًا ما تحتاج إليه: حين يغيّر إصدارٌ طريقة حفظ الخط يُعاد بناؤه تلقائيًا. استخدمه لإصلاحه يدويًا، فهو يعيد كتابة كل أجزاء الخط المنشور في الخلفية.",
       rebuildQueued: "وُضعت إعادة البناء في القائمة.",
-      rebuildProgress: (left: number, total: number) => `إعادة البناء: اكتمل ${N(total - left)} من ${N(total)} أسبوعًا`,
+      rebuildProgress: (left: number, total: number) => `إعادة البناء: اكتمل ${N(total - left)} من ${weeks(total)}`,
    },
    menus: {
       title: "القوائم",
@@ -2137,7 +2142,7 @@ const ar: Strings = {
       variantsFailed: "لم تُجهَّز المقاسات",
       variantsRetry: "أعد المحاولة",
       variantsRetried: "أُعيدت إلى الطابور",
-      variantsBanner: (n: number) => (n === 1 ? "تعذّر تجهيز مقاسات صورة واحدة. يعرضها الموقع كما رُفعت (صفحات أبطأ)." : `تعذّر تجهيز مقاسات ${N(n)} صور. يعرضها الموقع كما رُفعت (صفحات أبطأ).`),
+      variantsBanner: P({ one: "تعذّر تجهيز مقاسات صورة واحدة. يعرضها الموقع كما رُفعت (صفحات أبطأ).", two: "تعذّر تجهيز مقاسات صورتين. يعرضهما الموقع كما رُفعتا (صفحات أبطأ).", few: "تعذّر تجهيز مقاسات {n} صور. يعرضها الموقع كما رُفعت (صفحات أبطأ).", many: "تعذّر تجهيز مقاسات {n} صورة. يعرضها الموقع كما رُفعت (صفحات أبطأ).", other: "تعذّر تجهيز مقاسات {n} صورة. يعرضها الموقع كما رُفعت (صفحات أبطأ)." }),
       variantsOpen: "افتح المكتبة",
    },
    trash: {
@@ -2150,7 +2155,7 @@ const ar: Strings = {
       reason: "السبب",
       unknown: "غير معروف",
       untitled: "(بلا عنوان)",
-      daysLeft: (n: number) => (n === 1 ? "بقي يوم واحد" : n === 2 ? "بقي يومان" : n <= 10 ? `بقيت ${N(n)} أيام` : `بقي ${N(n)} يومًا`),
+      daysLeft: P({ zero: "ينتهي اليوم", one: "بقي يوم واحد", two: "بقي يومان", few: "بقيت {n} أيام", many: "بقي {n} يومًا", other: "بقي {n} يوم" }),
       lastDay: "يُحذف نهائيًا خلال يوم",
       queued: "في انتظار الحذف النهائي",
       queuedBy: (who: string) => `في انتظار الحذف النهائي بطلب من ${who}`,
@@ -2178,8 +2183,8 @@ const ar: Strings = {
       search: "ابحث في العلماء",
       empty: "لا يوجد علماء بعد",
       emptyHelp: "يُنشأ ملف العالم عند أول دخول إلى نظام إدارة المحتوى لمن لديه دور «عالم». امنح الدور من إدارة الحسابات أو ادعُه من إدارة المرئيات.",
-      postsCount: (n: number) => (n === 1 ? "مقال واحد" : n === 2 ? "مقالان" : `${N(n)} مقالات`),
-      channelsCount: (n: number) => (n === 1 ? "قناة واحدة" : n === 2 ? "قناتان" : `${N(n)} قنوات`),
+      postsCount: P({ zero: "لا مقالات", one: "مقال واحد", two: "مقالان", few: "{n} مقالات", many: "{n} مقالًا", other: "{n} مقال" }),
+      channelsCount: P({ zero: "لا قنوات", one: "قناة واحدة", two: "قناتان", few: "{n} قنوات", many: "{n} قناة", other: "{n} قناة" }),
       myProfile: "ملفي الشخصي",
       myProfileIntro: "كيف يراك القرّاء على صفحتك في الموقع. تظهر مقالاتك هناك فور نشرها.",
       profileIntro: "الملف العام لهذا العالم. تظهر التغييرات على صفحته خلال دقيقة.",
@@ -2262,7 +2267,7 @@ const ar: Strings = {
       featuredHelp: "مُبرز: في الخط الزمني للرئيسية وفي قائمة المقالات، إضافة إلى صفحة العالم.",
       notFeaturedHelp: "على صفحة العالم وفي البحث وفي قناته، لكنه ليس في الخط الزمني ولا في قائمة المقالات حتى يُبرز.",
       notFeaturedWriterHelp: "على صفحتك وفي البحث وفي قناتك. وقد يبرزه المحررون في الموقع الرئيسي.",
-      postsChanged: (n: number) => (n === 1 ? "تم" : `تم في ${N(n)} لغات`),
+      postsChanged: P({ one: "تم", two: "تم في لغتين", few: "تم في {n} لغات", many: "تم في {n} لغة", other: "تم في {n} لغة" }),
       featuredDone: "أُبرز في الموقع الرئيسي",
       unfeaturedDone: "أُزيل من الموقع الرئيسي",
       empty: "لا توجد منشورات للعلماء بعد",
@@ -2277,7 +2282,7 @@ const ar: Strings = {
       videoAdded: "أُبرز في الخط الزمني للرئيسية",
       videoAlready: "موجود في الخط الزمني للرئيسية",
       videoRemoved: "أُزيل من الخط الزمني للرئيسية",
-      communityDead: (n: number) => (n === 1 ? "تعذّر نشر مقال واحد في تبويب المجتمع في قناته." : `تعذّر نشر ${N(n)} مقالات في تبويب المجتمع في قنواتها.`),
+      communityDead: P({ one: "تعذّر نشر مقال واحد في تبويب المجتمع في قناته.", two: "تعذّر نشر مقالين في تبويب المجتمع في قناتيهما.", few: "تعذّر نشر {n} مقالات في تبويب المجتمع في قنواتها.", many: "تعذّر نشر {n} مقالًا في تبويب المجتمع في قنواتها.", other: "تعذّر نشر {n} مقال في تبويب المجتمع في قنواتها." }),
       communityRetry: "أعد المحاولة",
    },
    people: {
