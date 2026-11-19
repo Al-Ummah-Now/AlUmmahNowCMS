@@ -33,7 +33,7 @@ function watchErrors(page: Page): string[] {
 }
 
 async function signIn(page: Page, suffix: string) {
-   const as = { id: `e2e-admin-${suffix}`, email: `e2e-admin+${suffix}@example.test`, roles: ["Admin"], name: "Digits Tester" };
+   const as = { id: `e2e-admin-${suffix}`, email: `e2e-admin+${suffix}@example.test`, roles: ["Admin"], name: "Yusuf Rahman" };
    await fetch(`${MOCK}/__as`, { method: "POST", body: JSON.stringify(as) });
    await page.goto(`${ON}/sso/login?return=%2F`);
    await expect(page).toHaveURL(`${ON}/`);
@@ -102,9 +102,12 @@ test("Arabic admin: Eastern Arabic (Hindi) numerals everywhere, no page errors",
    expect(values.filter((v) => ASCII.test(v))).toEqual([]);
    expect(values.join(" ")).toMatch(/[٠-٩]/);
    // The result count takes the Arabic plural form («٣ نتائج», not «٣ نتيجة»).
-   const status = (await page.locator("main [role=status]").first().textContent())!.trim();
-   const n = Number(toAsciiDigits(status.match(/[٠-٩٬]+/)?.[0]?.replace(/٬/g, "") ?? "NaN"));
-   expect(status).toBe(ADMIN_STRINGS.ar.common.results(n));
+   // (the list's own count line: the search box has a live region of its own)
+   const status = (await page.locator("main p.muted[role=status]").first().textContent())!.trim();
+   const digits = status.match(/[٠-٩٬]+/)?.[0];
+   // 0, 1 and 2 are words («لا نتائج», «نتيجة واحدة», «نتيجتان»); larger counts carry their number
+   const expected = digits ? [ADMIN_STRINGS.ar.common.results(Number(toAsciiDigits(digits.replace(/٬/g, ""))))] : [0, 1, 2].map((n) => ADMIN_STRINGS.ar.common.results(n));
+   expect(expected).toContain(status);
    await shot(page, `posts-list-ar-dark-${p}`);
 
    // The editor's character counters are written by the client script.
