@@ -106,6 +106,12 @@ export function renderStatus(
 }
 
 /** The family's lucide shapes (monorepo ERROR_PAGE_ICONS). */
+const btnIcon = (paths: string) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
+const FAMILY_BUTTON_ICONS = {
+   home: btnIcon('<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+   retry: btnIcon('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'),
+   back: btnIcon('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>').replace("<svg ", '<svg data-icon="back" '),
+};
 const FAMILY_ICONS = {
    notFound: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/><circle cx="12" cy="12" r="10"/></svg>',
    alert: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
@@ -176,9 +182,9 @@ export async function renderGate(
    const url = new URL(c.req.url);
    const code = (n: number) => t.errorCode.replace("{code}", new Intl.NumberFormat(prefs.lang === "ar" ? "ar-u-nu-arab" : "en-US", { useGrouping: false }).format(n));
    const help = `${esc(t.needHelp)} <a href="${esc(`${cfg?.wwwUrl ?? "https://www.alummahnow.net"}/${prefs.lang}/contact`)}">${esc(t.contactUs)}</a>`;
-   const family = (status: number, icon: "notFound" | "alert") => ({ status, codeLabel: code(status), iconSvg: FAMILY_ICONS[icon], helpHtml: help, backLabel: t.goBack });
-   const retry = `<a class="btn primary ep-btn" href="${esc(url.pathname + url.search)}">${esc(t.tryAgain)}</a>`;
-   const home = (primary: boolean) => `<a class="btn${primary ? " primary" : ""} ep-btn" href="/">${esc(t.goHome)}</a>`;
+   const family = (status: number, icon: "notFound" | "alert") => ({ status, codeLabel: code(status), iconSvg: FAMILY_ICONS[icon], helpHtml: help, backLabel: t.goBack, backIconSvg: FAMILY_BUTTON_ICONS.back });
+   const retry = `<a class="btn primary ep-btn" href="${esc(url.pathname + url.search)}">${FAMILY_BUTTON_ICONS.retry}<span>${esc(t.tryAgain)}</span></a>`;
+   const home = (primary: boolean) => `<a class="btn${primary ? " primary" : ""} ep-btn" href="/">${FAMILY_BUTTON_ICONS.home}<span>${esc(t.goHome)}</span></a>`;
    const familyContent: Record<FamilyKind, Omit<GateContent, "chooser" | "testId">> = {
       not_found: { icon: "alert", title: t.notFoundTitle, body: t.notFoundBody, actionsHtml: home(true), family: family(404, "notFound") },
       error: { icon: "alert", title: t.errorTitle, body: t.errorBody, actionsHtml: home(false) + retry, family: family(500, "alert") },
