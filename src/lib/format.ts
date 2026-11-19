@@ -101,3 +101,30 @@ export function toAsciiDigits(s: string): string {
 
 /** A typed number → Arabic numerals 0–9 with "." as the decimal mark (٫ → ., the ٬ group mark dropped). */
 export const toAsciiNumber = (s: string): string => toAsciiDigits(s).replace(/\u066B/g, ".").replace(/\u066C/g, "");
+
+/**
+ * Plural sentences. Arabic has six forms (Intl.PluralRules: zero, one, two, few 3–10, many 11–99,
+ * other 100+), English two. Each form may hold "{n}", filled with the formatted number.
+ */
+export type PluralForms = Partial<Record<Intl.LDMLPluralRule, string>> & { other: string };
+
+export function plural(n: number, forms: PluralForms, lang: Lang | string): string {
+   // A "{0}" placeholder (a template for the client) takes the general form.
+   const form = typeof n === "number" && Number.isFinite(n) ? (forms[new Intl.PluralRules(intlLocale(lang)).select(n)] ?? forms.other) : forms.other;
+   return fill(form, { n, 0: n }, lang);
+}
+
+const SAMPLE: Record<Intl.LDMLPluralRule, number> = { zero: 0, one: 1, two: 2, few: 3, many: 11, other: 100 };
+
+/** A count sentence as client templates, one per plural form of the language, "{0}" for the number. */
+export function pluralTemplates(sentence: (n: number) => string, lang: Lang | string): PluralForms {
+   const out: PluralForms = { other: "" };
+   for (const c of new Intl.PluralRules(intlLocale(lang)).resolvedOptions().pluralCategories as Intl.LDMLPluralRule[]) {
+      const n = c === "other" && lang !== "ar" ? 5 : SAMPLE[c];
+      out[c] = sentence(n).split(formatNumber(n, lang)).join("{0}");
+   }
+   return out;
+}
+
+/** The client side of pluralTemplates: the form for n, with n formatted for the language. */
+export const pickPlural = (forms: PluralForms, n: number, lang: Lang | string): string => plural(n, forms, lang);

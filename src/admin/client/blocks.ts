@@ -7,7 +7,8 @@
  */
 import { latestOnly, liveSearch } from "./live-search.ts";
 import { BlockError, blockSummary, isComplete, newBlockId, normalizeBlocks, normalizeSlides, validBlockUrl, validEmail, type Block, type Slide } from "../../lib/blocks.ts";
-import { $, $$, api, ApiError, el, strings, toast, pageNum } from "./dom.ts";
+import { $, $$, api, ApiError, el, strings, toast, pageLang, pageNum } from "./dom.ts";
+import { pickPlural, type PluralForms } from "../../lib/format.ts";
 import { askLink } from "./dialogs.ts";
 import { openPicker, type PickedItem } from "./picker.ts";
 import { initPageBuilder } from "./page-builder.ts";
@@ -16,6 +17,8 @@ type Dict = Record<string, string>;
 interface S {
    blocks: Dict & { types: Dict; errors: Dict; langNames: Dict };
    slides: Dict;
+   /** Count sentences per plural form (src/lib/format.ts pluralTemplates). */
+   counts?: { blocks?: PluralForms; slides?: PluralForms; mediaUse?: PluralForms };
    videoLine: string;
    failed: string;
    status?: Dict;
@@ -168,10 +171,8 @@ export function announce(list: Element, msg: string): void {
    requestAnimationFrame(() => (live.textContent = msg));
 }
 
-/** Arabic-aware count: "1 block", "2 blocks" / «كتلة واحدة»، «كتلتان»، «٣ كتل»، «١١ كتلة». */
-function countText(n: number, one: string, two: string, few: string, many: string): string {
-   return n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? fmt(few, n) : fmt(many, n);
-}
+/** A count in the right plural form: "1 block", "2 blocks" / «كتلة واحدة»، «كتلتان»، «٣ كتل»، «١١ كتلة». */
+const countText = (forms: PluralForms | undefined, n: number, fallback: string) => (forms ? pickPlural(forms, n, pageLang()) : fmt(fallback, n));
 
 /** A block card's open/closed state (the body stays in the DOM: it is the state). */
 export function unfold(li: HTMLElement, open = true): void {
@@ -223,7 +224,7 @@ export function refresh(list: Element): void {
          }
       }
       const badge = list.closest("[data-blocks-editor]")?.querySelector("[data-blk-count]");
-      if (badge) badge.textContent = countText(items.length, T.blocks.blocksCount1, T.blocks.blocksCount2, T.blocks.blocksCount10, T.blocks.blocksCount);
+      if (badge) badge.textContent = countText(T.counts?.blocks, items.length, T.blocks.blocksCount);
    }
    // A change inside a nested list changes its block's summary and completeness too.
    const outer = list.parentElement?.closest<HTMLElement>("[data-seq-item]");
@@ -232,9 +233,7 @@ export function refresh(list: Element): void {
       for (const li of items) li.toggleAttribute("data-incomplete", !$<HTMLInputElement>("[data-k=media_id]", li)?.value);
       const badge = $("[data-slide-count]");
       if (badge) {
-         const n = items.length;
-         const s = T.slides;
-         badge.textContent = n === 1 ? s.count1 : n === 2 ? s.count2 : n >= 3 && n <= 10 ? fmt(s.count10, n) : fmt(s.count, n);
+         badge.textContent = countText(T.counts?.slides, items.length, T.slides.count);
       }
    }
 }
@@ -570,7 +569,7 @@ function toggleMedia(p: MediaPick, btn: HTMLElement): void {
    }
    const use = $<HTMLButtonElement>("[data-media-use]", dlg)!;
    use.disabled = selected.size === 0;
-   $("[data-media-use-label]", dlg)!.textContent = mediaMultiple ? (selected.size === 1 ? T.blocks.mediaUseOne : fmt(T.blocks.mediaUseMany, selected.size)) : T.blocks.mediaUse;
+   $("[data-media-use-label]", dlg)!.textContent = mediaMultiple ? countText(T.counts?.mediaUse, selected.size, T.blocks.mediaUseMany) : T.blocks.mediaUse;
 }
 
 async function loadMedia(append: boolean): Promise<void> {
@@ -641,7 +640,7 @@ export function chooseMedia(multiple: boolean, from: HTMLElement): Promise<Media
    selected.clear();
    const use = $<HTMLButtonElement>("[data-media-use]", dlg)!;
    use.disabled = true;
-   $("[data-media-use-label]", dlg)!.textContent = multiple ? fmt(T.blocks.mediaUseMany, 0) : T.blocks.mediaUse;
+   $("[data-media-use-label]", dlg)!.textContent = multiple ? countText(T.counts?.mediaUse, 0, T.blocks.mediaUseMany) : T.blocks.mediaUse;
    void loadMedia(false);
    dlg.showModal();
    return new Promise((resolve) => (mediaResolve = resolve));

@@ -19,6 +19,7 @@ import { Empty, isAdmin, isWriter, PageHead, type View } from "../ui/layout.tsx"
 import { PickerDialog } from "../ui/picker.tsx";
 import { ConfirmDialog, I18nScript, LocalTime } from "../ui/parts.tsx";
 import { MediaDialog } from "./blocks.tsx";
+import { pluralTemplates } from "../../lib/format.ts";
 
 /** www's scholar page for a profile. */
 export const scholarPageUrl = (v: View, s: Pick<Scholar, "slug">, locale: "en" | "ar" = v.prefs.lang) => `${v.wwwUrl}/${locale}/scholars/${encodeURIComponent(s.slug)}/`;
@@ -32,6 +33,7 @@ function clientStrings(v: View) {
    const P0 = "{0}" as unknown as number;
    return {
       blocks: { ...t.blocks, position: "", moved: "", added: "", duplicated: "", removed: "", mediaUseMany: t.blocks.mediaUseMany(P0), mediaUseOne: t.blocks.mediaUseMany(1), mediaUploading: t.blocks.mediaUploading("{0}") },
+      counts: { mediaUse: pluralTemplates(t.blocks.mediaUseMany, v.prefs.lang) },
       picker: t.picker,
    };
 }

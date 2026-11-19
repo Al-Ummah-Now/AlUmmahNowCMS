@@ -8,13 +8,13 @@ import { listEntries, type GlossaryEntry } from "../../lib/translation-flags/glo
 import { Icon } from "../ui/icons.tsx";
 import { isAdmin, PageHead, type View } from "../ui/layout.tsx";
 import { ConfirmDialog, I18nScript, LocalTime } from "../ui/parts.tsx";
+import { pluralTemplates } from "../../lib/format.ts";
 
-const P0 = "{0}" as unknown as number;
 
 /** Strings for the client (it renders rows after a search or an add with the same markup). */
 export function glossaryClientStrings(v: View) {
    const g = v.t.glossary;
-   return { ...g, failed: v.t.common.failed, locales: v.t.locales, admin: isAdmin(v), results: v.t.common.results(P0), result1: v.t.common.results(1), lang: v.prefs.lang };
+   return { ...g, failed: v.t.common.failed, locales: v.t.locales, admin: isAdmin(v), results: pluralTemplates(v.t.common.results, v.prefs.lang), lang: v.prefs.lang };
 }
 
 export function GlossaryRow(props: { v: View; e: GlossaryEntry; deleted: boolean }) {

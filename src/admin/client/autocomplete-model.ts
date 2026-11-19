@@ -7,7 +7,7 @@
  * input, the active option is pointed at with aria-activedescendant, nothing is chosen until Enter
  * or a click. Enter with no option active still submits the search form (the full search).
  */
-import { docLang, num } from "../../lib/format.ts";
+import { docLang, num, pickPlural, type PluralForms } from "../../lib/format.ts";
 
 export interface Suggestion {
    kind: string;
@@ -111,13 +111,13 @@ export function keyDown(state: State, key: string, alt = false): KeyResult {
 }
 
 /** The polite announcement for the current state ("" when the list is closed). */
-export function announcement(state: State, T: { searching: string; failed: string; none: string; count: string }): string {
+export function announcement(state: State, T: { searching: string; failed: string; none: string; count: string; countN?: PluralForms }, lang = docLang()): string {
    if (!state.open) return "";
    const n = state.options.filter((o) => o.type === "suggestion").length;
    if (state.status === "loading" && state.options.length === 0) return T.searching;
    if (state.status === "error") return T.failed;
    if (n === 0) return T.none;
-   return T.count.split("{0}").join(num(n, docLang()));
+   return T.count.split("{0}").join(T.countN ? pickPlural(T.countN, n, lang) : num(n, lang));
 }
 
 /** `const isCurrent = begin();` … after the await: `if (!isCurrent()) return;` — only the last begun call is current. */

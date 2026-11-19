@@ -6,6 +6,7 @@
  * The behaviour lives in autocomplete-model.ts.
  */
 import { $, $$, el, fitToViewport, strings } from "./dom.ts";
+import type { PluralForms } from "../../lib/format.ts";
 import { DEBOUNCE_MS, MIN_QUERY, announcement, closed, failed, initialState, keyDown, received, typed, type Option, type State, type Suggestion } from "./autocomplete-model.ts";
 
 interface Strings {
@@ -13,6 +14,7 @@ interface Strings {
    acFailed: string;
    acNone: string;
    acCount: string;
+   acCountN?: PluralForms;
    acSearchAll: string;
 }
 
@@ -49,7 +51,7 @@ function attach(root: HTMLElement, T: Strings): void {
       else input.removeAttribute("aria-activedescendant");
       list.replaceChildren(...state.options.map((o, i) => optionEl(o, i)));
       if (expanded && state.status === "loading" && state.options.length === 0) list.append(el("li", { role: "presentation", class: "ac-note" }, T.acSearching));
-      const said = announcement({ ...state, open: expanded }, { searching: T.acSearching, failed: T.acFailed, none: T.acNone, count: T.acCount });
+      const said = announcement({ ...state, open: expanded }, { searching: T.acSearching, failed: T.acFailed, none: T.acNone, count: T.acCount, countN: T.acCountN });
       if (live.textContent !== said) live.textContent = said;
       if (state.active >= 0) document.getElementById(optionId(state.active))?.scrollIntoView({ block: "nearest" });
    };
