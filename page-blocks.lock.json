@@ -1,9 +1,9 @@
 {
   "repo": "Al-Ummah-Now/AlUmmahNow",
-  "ref": "6cafd07ba2070580c42af847cbaebf6e712d3748",
+  "ref": "f0f69de77852eb8cdcae7eecd6cc1300e90bb287",
   "files": {
     "page-blocks.ts": "c5ccd827dc559e98a6f39e48de61e68dc347609233b40537f8350098889ea04a",
-    "page-blocks.sample.ts": "c616f12abd2745c24b519fe0d5dc2a0f799a96b20aefa6595f18ce5c7bc1be76",
-    "page-blocks.css": "0dd90d965839b137952aedadfa74bb3c468503a88be9bfea5e77c13e28d39c08"
+    "page-blocks.sample.ts": "d56a121e216fcb5b74f1ecac94232f6d613b2c350b5bb880575d4605b48fa12d",
+    "page-blocks.css": "0cde270ae8f8dfc4255e5f599396ea5a774a5a3bfa26c0ce69a948ec6db86fbf"
   }
 }
