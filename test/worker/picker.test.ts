@@ -130,7 +130,20 @@ describe("status pages", () => {
       const res = await makeWorker()("/does-not-exist");
       expect(res.status).toBe(404);
       expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
-      expect(await res.text()).toContain("Page not found");
+      const html = await res.text();
+      expect(html).toContain("Page not found");
+      // The error-page family's card (wiki guides/error-pages.md) in the site theme with the shared header
+      expect(html).toContain('data-error-status="404"');
+      expect(html).toContain("Error 404");
+      expect(html).toContain('<meta name="robots" content="noindex, nofollow"');
+      expect(html).not.toMatch(/class="ep-card"[\s\S]*@keyframes/);
+   });
+   it("the Arabic 404 is right to left with ٠–٩ in the code line", async () => {
+      const res = await makeWorker()("/does-not-exist?lang=ar");
+      const html = await res.text();
+      expect(res.status).toBe(404);
+      expect(html).toContain('dir="rtl"');
+      expect(html).toContain("خطأ ٤٠٤");
    });
    it("healthz", async () => {
       const res = await makeWorker()("/healthz?deep=1");
