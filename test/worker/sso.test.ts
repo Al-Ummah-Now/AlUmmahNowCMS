@@ -551,11 +551,12 @@ describe("the CMS pages outside the staff shell wear the shared header", () => {
       expect(html).not.toContain('class="aun-signin"');
    });
 
-   it("a plain status page (not found) has the same header, Light/Dark saved like the staff screens", async () => {
+   it("the not-found page (the error-page family, in the site theme) has the same header, Light/Dark saved like the staff screens", async () => {
       const res = await makeWorker()("/no-such-page?mode=dark", { headers: { "accept-language": "ar" } });
       expect(res.status).toBe(404);
       const html = await res.text();
-      expect(html).toContain('<html lang="ar" dir="rtl" data-mode="dark" class="dark">');
+      expect(html).toMatch(/<html lang="ar" dir="rtl" data-theme="[a-z]+" data-mode="dark" class="dark">/);
+      expect(html).toContain('data-error-status="404"');
       expect(html).toContain(brand("ar"));
       expect(html).toContain(envBadgeHtml("qa", "ar"));
       expect(html).toContain(langButtonHtml({ lang: "ar", href: "/no-such-page?lang=en" }));

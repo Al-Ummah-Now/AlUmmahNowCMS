@@ -16,7 +16,7 @@ import { bearer, isPreviewKind, mintPreviewToken, verifyPreviewToken, type Previ
 import type { AppEnv } from "../types.ts";
 import { publishState } from "../lib/schedule.ts";
 import { pageOf, postOf, toIso } from "./public-api.ts";
-import { renderStatus } from "./sso.ts";
+import { renderErrorStatus, renderStatus } from "./sso.ts";
 
 type Row = Record<string, unknown>;
 
@@ -85,14 +85,14 @@ export function previewRoutes(): Hono<AppEnv> {
       const kind = c.req.param("kind");
       const role = c.get("user")?.role;
       if (role !== "admin" && role !== "editor" && role !== "staff_writer" && role !== "writer") return renderStatus(c, "no_access", 403);
-      if (!isPreviewKind(kind)) return renderStatus(c, "not_found", 404);
+      if (!isPreviewKind(kind)) return renderErrorStatus(c, "not_found", 404);
       const id = Number(c.req.param("id"));
       // A writer previews only their own posts (docs/SCHOLARS.md §2).
-      if (role === "writer" && (kind !== "posts" || (await postAuthor(c.env.DB, id)) !== (await subOfUser(c.env.DB, c.get("user").id)))) return renderStatus(c, "not_found", 404);
+      if (role === "writer" && (kind !== "posts" || (await postAuthor(c.env.DB, id)) !== (await subOfUser(c.env.DB, c.get("user").id)))) return renderErrorStatus(c, "not_found", 404);
       // A staff writer previews Al Ummah Now's own posts only
-      if (role === "staff_writer" && (kind !== "posts" || (await isStaffPost(c.env.DB, id)) !== true)) return renderStatus(c, "not_found", 404);
+      if (role === "staff_writer" && (kind !== "posts" || (await isStaffPost(c.env.DB, id)) !== true)) return renderErrorStatus(c, "not_found", 404);
       const row = await c.env.DB.prepare(`SELECT id FROM ${kind} WHERE id = ?1 LIMIT 1`).bind(id).first();
-      if (!row) return renderStatus(c, "not_found", 404);
+      if (!row) return renderErrorStatus(c, "not_found", 404);
       const cfg = c.get("cfg");
       const { token } = await mintPreviewToken(cfg.jwtSecret, kind, id);
       return new Response(null, {
@@ -100,6 +100,6 @@ export function previewRoutes(): Hono<AppEnv> {
          headers: { Location: `${cfg.wwwUrl}/preview?token=${encodeURIComponent(token)}`, "Referrer-Policy": "no-referrer" },
       });
    });
-   r.all("*", (c) => renderStatus(c, "not_found", 404));
+   r.all("*", (c) => renderErrorStatus(c, "not_found", 404));
    return r;
 }
