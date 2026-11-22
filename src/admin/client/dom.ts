@@ -201,6 +201,29 @@ export function fitToViewport(el: HTMLElement | null | undefined): void {
 }
 
 /**
+ * The header search's phone sheet covers its `.aun-header` (AlUmmahNow nav/menu-fit.js coverBar, NAV.md
+ * "Search"): its CSS top is 0, so under the theme preview or passkey banner it covered the banner instead of
+ * the bar. Call on open; it follows the bar on scroll and resize until the returned release runs (on close).
+ */
+export function coverBar(el: HTMLElement | null | undefined): () => void {
+   const bar = el?.closest<HTMLElement>(".aun-header");
+   if (!el || !bar) return () => {};
+   const place = () => {
+      el.style.removeProperty("translate");
+      const dy = Math.round(Math.max(bar.getBoundingClientRect().top, 0) - el.getBoundingClientRect().top);
+      if (dy) el.style.translate = `0px ${dy}px`;
+   };
+   place();
+   window.addEventListener("scroll", place, { passive: true });
+   window.addEventListener("resize", place);
+   return () => {
+      window.removeEventListener("scroll", place);
+      window.removeEventListener("resize", place);
+      el.style.removeProperty("translate");
+   };
+}
+
+/**
  * Number fields (inputmode numeric/decimal, type text so every keyboard works) accept Eastern Arabic
  * (Hindi) numerals ٠–٩ and the Arabic decimal mark: they become Arabic numerals 0–9 as they are typed.
  */

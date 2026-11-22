@@ -12,7 +12,7 @@ import { LeaveDialog, LinkDialog } from "./dialogs.tsx";
 import { appLinks, type AppLinkId } from "../../lib/app-links.ts";
 import { absolute } from "../format.ts";
 import { pluralTemplates } from "../../lib/format.ts";
-import { drawerToggleHtml, headerBrandHtml, headerSitePrefsHtml, withQuery } from "../../lib/header.ts";
+import { SEARCH_ICON_SVG, drawerToggleHtml, headerBrandHtml, headerSearchBackHtml, headerSearchOpenHtml, headerSitePrefsHtml, withQuery } from "../../lib/header.ts";
 
 export interface View {
    prefs: Prefs;
@@ -276,24 +276,36 @@ export function Shell(props: { v: View; title: string; children: Child }) {
                <header class="aun-header cms-hd hd">
                   {raw(drawerToggleHtml(prefs.lang))}
                   {raw(headerBrandHtml(prefs.lang, v.environment))}
-                  <div class="aun-header-primary hd-search" id="hd-search">
-                     <Autocomplete kind={isWriter(v) ? "posts" : "content"} listId="global-q-list" label={t.header.search}>
-                        <form class="search" role="search" action={searchAction} method="get">
-                           <label class="vh" for="global-q">
-                              {t.header.search}
-                           </label>
-                           <input id="global-q" name="q" type="search" placeholder={t.header.search} maxlength={100} {...comboboxProps("global-q-list")} />
-                           <button type="submit" aria-label={t.header.searchButton}>
-                              <Icon name="search" />
-                           </button>
-                        </form>
-                     </Autocomplete>
+                  <div class="aun-header-primary hd-search">
+                     {/* The shared search (NAV.md "Search"): in the bar from 1024px; below it the icon opens the
+                         slot as a sheet over the bar (a popover: no script needed; Escape or the arrow closes it) */}
+                     {raw(headerSearchOpenHtml(prefs.lang, "hd-search"))}
+                     <div class="aun-search-slot" id="hd-search" popover="auto" data-testid="header-search-sheet">
+                        {raw(headerSearchBackHtml(prefs.lang, "hd-search"))}
+                        <Autocomplete kind={isWriter(v) ? "posts" : "content"} listId="global-q-list" label={t.header.search}>
+                           <form class="aun-search" role="search" aria-label={t.header.searchButton} action={searchAction} method="get">
+                              <label class="vh" for="global-q">
+                                 {t.header.search}
+                              </label>
+                              <input
+                                 id="global-q"
+                                 class="aun-search-input"
+                                 name="q"
+                                 type="search"
+                                 placeholder={t.header.search}
+                                 maxlength={100}
+                                 enterkeyhint="search"
+                                 data-testid="header-search-input"
+                                 {...comboboxProps("global-q-list")}
+                              />
+                              <button type="submit" class="aun-search-submit" aria-label={t.header.searchButton} data-testid="header-search-submit">
+                                 {raw(SEARCH_ICON_SVG)}
+                              </button>
+                           </form>
+                        </Autocomplete>
+                     </div>
                   </div>
                   <div class="aun-header-tools">
-                     {/* Below 1024px the search opens under the bar (client/shell.ts); without script, the list's own search */}
-                     <a class="aun-icon-btn hd-search-btn" href={searchAction} data-search-toggle aria-controls="hd-search" aria-label={t.header.search} title={t.header.search}>
-                        <Icon name="search" />
-                     </a>
                      <CreateMenu v={v} />
                      {raw(headerSitePrefsHtml({ lang: prefs.lang, link: (key, value) => withParam(v, key, value) }))}
                      <AccountMenu v={v} />
