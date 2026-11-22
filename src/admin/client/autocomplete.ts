@@ -7,7 +7,7 @@
  */
 import { $, $$, el, fitToViewport, strings } from "./dom.ts";
 import type { PluralForms } from "../../lib/format.ts";
-import { DEBOUNCE_MS, MIN_QUERY, announcement, closed, failed, initialState, keyDown, received, typed, type Option, type State, type Suggestion } from "./autocomplete-model.ts";
+import { DEBOUNCE_MS, MIN_QUERY, announcement, closed, failed, initialState, keyDown, quoted, received, typed, type Option, type State, type Suggestion } from "./autocomplete-model.ts";
 
 interface Strings {
    acSearching: string;
@@ -59,7 +59,7 @@ function attach(root: HTMLElement, T: Strings): void {
    const optionEl = (o: Option, i: number): HTMLLIElement => {
       const li = el("li", { id: optionId(i), role: "option", "aria-selected": String(i === state.active), class: "ac-opt", "data-option": o.type });
       if (o.type === "searchAll") {
-         li.append(el("span", { class: "ac-all" }, `${T.acSearchAll} `, el("bdi", {}, `“${o.query}”`)));
+         li.append(el("span", { class: "ac-all" }, `${T.acSearchAll} `, el("bdi", {}, quoted(o.query, document.documentElement.lang))));
       } else {
          const s = o.suggestion;
          li.dataset.id = s.id;

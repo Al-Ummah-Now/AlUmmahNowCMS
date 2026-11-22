@@ -41,6 +41,9 @@ export const DEBOUNCE_MS = 200;
 
 export const initialState = (query = ""): State => ({ query, open: false, active: -1, options: [], status: "idle" });
 
+/** The typed query inside the UI language's quotation marks: «…» on an Arabic page, “…” in English. */
+export const quoted = (query: string, lang: string): string => (lang === "ar" ? `«${query}»` : `“${query}”`);
+
 /** The suggestions, then "Search everything for …" (what Enter does). */
 export function optionsFor(query: string, suggestions: Suggestion[]): Option[] {
    const options: Option[] = suggestions.map((suggestion) => ({ type: "suggestion", suggestion }));
