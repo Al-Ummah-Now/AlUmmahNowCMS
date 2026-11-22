@@ -46,7 +46,7 @@ for (const lang of ["en", "ar"] as const) {
 
       await page.fill('input[name="email"]:not([type="hidden"])', ACCOUNTS.ssoCms.email);
       await fillSecret(page.locator('input[name="password"]'), ACCOUNTS.ssoCms.password);
-      await page.click('button[data-component="button"]');
+      await page.click('button[data-component="button"]:not([type="button"]):not([data-aun-email-link])');
       await page.waitForURL((u) => u.origin === new URL(CMS_URL).origin && !u.pathname.startsWith("/sso/"), { timeout: 45_000 });
       expect(new URL(page.url()).pathname + new URL(page.url()).search, "sign-in did not come back to the deep link").toBe(deepLink);
 
