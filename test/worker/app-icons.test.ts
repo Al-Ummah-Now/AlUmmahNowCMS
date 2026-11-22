@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { faviconSvgPath, tabIconHtml, tabIconLinks } from "../../src/lib/app-icons.ts";
+import { NAV_FONTS_CSS } from "../../src/lib/nav-fonts.generated.ts";
 import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
 
 describe("tab and app icons", () => {
@@ -41,6 +42,20 @@ describe("tab and app icons", () => {
          const body = new Uint8Array(await res.arrayBuffer());
          expect(new TextDecoder().decode(body.subarray(8, 12))).toBe("WEBP");
       }
+   });
+
+   it("serves the header controls' fonts named by the face sheet, from this Worker only", async () => {
+      const f = makeWorker();
+      const files = [...NAV_FONTS_CSS.matchAll(/url\(['"]?([^'")]+)/g)].map((m) => m[1]!);
+      expect(files.length).toBeGreaterThan(0);
+      for (const path of files) {
+         expect(path).toMatch(/^\/aun-nav\/fonts\/[a-z0-9-]+\.woff2$/);
+         const res = await f(path);
+         expect(res.status, path).toBe(200);
+         expect(res.headers.get("content-type")).toBe("font/woff2");
+         expect(new TextDecoder().decode(new Uint8Array(await res.arrayBuffer()).subarray(0, 4))).toBe("wOF2");
+      }
+      expect((await f("/aun-nav/fonts/missing.woff2")).status).toBe(404);
    });
 
    it("the staff shell links the icon for its environment", async () => {

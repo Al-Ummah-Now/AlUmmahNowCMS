@@ -107,10 +107,10 @@ export function publicHeaderHtml(o: {
 }
 
 /**
- * What the CMS adds to the shared header CSS (NAV_CSS), on every page: the material behind the bar,
- * and the Light / Dark pair (only the link for the mode on screen shows).
+ * What the CMS adds to the shared header CSS (NAV_CSS), on every page: the Light / Dark pair (only the
+ * link for the mode on screen shows). The bar's band, edge, blur and control font are the contract's
+ * (its theme header block), the same as in every app.
  */
 export const HEADER_GLUE_CSS =
-   ".cms-hd{--aun-header-bg:var(--m-header,var(--fanous-c-nav-bg));-webkit-backdrop-filter:var(--m-blur,none);backdrop-filter:var(--m-blur,none)}" +
    ".cms-hd a{text-underline-offset:.2em}" +
    "html.dark .cms-hd .mode-to-dark,html:not(.dark) .cms-hd .mode-to-light{display:none}";

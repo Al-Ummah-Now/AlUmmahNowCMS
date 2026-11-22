@@ -1,5 +1,6 @@
 /** Content-hashed CSS/JS for the staff screens, served by the Worker at /admin-assets/*. */
 import { CLIENT_JS } from "./client.generated.ts";
+import { NAV_FONTS_CSS } from "../lib/nav-fonts.generated.ts";
 import { GRAPHIC_CSS, NAV_CSS, STREET_CSS, THEME_IDS, THEMES, type ThemeId } from "./theme/vendor.generated.ts";
 import { ADMIN_CSS } from "./ui/styles.ts";
 import { HEADER_GLUE_CSS } from "../lib/header.ts";
@@ -32,8 +33,9 @@ function add(name: string, ext: "css" | "js", body: string): string {
 }
 
 // STREET_CSS: the lantern street module (draws only when the theme switches it on: Fawanees).
-// NAV_CSS last: the shared header account button and menus (AlUmmahNow docs/design/NAV.md)
-urls.css = add("app", "css", ADMIN_CSS + BUILDER_CSS + GRAPHIC_CSS + STREET_CSS + NAV_CSS + HEADER_GLUE_CSS);
+// NAV_CSS last: the shared header account button and menus (AlUmmahNow docs/design/NAV.md), with the
+// faces of its control fonts (NAV_FONTS_CSS)
+urls.css = add("app", "css", ADMIN_CSS + BUILDER_CSS + GRAPHIC_CSS + STREET_CSS + NAV_FONTS_CSS + NAV_CSS + HEADER_GLUE_CSS);
 urls.js = add("app", "js", CLIENT_JS);
 for (const id of THEME_IDS) urls.theme[id] = add(`theme-${id}`, "css", THEMES[id].css);
 // The page builder's live preview frame: the shared block styles (vendored from the monorepo, the
