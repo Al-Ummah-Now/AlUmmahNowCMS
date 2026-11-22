@@ -3,7 +3,7 @@
   "refs": {
     "tokens": "7f1bf3e9f01780c2e2c9359e73c03ec4e4435f83",
     "materials": "399086fcea954661bf720cb6d78832f7e09819a0",
-    "nav": "f5f45b43b47058d059d112c8c2a81f3ff89d4b77"
+    "nav": "a6fe51fef2e5768e01edeb25f31ed8229ec66c39"
   },
   "sources": {
     "399086fcea95:apps/web/src/theme/demo-graphics.json": "bff543163815040efc4ad100d0afd8a46de64716724f60589afb207b06fc32ae",
@@ -26,11 +26,11 @@
     "7f1bf3e9f017:packages/fanous-tokens/themes/nahas/theme.json": "ec5e89700c1fdd5dadf2da5222553563ff99e03a883566e89f138685485bb23c",
     "7f1bf3e9f017:packages/fanous-tokens/generated/nahas/web/tokens.css": "e8d7d9b5bed33cb0369aefcd31b82e596e457ce63a4ecc0f4baa9db20b22da3b",
     "399086fcea95:apps/web/src/theme/materials/nahas.css": "3bf03acace56f541a350c87dde57484737a489056438a16749d48735e0f443c1",
-    "f5f45b43b470:packages/fanous-tokens/nav/aun-nav.css": "7fd4845915ca2f55c7f4e83642a261c3b0f462523fcb81e586b73d46c8c58d06"
+    "a6fe51fef2e5:packages/fanous-tokens/nav/aun-nav.css": "27dde58216ae01b63f51ad13b68285bc85ddc59df69a751e64f0c68816d0cdb1"
   },
-  "output": "cf770cbed2d09d9a898abab4d0aad25ab7f23e08b46808d67090adf738a2f363",
-  "navIconsOutput": "0a918cfa1f58802902d3dba563d860b913090feac6fc3dda69c7b01173cbf16d",
-  "navFontsOutput": "0a56578fb32bda91e3d53f22d6a6fd81c6393103ee2c00984c834cc145a1832e",
+  "output": "d3c51fa3eefae1b4ae5f211be48ed4558433fe12b881fe6ac81444420a0a090d",
+  "navIconsOutput": "4e72b3a95ce34f4bf25448d40ba58a010dd1661a88178413287fece6e0083f3b",
+  "navFontsOutput": "2739223648913f14a388200de106e45b096ab3c6ccfb40ed09cacaefe1594d75",
   "street": {
     "src/admin/client/fanous-street.generated.js": "89d10b4fd2b09237891365c231916997a3ac7a180dc6e2a53cdebeb5ba12a552",
     "src/admin/client/fanous-street.generated.d.ts": "c66b19686e04dd83086f5c700389b82d222f922c9ff568a10866893d246484c1"
