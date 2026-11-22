@@ -1,5 +1,6 @@
 /** Tiny HTML helpers for the CMS's own server-rendered pages. */
 import { NAV_CSS, THEMES } from "../admin/theme/vendor.generated.ts";
+import { NAV_FONTS_CSS } from "./nav-fonts.generated.ts";
 import { tabIconHtml } from "./app-icons.ts";
 import { HEADER_GLUE_CSS } from "./header.ts";
 
@@ -51,8 +52,8 @@ export interface PageOptions {
    header?: string;
 }
 
-/** The header's styles for a page without the theme stylesheet: Fawanees tokens (variables only) and aun-nav.css. */
-const HEADER_CSS = THEMES.fawanees.css + NAV_CSS + HEADER_GLUE_CSS;
+/** The header's styles for a page without the theme stylesheet: Fawanees tokens (variables only), aun-nav.css and its fonts. */
+const HEADER_CSS = THEMES.fawanees.css + NAV_FONTS_CSS + NAV_CSS + HEADER_GLUE_CSS;
 
 /** Dark tokens for pages with a mode (AA contrast: text #f1f3f5 on #121417 = 16:1, links #8ab4f8 = 9:1). */
 const DARK_CSS = `
