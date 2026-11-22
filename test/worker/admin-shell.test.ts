@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetThemeCache, siteTheme } from "../../src/admin/prefs.ts";
 import { cookiesOf, makeWorker, signIn } from "./helpers.ts";
-import { brandHtml, envBadgeHtml, HEADER_ORDER, langButtonHtml } from "../../src/lib/fanous-nav/header.js";
+import { brandHtml, envBadgeHtml, HEADER_ORDER, langButtonHtml, searchHtml } from "../../src/lib/fanous-nav/header.js";
 import { drawerToggleHtml, modeLinksHtml } from "../../src/lib/header.ts";
 
 async function session(roles: string[], id: string) {
@@ -101,6 +101,41 @@ describe("staff shell", () => {
          expect(bar).not.toMatch(/aun-apps|class="aun-app"|https:\/\/(www|videos)\.test/);
          // language and Light / Dark left the rail and the drawer
          expect(html.slice(html.indexOf("</header>"))).not.toMatch(/hreflang=|data-mode-toggle/);
+      }
+   });
+
+   it("the header search is the shared one (NAV.md \"Search\"): searchHtml's elements and classes, around the suggestions", async () => {
+      const cookie = await session(["Admin"], "shell-search");
+      const f = makeWorker();
+      /**
+       * The search's elements in order (the suggestions' own wrapper, list and status left out): tag, contract
+       * classes and the attributes that make it work, the slot's id named "slot".
+       */
+      const ATTRS = ["popover", "popovertarget", "popovertargetaction", "method", "data-testid"];
+      const skeleton = (markup: string) =>
+         [...markup.matchAll(/<(button|div|form|input)\b([^>]*)>/g)]
+            .map(([, tag, attrs]) => {
+               const value = (a: string) => new RegExp(`\\s${a}="([^"]*)"`).exec(attrs)?.[1];
+               const cls = (value("class") ?? "").split(" ").filter((c) => c.startsWith("aun-"));
+               const kept = ATTRS.filter((a) => value(a) !== undefined).map((a) => `${a}=${a.startsWith("popovertarget") && a !== "popovertargetaction" ? "slot" : value(a)}`);
+               if (tag === "form") kept.push(`role=${value("role")}`);
+               if (tag === "button") kept.push(`type=${value("type")}`);
+               return cls.length || kept.length ? [tag, ...cls].join(".") + " " + kept.join(" ") : "";
+            })
+            .filter(Boolean);
+      for (const lang of ["en", "ar"] as const) {
+         const html = await (await f(`/pages?lang=${lang}`, { headers: { cookie } })).text();
+         const primary = html.slice(html.indexOf('<button type="button" class="aun-icon-btn aun-search-open"'), html.indexOf('<div class="aun-header-tools">'));
+         expect(primary).not.toBe("");
+         expect(skeleton(primary)).toEqual(skeleton(searchHtml({ lang, action: "/pages" })));
+         // the field keeps the live suggestions and posts where the list's own search does
+         expect(primary).toMatch(/<div class="ac" data-ac="content">/);
+         expect(primary).toMatch(/<input id="global-q" class="aun-search-input"[^>]*role="combobox"/);
+         expect(primary).toContain('action="/pages"');
+         // the icon, the form and the back arrow carry the shared names; the placeholder is the CMS's own
+         expect(primary).toContain(`data-testid="header-search-open" aria-label="${lang === "ar" ? "بحث" : "Search"}"`);
+         expect(primary).toContain(`aria-label="${lang === "ar" ? "رجوع" : "Back"}"`);
+         expect(primary).toContain(`placeholder="${lang === "ar" ? "ابحث في الصفحات والمقالات" : "Search pages and posts"}"`);
       }
    });
 

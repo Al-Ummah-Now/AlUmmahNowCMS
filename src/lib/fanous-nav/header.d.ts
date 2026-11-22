@@ -8,6 +8,8 @@ interface Labels {
   readonly switchLang: string;
   readonly otherLang: string;
   readonly env: { readonly qa: string; readonly stage: string };
+  readonly search: string;
+  readonly back: string;
 }
 export declare const HEADER_LABELS: { readonly en: Labels; readonly ar: Labels };
 export declare function escapeHtml(value: unknown): string;
@@ -21,3 +23,7 @@ export declare const MENU_ICON_BODY: string;
 /** The menu button opening an `.aun-header-panel` popover (shown below 1024px). */
 export declare function menuButtonHtml(opts: { lang: HeaderLang; panel: string }): string;
 export declare function signInHtml(opts: { lang: HeaderLang; href: string }): string;
+export declare const SEARCH_ICON_BODY: string;
+export declare const BACK_ICON_BODY: string;
+/** The header search: the phone icon button and the slot (a popover sheet below 1024px) holding the GET form. */
+export declare function searchHtml(opts: { lang: HeaderLang; action: string; name?: string; value?: string; placeholder?: string; id?: string }): string;

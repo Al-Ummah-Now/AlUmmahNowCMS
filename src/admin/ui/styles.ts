@@ -46,8 +46,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;border:0;border-radius:var(--r-pill);background:transparent;color:var(--fanous-c-nav-icon);cursor:pointer;text-decoration:none;transition:background-color var(--fanous-duration-fast),color var(--fanous-duration-fast)}
 @media(hover:hover){.ic:hover{background:var(--fanous-c-nav-hover);color:var(--fanous-c-nav-text)}}
 .avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--fanous-color-surface-raised);color:var(--fanous-color-text-primary);font-weight:700;font-size:14px;box-shadow:0 0 0 1.5px var(--fanous-c-nav-indicator)}
-.hd .aun-header-primary{justify-content:center}
-.hd .ac{flex:1 1 auto;max-width:560px}
+/* the header search is the shared one (NAV_CSS "header search"); the suggestions wrapper fills its slot */
+.hd .aun-search-slot>.ac{flex:1 1 auto}
 .search{display:flex;align-items:stretch;height:2.5rem;border-radius:var(--r-pill);background:var(--fanous-c-nav-search-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-nav-search-border);overflow:hidden}
 .search:focus-within{box-shadow:inset 0 0 0 2px var(--fanous-c-upload-focus)}
 .search input{flex:1;min-width:0;padding-inline:var(--fanous-spacing-lg);border:0;outline:0;background:transparent;color:var(--fanous-c-nav-search-text)}
@@ -55,17 +55,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .search button{width:52px;display:grid;place-items:center;border:0;background:transparent;color:var(--fanous-c-nav-icon);cursor:pointer;border-inline-start:1px solid var(--fanous-c-nav-search-border)}
 @media(hover:hover){.search button:hover{background:var(--fanous-c-nav-hover)}}
 .hd .btn.sm{min-height:2.5rem;padding-inline:var(--fanous-spacing-lg);font-size:.9375rem}
-.hd .hd-search-btn{display:none}
 @media(max-width:63.99rem){
-.hd .aun-header-primary{display:none}
-.hd .hd-search-btn{display:inline-flex}
-.hd.search-open .aun-header-primary{display:flex;position:absolute;inset-inline:0;inset-block-start:100%;padding:8px var(--aun-header-pad);background:var(--fanous-c-nav-bg);border-block-end:1px solid var(--fanous-c-nav-border)}
-.hd.search-open .ac{max-width:none}
 .hd .btn.sm{width:2.5rem;min-width:2.5rem;padding:0}
 .hd .btn.sm span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-}
-@media(max-width:39.99rem){
-.hd .hd-search-btn{display:none}
 }
 /* The CMS bar holds New as well, so the wordmark runs out of room up to ~430px: below 27.5rem it
    leaves the bar (the mark stays; the name is still the link's accessible name), as the shared

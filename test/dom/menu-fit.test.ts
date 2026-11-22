@@ -5,7 +5,7 @@
  * (AUDIT-2, #154).
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { fitToViewport } from "../../src/admin/client/dom.ts";
+import { coverBar, fitToViewport } from "../../src/admin/client/dom.ts";
 
 const box = (left: number, top: number, width: number, height: number) =>
    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -45,5 +45,31 @@ describe("a phone sheet hangs under its header", () => {
       const menu = page(0);
       fitToViewport(menu);
       expect(menu.style.translate).toBe("");
+   });
+});
+
+describe("the phone search sheet covers its header (coverBar)", () => {
+   /** The sheet (fixed, CSS top 0) inside a header at `bar.top`. */
+   function sheet(bar: { top: number }) {
+      document.body.innerHTML = `<div class="preview-bar"></div><header class="aun-header"><div class="aun-search-slot" style="position:fixed"></div></header>`;
+      const header = document.querySelector<HTMLElement>(".aun-header")!;
+      const slot = document.querySelector<HTMLElement>(".aun-search-slot")!;
+      header.getBoundingClientRect = () => box(0, bar.top, 375, 56);
+      slot.getBoundingClientRect = () => box(0, 0, 375, 56);
+      return slot;
+   }
+
+   it("starts where a header under a banner starts, follows it on scroll and lets go on close", () => {
+      const bar = { top: 66 };
+      const slot = sheet(bar);
+      const release = coverBar(slot);
+      expect(slot.style.translate).toBe("0px 66px");
+      bar.top = 0;
+      window.dispatchEvent(new Event("scroll"));
+      expect(slot.style.translate).toBe("");
+      bar.top = 30;
+      release();
+      window.dispatchEvent(new Event("scroll"));
+      expect(slot.style.translate).toBe("");
    });
 });

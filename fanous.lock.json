@@ -3,7 +3,7 @@
   "refs": {
     "tokens": "7f1bf3e9f01780c2e2c9359e73c03ec4e4435f83",
     "materials": "399086fcea954661bf720cb6d78832f7e09819a0",
-    "nav": "a6fe51fef2e5768e01edeb25f31ed8229ec66c39"
+    "nav": "4683eeb9e6142d191780dba2a6d005de7d0dff87"
   },
   "sources": {
     "399086fcea95:apps/web/src/theme/demo-graphics.json": "bff543163815040efc4ad100d0afd8a46de64716724f60589afb207b06fc32ae",
@@ -26,18 +26,18 @@
     "7f1bf3e9f017:packages/fanous-tokens/themes/nahas/theme.json": "ec5e89700c1fdd5dadf2da5222553563ff99e03a883566e89f138685485bb23c",
     "7f1bf3e9f017:packages/fanous-tokens/generated/nahas/web/tokens.css": "e8d7d9b5bed33cb0369aefcd31b82e596e457ce63a4ecc0f4baa9db20b22da3b",
     "399086fcea95:apps/web/src/theme/materials/nahas.css": "3bf03acace56f541a350c87dde57484737a489056438a16749d48735e0f443c1",
-    "a6fe51fef2e5:packages/fanous-tokens/nav/aun-nav.css": "27dde58216ae01b63f51ad13b68285bc85ddc59df69a751e64f0c68816d0cdb1"
+    "4683eeb9e614:packages/fanous-tokens/nav/aun-nav.css": "8f5f8b1ad366c3987dc559395bd2c9d19071639491cc776eb3d495a0d57050d8"
   },
-  "output": "d3c51fa3eefae1b4ae5f211be48ed4558433fe12b881fe6ac81444420a0a090d",
-  "navIconsOutput": "4e72b3a95ce34f4bf25448d40ba58a010dd1661a88178413287fece6e0083f3b",
-  "navFontsOutput": "2739223648913f14a388200de106e45b096ab3c6ccfb40ed09cacaefe1594d75",
+  "output": "756440737c36edae1388b442107df14726e62f28df80c0c8949dace3b98686bd",
+  "navIconsOutput": "43748583a4e27fe2b040e7a8121411706036d5bffe364c62454821c10cec4941",
+  "navFontsOutput": "8f44ccd938f0a850b611f0f466c553eca9fbbc33ca55bce21b3bfa5b64b0add7",
   "street": {
     "src/admin/client/fanous-street.generated.js": "89d10b4fd2b09237891365c231916997a3ac7a180dc6e2a53cdebeb5ba12a552",
     "src/admin/client/fanous-street.generated.d.ts": "c66b19686e04dd83086f5c700389b82d222f922c9ff568a10866893d246484c1"
   },
   "navFiles": {
-    "src/lib/fanous-nav/header.js": "c9725d5c5cf087536cc8e4aa8ef3218fb462f0cb49626d301d2ef718139f3ee7",
-    "src/lib/fanous-nav/header.d.ts": "8110c2c9c8912254a5a17af8c0a1763b2116950f122b3451eb24e9bffbf3669d",
+    "src/lib/fanous-nav/header.js": "d4793248fede578606e0906fce7c6672903e8efe5cf3ee2599d948a089a5f98c",
+    "src/lib/fanous-nav/header.d.ts": "5162f25ae31a76fa7c79c74f0c70f45c292fd4869320f1d1ad8052dc081aa09d",
     "src/lib/fanous-nav/mode-toggle.js": "a05f5544599c1364710427baf455213cbd5a2655a38e791e9cc055580db55a7b",
     "src/lib/fanous-nav/mode-toggle.d.ts": "c57c9674622027069eb1fa5b05b4268a187c557b0bd714c6698a39efce3c682e"
   }

@@ -9,7 +9,7 @@
  * No links to other sites in the bar (owner, 2026-11-15): the logo leads to the CMS home, and the
  * other apps are in the account menu's "Al Ummah Now apps".
  */
-import { HEADER_LABELS, MENU_ICON_BODY, brandHtml, envBadgeHtml, escapeHtml, langButtonHtml, signInHtml } from "./fanous-nav/header.js";
+import { BACK_ICON_BODY, HEADER_LABELS, MENU_ICON_BODY, SEARCH_ICON_BODY, brandHtml, envBadgeHtml, escapeHtml, langButtonHtml, signInHtml } from "./fanous-nav/header.js";
 import { MODE_ICON_ATTRS, modeIconSvg, modeToggleLabel } from "./fanous-nav/mode-toggle.js";
 
 export type HeaderLang = "en" | "ar";
@@ -48,6 +48,31 @@ export function drawerToggleHtml(lang: HeaderLang): string {
    return (
       `<button class="aun-icon-btn aun-menu-btn only-phone" type="button" data-open-drawer aria-label="${label}" title="${label}" aria-controls="drawer" aria-expanded="false">` +
       `<svg ${MODE_ICON_ATTRS} class="lucide lucide-menu" aria-hidden="true" focusable="false">${MENU_ICON_BODY}</svg></button>`
+   );
+}
+
+/**
+ * The header search's shared pieces (AlUmmahNow docs/design/NAV.md "Search"), the same markup as the builders'
+ * searchHtml(): the icon that opens the slot as a sheet below 1024px, the sheet's back arrow and the submit
+ * segment's icon. The form between them is the CMS's own, because it carries the live suggestions
+ * (ui/autocomplete.tsx); test/worker/admin-shell.test.ts holds its classes to searchHtml's.
+ */
+const navIcon = (name: string, body: string) => `<svg ${MODE_ICON_ATTRS} class="lucide lucide-${name}" aria-hidden="true" focusable="false">${body}</svg>`;
+export const SEARCH_ICON_SVG = navIcon("search", SEARCH_ICON_BODY);
+
+export function headerSearchOpenHtml(lang: HeaderLang, slot: string): string {
+   const l = escapeHtml(HEADER_LABELS[lang].search);
+   return (
+      `<button type="button" class="aun-icon-btn aun-search-open" popovertarget="${escapeHtml(slot)}" data-testid="header-search-open" ` +
+      `aria-label="${l}" title="${l}">${SEARCH_ICON_SVG}</button>`
+   );
+}
+
+export function headerSearchBackHtml(lang: HeaderLang, slot: string): string {
+   const l = escapeHtml(HEADER_LABELS[lang].back);
+   return (
+      `<button type="button" class="aun-search-back" popovertarget="${escapeHtml(slot)}" popovertargetaction="hide" data-testid="header-search-back" ` +
+      `aria-label="${l}" title="${l}">${navIcon("arrow-left", BACK_ICON_BODY)}</button>`
    );
 }
 

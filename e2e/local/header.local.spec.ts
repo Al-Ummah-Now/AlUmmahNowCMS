@@ -53,8 +53,8 @@ const slots = (page: Page) =>
          logo: pick(".aun-brand-mark"),
          brandText: pick(".aun-brand-text"),
          env: pick(".aun-env"),
-         search: pick(".aun-header-primary"),
-         searchBtn: pick(".hd-search-btn"),
+         search: pick(".aun-search-slot"),
+         searchBtn: pick(".aun-search-open"),
          create: pick(".btn.primary.sm"),
          /** Header links that leave the CMS (none: owner 2026-11-15, "No links to sites in header"). */
          offSite: [...hd.querySelectorAll("a[href]")].filter((a: any) => !a.closest(".aun-menu") && new URL(a.href).origin !== location.origin).map((a: any) => a.href),
@@ -86,7 +86,7 @@ test("staff shell: the shared header across the spec's breakpoints, en and ar", 
          expect(s.logo!.w, `${at}: logo`).toBe(width < 640 ? 32 : 36);
          expect(!!s.brandText, `${at}: wordmark`).toBe(width >= 400);
          expect(!!s.search, `${at}: search in the bar`).toBe(width >= 1024);
-         expect(!!s.searchBtn, `${at}: search icon`).toBe(width < 1024 && width >= 640);
+         expect(!!s.searchBtn, `${at}: search icon`).toBe(width < 1024);
          if (width < 1024) expect(s.create!.w, `${at}: New is a 40px icon`).toBeCloseTo(40, 0);
          expect(s.offSite, `${at}: no links to other sites`).toEqual([]);
          expect(!!s.accountName, `${at}: account name`).toBe(width >= 768);
@@ -112,20 +112,30 @@ test("staff shell: the shared header across the spec's breakpoints, en and ar", 
    await expect(page.locator("header .aun-env")).toHaveCount(0);
 });
 
-test("below 1024px the search opens under the bar from its icon, and Escape closes it", async ({ page }) => {
+test("below 1024px the search opens as a sheet over the bar from its icon; Escape and the back arrow close it", async ({ page }) => {
    await signIn(page, `${RUN}-search`);
-   await page.setViewportSize({ width: 900, height: 800 });
-   await page.goto("/?lang=en");
-   const btn = page.getByRole("button", { name: "Search pages and posts" });
-   await expect(btn).toHaveAttribute("aria-expanded", "false");
-   await btn.click();
-   await expect(btn).toHaveAttribute("aria-expanded", "true");
-   await expect(page.locator("#global-q")).toBeFocused();
-   await axeHeader(page, "search open");
-   await page.keyboard.press("Escape");
-   await expect(btn).toHaveAttribute("aria-expanded", "false");
-   await expect(page.locator("#global-q")).toBeHidden();
-   await expect(btn).toBeFocused();
+   for (const [width, lang] of [[900, "en"], [390, "ar"]] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`/?lang=${lang}`);
+      const btn = page.getByTestId("header-search-open");
+      const sheet = page.getByTestId("header-search-sheet");
+      await expect(page.locator("#global-q")).toBeHidden();
+      await btn.click();
+      await expect(page.locator("#global-q")).toBeFocused();
+      // the sheet covers the bar: same top and height, the full width
+      const bar = (await page.locator("header.aun-header").boundingBox())!;
+      const box = (await sheet.boundingBox())!;
+      expect(Math.abs(box.y - bar.y), `${lang} ${width}px: sheet top`).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.height - bar.height), `${lang} ${width}px: sheet height`).toBeLessThanOrEqual(1);
+      expect(box.width, `${lang} ${width}px: sheet width`).toBeCloseTo(width, 0);
+      await axeHeader(page, `search open ${lang} ${width}`);
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#global-q")).toBeHidden();
+      await expect(btn).toBeFocused();
+      await btn.click();
+      await page.getByTestId("header-search-back").click();
+      await expect(page.locator("#global-q")).toBeHidden();
+   }
 });
 
 test("axe on the header: en/ar, light/dark, desktop and phone", async ({ page }) => {

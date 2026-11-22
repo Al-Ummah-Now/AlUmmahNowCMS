@@ -28,6 +28,8 @@ export const HEADER_LABELS = {
     switchLang: 'Switch to Arabic',
     otherLang: 'العربية',
     env: { qa: 'QA environment', stage: 'Stage environment' },
+    search: 'Search',
+    back: 'Back',
   },
   ar: {
     siteName: 'الأمة الآن',
@@ -36,6 +38,8 @@ export const HEADER_LABELS = {
     switchLang: 'التبديل إلى الإنجليزية',
     otherLang: 'English',
     env: { qa: 'بيئة الاختبار QA', stage: 'بيئة ما قبل الإطلاق STAGE' },
+    search: 'بحث',
+    back: 'رجوع',
   },
 };
 
@@ -142,4 +146,32 @@ export function menuButtonHtml({ lang, panel }) {
 /** "Sign in" when signed out: a solid pill, never hidden inside a menu. */
 export function signInHtml({ lang, href }) {
   return `<a class="aun-signin" href="${escapeHtml(href)}">${HEADER_LABELS[lc(lang)].signIn}</a>`;
+}
+
+/** lucide `search` and `arrow-left` (0.487), the videos header's icons. */
+export const SEARCH_ICON_BODY = '<circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path>';
+export const BACK_ICON_BODY = '<path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path>';
+const icon = (name, body) => `<svg ${MODE_ICON_ATTRS} class="lucide lucide-${name}" aria-hidden="true" focusable="false">${body}</svg>`;
+
+/**
+ * The header search (docs/design/NAV.md "Search"), placed in `.aun-header-primary`: a GET form to
+ * `action` with one `name` field. From 1024px it sits in the bar; below, the icon button opens the slot
+ * (a popover, `id`) as a sheet over the bar, with a back arrow. No script needed. `placeholder` is the
+ * app's own (what it searches); the field's name and the buttons use the shared labels.
+ */
+export function searchHtml({ lang, action, name = 'q', value = '', placeholder = '', id = 'aun-search' }) {
+  const l = HEADER_LABELS[lc(lang)];
+  const sid = escapeHtml(id);
+  return (
+    `<button type="button" class="aun-icon-btn aun-search-open" popovertarget="${sid}" data-testid="header-search-open" ` +
+    `aria-label="${l.search}" title="${l.search}">${icon('search', SEARCH_ICON_BODY)}</button>` +
+    `<div class="aun-search-slot" id="${sid}" popover="auto" data-testid="header-search-sheet">` +
+    `<button type="button" class="aun-search-back" popovertarget="${sid}" popovertargetaction="hide" data-testid="header-search-back" ` +
+    `aria-label="${l.back}" title="${l.back}">${icon('arrow-left', BACK_ICON_BODY)}</button>` +
+    `<form class="aun-search" role="search" aria-label="${l.search}" action="${escapeHtml(action)}" method="get">` +
+    `<input class="aun-search-input" type="search" name="${escapeHtml(name)}" value="${escapeHtml(value)}" ` +
+    `placeholder="${escapeHtml(placeholder)}" aria-label="${l.search}" autocomplete="off" enterkeyhint="search" maxlength="200" data-testid="header-search-input">` +
+    `<button type="submit" class="aun-search-submit" aria-label="${l.search}" data-testid="header-search-submit">${icon('search', SEARCH_ICON_BODY)}</button>` +
+    `</form></div>`
+  );
 }
