@@ -13,3 +13,10 @@ describe("list titles align to the page's start edge", () => {
       expect(ADMIN_CSS).not.toContain("match-parent");
    });
 });
+
+// A card's short text wraps evenly: «لا شيء مجدول… من لوحة النشر / فيه.» left one word alone (AUDIT-2 #154)
+describe("card text never ends on a lone word", () => {
+   it("a card's paragraphs are balanced", () => {
+      expect(ADMIN_CSS).toMatch(/\.card>p\{text-wrap:balance\}/);
+   });
+});

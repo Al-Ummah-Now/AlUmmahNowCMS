@@ -120,6 +120,8 @@ html[lang=ar] .ph h1{font-size:var(--fanous-type-arabic-display-size);line-heigh
 h2{font-size:var(--fanous-type-latin-title-size);line-height:var(--fanous-type-latin-title-line-height);margin:0 0 12px}
 html[lang=ar] h2{font-size:var(--fanous-type-arabic-title-size);line-height:var(--fanous-type-arabic-title-line-height)}
 .muted{color:var(--fanous-color-text-muted)}
+/* a card's own text (an empty state, a note) never leaves one word alone on its last line */
+.card>p{text-wrap:balance}
 .sec-h{display:flex;align-items:center;gap:12px;margin:32px 0 14px}
 .sec-h h2{margin:0}
 .sec-h::after{content:"";flex:1;height:1px;background:linear-gradient(var(--to-end,to right),color-mix(in srgb,var(--fanous-color-primary) 60%,transparent),transparent)}
