@@ -40,11 +40,11 @@ for (const lang of ["en", "ar"] as const) {
       const deepLink = `/videos?lang=${lang}`;
       await page.goto(deepLink);
       await page.waitForURL((u) => u.origin === new URL(AUTH_URL).origin, { timeout: 30_000 });
-      await expect(page.locator('input[name="email"]')).toBeVisible();
+      await expect(page.locator('input[name="email"]:not([type="hidden"])')).toBeVisible();
       // auth's sign-in page follows the CMS page's language
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
 
-      await page.fill('input[name="email"]', ACCOUNTS.ssoCms.email);
+      await page.fill('input[name="email"]:not([type="hidden"])', ACCOUNTS.ssoCms.email);
       await fillSecret(page.locator('input[name="password"]'), ACCOUNTS.ssoCms.password);
       await page.click('button[data-component="button"]');
       await page.waitForURL((u) => u.origin === new URL(CMS_URL).origin && !u.pathname.startsWith("/sso/"), { timeout: 45_000 });
