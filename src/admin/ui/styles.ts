@@ -228,8 +228,10 @@ html[lang=ar] .field>label,html[lang=ar] .label{font-size:var(--fanous-type-arab
 @media(hover:hover){a.li:hover,.li:has(a.li-main:hover){box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fanous-color-primary) 55%,transparent),var(--m-card-edge)}}
 .li-thumb{width:96px;aspect-ratio:16/9;border-radius:var(--r-md);object-fit:cover;background:var(--fanous-c-skeleton-bg);display:grid;place-items:center;color:var(--fanous-color-text-muted);overflow:hidden}
 .li-body{min-width:0}
-.li-title{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fanous-color-text-primary);text-decoration:none}
+.li-title{display:block;text-align:left;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fanous-color-text-primary);text-decoration:none}
 a.li-title:hover{text-decoration:underline}
+/* a title in the other script (dir="auto") starts at the page's start edge: text-align: start would follow the title's own script */
+html[dir=rtl] .li-title{text-align:right}
 .li-meta{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-block-start:4px;font-size:13px;color:var(--fanous-color-text-secondary)}
 .li-end{display:flex;align-items:center;gap:8px}
 @media(max-width:600px){.li{grid-template-columns:minmax(0,1fr) auto}.li-thumb{display:none}}
