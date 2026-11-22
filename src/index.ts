@@ -237,7 +237,8 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       } catch (error) {
          if (!(error instanceof ConfigError)) throw error;
          console.error("config error:", error.message);
-         return withHeaders(renderStatus(c, "error", 503), contentSecurityPolicy({ nonce: n }));
+         // The family's 503 card (it needs no runtime config: no session, the built-in theme)
+         return withHeaders(await renderErrorStatus(c, "unavailable", 503), contentSecurityPolicy({ nonce: n }));
       }
       await next();
       // Private headers on everything that is not the public API (already returned above).

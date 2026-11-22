@@ -587,6 +587,7 @@ html.fanous-street .drop:hover,html.fanous-street .drop.over{background:color-mi
 /* The CMS's own pages outside the shell (src/admin/ui/gate.tsx): No access, accounts, signed out. */
 .gate-body{--rail:0px;display:flex;flex-direction:column}
 .gate{position:relative;z-index:1;flex:1;display:grid;place-items:start center;padding:clamp(24px,7vh,72px) clamp(16px,4vw,32px) 48px}
+.gate:has(>.ep){padding:0;place-items:stretch}
 .gate-card{width:min(100%,600px);display:grid;gap:14px}
 .gate-ic{display:inline-grid;place-items:center;width:56px;height:56px;border-radius:50%;background:color-mix(in srgb,var(--fanous-color-primary) 16%,transparent);color:var(--fanous-color-primary);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fanous-color-primary) 45%,transparent)}
 .gate-card h1{margin:0;font-size:clamp(24px,3.2vw,30px);line-height:1.2}

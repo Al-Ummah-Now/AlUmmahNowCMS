@@ -59,7 +59,8 @@ export function statusPage(o: {
       nonce: o.nonce,
       mode: o.mode ?? null,
       header: publicHeaderHtml({ lang: o.lang, environment: o.environment, link: (key, value) => withQuery(o.path, keep, key, value) }),
-      title: `${title} · ${t.cms}`,
+      // Error pages use the family's tab title ("{title} | Al Ummah Now"); the CMS's own pages keep theirs
+      title: o.kind === "error" || o.kind === "not_found" ? t.pageTitle.replace("{title}", title) : `${title} · ${t.cms}`,
       extraCss: chooser ? CSS + ACCOUNTS_CSS : CSS,
       script: chooser?.script,
       body: `<main id="main">

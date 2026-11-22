@@ -51,7 +51,7 @@ export interface GateContent {
     * The error-page family's card (404, 500, 503; wiki guides/error-pages.md) instead of the gate card:
     * the same badge, "Error 404" line, words and actions as every Al Ummah Now app.
     */
-   family?: { status: number; codeLabel: string; iconSvg: string; helpHtml: string; backLabel: string; backIconSvg: string };
+   family?: { status: number; codeLabel: string; /** The tab title: "{title} | Al Ummah Now" (the same format on every app) */ pageTitle: string; iconSvg: string; helpHtml: string; backLabel: string; backIconSvg: string };
 }
 
 const withParam = (v: GateView, key: string, value: string) => withQuery(v.path, v.search, key, value);
@@ -68,7 +68,7 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
             <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
             <meta name="robots" content="noindex, nofollow" />
             <meta name="color-scheme" content="dark light" />
-            <title>{`${c.title} · ${t.cms}`}</title>
+            <title>{c.family ? c.family.pageTitle : `${c.title} · ${t.cms}`}</title>
             <script nonce={v.nonce}>{raw(MODE_SCRIPT)}</script>
             {v.tabIcons.map((l) => <link rel="icon" href={l.href} type={l.type} sizes={l.sizes} />)}
             <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -102,13 +102,13 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
                         <footer class="ep-foot">
                            <p class="ep-help">{raw(c.family.helpHtml)}</p>
                            <div class="ep-actions">
-                              <button type="button" class="btn ep-btn" data-ep-back hidden>{raw(c.family.backIconSvg)}<span>{c.family.backLabel}</span></button>
+                              {c.family.status < 500 ? <button type="button" class="ep-btn ep-btn-secondary" data-ep-back hidden>{raw(c.family.backIconSvg)}<span>{c.family.backLabel}</span></button> : null}
                               {raw(c.actionsHtml)}
                            </div>
                         </footer>
                      </section>
                   </div>
-                  <script nonce={v.nonce}>{raw(BACK_SCRIPT)}</script>
+                  {c.family.status < 500 ? <script nonce={v.nonce}>{raw(BACK_SCRIPT)}</script> : null}
                </main>
             ) : (
             <main id="main" class="gate">

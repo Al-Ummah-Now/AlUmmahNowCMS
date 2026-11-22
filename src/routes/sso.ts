@@ -183,13 +183,13 @@ export async function renderGate(
    const url = new URL(c.req.url);
    const code = (n: number) => t.errorCode.replace("{code}", formatNumber(n, prefs.lang, { useGrouping: false }));
    const help = `${esc(t.needHelp)} <a href="${esc(`${cfg?.wwwUrl ?? "https://www.alummahnow.net"}/${prefs.lang}/contact`)}">${esc(t.contactUs)}</a>`;
-   const family = (status: number, icon: "notFound" | "alert") => ({ status, codeLabel: code(status), iconSvg: FAMILY_ICONS[icon], helpHtml: help, backLabel: t.goBack, backIconSvg: FAMILY_BUTTON_ICONS.back });
-   const retry = `<a class="btn primary ep-btn" href="${esc(url.pathname + url.search)}">${FAMILY_BUTTON_ICONS.retry}<span>${esc(t.tryAgain)}</span></a>`;
-   const home = (primary: boolean) => `<a class="btn${primary ? " primary" : ""} ep-btn" href="/">${FAMILY_BUTTON_ICONS.home}<span>${esc(t.goHome)}</span></a>`;
+   const family = (status: number, icon: "notFound" | "alert", title: string) => ({ status, codeLabel: code(status), pageTitle: t.pageTitle.replace("{title}", title), iconSvg: FAMILY_ICONS[icon], helpHtml: help, backLabel: t.goBack, backIconSvg: FAMILY_BUTTON_ICONS.back });
+   const retry = `<a class="ep-btn ep-btn-primary" href="${esc(`/${url.pathname.replace(/^[/\\]+/, "")}${url.search}`)}">${FAMILY_BUTTON_ICONS.retry}<span>${esc(t.tryAgain)}</span></a>`;
+   const home = (primary: boolean) => `<a class="ep-btn ${primary ? "ep-btn-primary" : "ep-btn-secondary"}" href="/">${FAMILY_BUTTON_ICONS.home}<span>${esc(t.goHome)}</span></a>`;
    const familyContent: Record<FamilyKind, Omit<GateContent, "chooser" | "testId">> = {
-      not_found: { icon: "alert", title: t.notFoundTitle, body: t.notFoundBody, actionsHtml: home(true), family: family(404, "notFound") },
-      error: { icon: "alert", title: t.errorTitle, body: t.errorBody, actionsHtml: home(false) + retry, family: family(500, "alert") },
-      unavailable: { icon: "alert", title: t.unavailableTitle, body: t.unavailableBody, actionsHtml: home(false) + retry, family: family(503, "alert") },
+      not_found: { icon: "alert", title: t.notFoundTitle, body: t.notFoundBody, actionsHtml: home(true), family: family(404, "notFound", t.notFoundTitle) },
+      error: { icon: "alert", title: t.errorTitle, body: t.errorBody, actionsHtml: home(false) + retry, family: family(500, "alert", t.errorTitle) },
+      unavailable: { icon: "alert", title: t.unavailableTitle, body: t.unavailableBody, actionsHtml: home(false) + retry, family: family(503, "alert", t.unavailableTitle) },
    };
    // The language / appearance links keep only the page's own safe parameters
    const keep = new URLSearchParams();
