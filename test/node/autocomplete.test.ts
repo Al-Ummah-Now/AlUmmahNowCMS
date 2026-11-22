@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { announcement, failed, initialState, keyDown, MIN_QUERY, optionsFor, received, typed, type State, type Suggestion } from "../../src/admin/client/autocomplete-model.ts";
+import { announcement, failed, initialState, keyDown, MIN_QUERY, optionsFor, quoted, received, typed, type State, type Suggestion } from "../../src/admin/client/autocomplete-model.ts";
 import { pluralTemplates } from "../../src/lib/format.ts";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
 
@@ -57,6 +57,9 @@ describe("search suggestions: model (same behaviour as the videos admin)", () =>
          expect(announcement(initialState(), T)).toBe("");
       }
       expect(ADMIN_STRINGS.ar.autocomplete.searchAll).toMatch(/[؀-ۿ]/);
+      // the query sits in the UI language's quotation marks (AUDIT-2 #154 2470bd7)
+      expect(quoted("كيفية أداء", "ar")).toBe("«كيفية أداء»");
+      expect(quoted("How to pray", "en")).toBe("“How to pray”");
    });
 });
 

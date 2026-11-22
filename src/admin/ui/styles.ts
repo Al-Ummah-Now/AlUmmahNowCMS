@@ -219,6 +219,7 @@ html[lang=ar] .field>label,html[lang=ar] .label{font-size:var(--fanous-type-arab
 .ac-text{display:flex;flex-direction:column;min-width:0}
 .ac-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ac-sub{font-size:13px;color:var(--fanous-c-menu-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-all{min-width:0;text-wrap:balance}
 .ac-note{padding:10px;color:var(--fanous-c-menu-muted)}
 .toolbar .search{flex:1 1 260px;max-width:420px;background:var(--fanous-c-form-input-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-form-input-border)}
 .toolbar .search input{color:var(--fanous-c-form-input-text)}
