@@ -10,6 +10,13 @@ import { ICON_THEME_COLOR, type IconLink } from "../../lib/app-icons.ts";
 import type { Prefs } from "../prefs.ts";
 import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "./icons.tsx";
+
+/**
+ * The error card's body sentences, each drawn as its own `.ep-s` (an inline block): two share a line
+ * only when both fit, so no line ends on the next sentence's first words («… الصفحة. ربما»).
+ * The same split as the videos app's errorBodySentences.
+ */
+export const bodySentences = (body: string): string[] => body.split(/(?<=[.!?؟])\s+(?=\S)/u).filter(Boolean);
 import { publicHeaderHtml, withQuery } from "../../lib/header.ts";
 import { ERROR_PAGE_CSS } from "../theme/error-page-css.vendored.ts";
 
@@ -97,7 +104,7 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
                               <p class="ep-code">{c.family.codeLabel}</p>
                               <h1 class="ep-title" id="ep-title">{c.title}</h1>
                            </div>
-                           <p class="ep-body">{c.body}</p>
+                           <p class="ep-body">{bodySentences(c.body).map((s, i) => <>{i ? " " : null}<span class="ep-s">{s}</span></>)}</p>
                         </div>
                         <footer class="ep-foot">
                            <p class="ep-help">{raw(c.family.helpHtml)}</p>

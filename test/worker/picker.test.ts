@@ -151,6 +151,9 @@ describe("status pages", () => {
       expect(html).toContain('dir="rtl"');
       expect(html).toContain("خطأ ٤٠٤");
       expect(html).toContain("<title>الصفحة غير موجودة | الأمة الآن</title>");
+      // one inline-block span a sentence: no line ends on «ربما», the next sentence's first word
+      expect(html).toContain('<p class="ep-body"><span class="ep-s">لم نعثر على هذه الصفحة.</span> <span class="ep-s">ربما الرابط غير صحيح أو نُقلت الصفحة.</span></p>');
+      expect(html).toContain(".ep-s{display:inline-block}");
    });
    it("healthz", async () => {
       const res = await makeWorker()("/healthz?deep=1");
