@@ -132,10 +132,12 @@ export function publicHeaderHtml(o: {
 }
 
 /**
- * What the CMS adds to the shared header CSS (NAV_CSS), on every page: the Light / Dark pair (only the
- * link for the mode on screen shows). The bar's band, edge, blur and control font are the contract's
- * (its theme header block), the same as in every app.
+ * What the CMS adds to the shared header CSS (NAV_CSS), on every page: the language button's text
+ * kept 4px+ clear of its border on phones (the CMS's header type sits wider than the videos site's),
+ * and the Light / Dark pair (only the link for the mode on screen shows). The bar's band, edge, blur
+ * and control font are the contract's (its theme header block), the same as in every app.
  */
 export const HEADER_GLUE_CSS =
+  "@media(max-width:24.99rem){.cms-hd .aun-lang{padding-inline:6px}}" +
    ".cms-hd a{text-underline-offset:.2em}" +
    "html.dark .cms-hd .mode-to-dark,html:not(.dark) .cms-hd .mode-to-light{display:none}";

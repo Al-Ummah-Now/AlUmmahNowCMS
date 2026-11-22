@@ -29,3 +29,11 @@ describe("the header's typeface is the contract's", () => {
       expect(NAV_FONTS_CSS).toMatch(/@font-face\{[^}]*src:url\('\/aun-nav\/fonts\//);
    });
 });
+
+// One header in every app (AUDIT-2 2026-11-22): the material and its edge come from the contract
+// (above); the CMS only keeps its language button's text clear of the border
+describe("the CMS header glue", () => {
+   it("the language button's text keeps 4px+ from its border on phones", () => {
+      expect(HEADER_GLUE_CSS).toContain("@media(max-width:24.99rem){.cms-hd .aun-lang{padding-inline:6px}}");
+   });
+});
