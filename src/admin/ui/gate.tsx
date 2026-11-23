@@ -19,6 +19,7 @@ import { Icon, type IconName } from "./icons.tsx";
 export const bodySentences = (body: string): string[] => body.split(/(?<=[.!?؟])\s+(?=\S)/u).filter(Boolean);
 import { publicHeaderHtml, withQuery } from "../../lib/header.ts";
 import { ERROR_PAGE_CSS } from "../theme/error-page-css.vendored.ts";
+import { pickStreetVariant } from "../street-variant.ts";
 
 /** The error card's Go back: shown only when there is a page to go back to. */
 const BACK_SCRIPT = `(function(){var b=document.querySelector("[data-ep-back]");if(!b||history.length<2)return;b.hidden=false;b.addEventListener("click",function(){history.back()})})();`;
@@ -37,6 +38,8 @@ export interface GateView {
    environment?: string;
    /** A solid Sign in in the header, on the signed-out landings (Signed out, Sign-in failed). */
    signInHref?: string;
+   /** The lantern street's tile variant (1-4); picked at random when absent (tests pin it). */
+   streetVariant?: number;
    strings: {
       cms: string;
       skip: string;
@@ -68,8 +71,13 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
    const { prefs, strings: t } = v;
    const theme = THEMES[prefs.theme];
    const dark = prefs.mode !== "light";
+   // The lantern street, as on the videos site's error pages: the gate pages load no app script, so the
+   // class the street module would set (the theme switches it on: --fanous-street-on 1, Fawanees) is
+   // sent with the page, with the tile variant; fanous-street.css (in the app sheet) paints it.
+   const street = /--fanous-street-on:\s*1\b/.test(theme.css);
+   const htmlClass = [dark ? "dark" : "", street ? "fanous-street" : ""].filter(Boolean).join(" ") || undefined;
    return (
-      <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} class={dark ? "dark" : undefined}>
+      <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} data-fanous-street-variant={street ? (v.streetVariant ?? pickStreetVariant(null)) : undefined} class={htmlClass}>
          <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

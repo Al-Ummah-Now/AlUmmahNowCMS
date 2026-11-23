@@ -247,3 +247,21 @@ describe("siteTheme", () => {
       expect(html).not.toContain("preview-bar");
    });
 });
+
+describe("error-page family (AUDIT-2, the family's street and header)", () => {
+   it("a signed-out 404 shows the lantern street (class and variant sent with the page) and Sign in", async () => {
+      const res = await makeWorker()("/no-such-page-at-all", { headers: { accept: "text/html" } });
+      expect(res.status).toBe(404);
+      const html = await res.text();
+      expect(html).toMatch(/<html lang="en" dir="ltr" data-theme="fawanees" data-fanous-street-variant="[1-4]" class="dark fanous-street">/);
+      expect(html).toContain('data-testid="error-screen"');
+      expect(html).toContain('href="/sso/login"');
+   });
+
+   it("a 404 seen with a session has no Sign in", async () => {
+      const cookie = await session(["Moderator"], "ep-404-in");
+      const html = await (await makeWorker()("/no-such-page-at-all", { headers: { accept: "text/html", cookie } })).text();
+      expect(html).toContain('data-testid="error-screen"');
+      expect(html).not.toContain('href="/sso/login"');
+   });
+});

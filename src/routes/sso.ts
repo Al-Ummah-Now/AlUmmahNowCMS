@@ -203,7 +203,9 @@ export async function renderGate(
          path: url.pathname,
          search: keep.toString(),
          environment: c.env.ENVIRONMENT,
-         signInHref: kind === "logged_out" || kind === "sign_in_failed" ? "/sso/login" : undefined,
+         // Sign in on the signed-out landings, and on an error page seen without a session (as the videos
+         // admin's signed-out header shows it): the gate header has no account button to show instead
+         signInHref: kind === "logged_out" || kind === "sign_in_failed" || (kind in familyContent && !/(?:^|;\s*)auth=/.test(c.req.header("Cookie") ?? "")) ? "/sso/login" : undefined,
          strings: { cms: t.cms, skip: admin.skip },
       },
       c: { ...(kind in familyContent ? familyContent[kind as FamilyKind] : content[kind as Exclude<GateKind, FamilyKind>]), chooser, testId: kind in familyContent ? "error-screen" : kind.replace("_", "-") },

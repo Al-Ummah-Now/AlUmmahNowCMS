@@ -350,7 +350,8 @@ describe("no-access is never a dead end (2026-11-14: a super admin kept getting 
       const { callback } = await signIn(["Member"], { id: "na-theme", email: "na-theme@example.com" });
       const res = await makeWorker()("/sso/no-access?mode=dark&lang=ar", { headers: { cookie: cookiesOf(callback) } });
       const html = await res.text();
-      expect(html).toMatch(/<html lang="ar" dir="rtl" data-theme="fawanees" data-mode="dark" class="dark">/);
+      // Fawanees switches the street on: the gate page sends its class and tile variant (no app script runs here)
+      expect(html).toMatch(/<html lang="ar" dir="rtl" data-theme="fawanees" data-mode="dark" data-fanous-street-variant="[1-4]" class="dark fanous-street">/);
       expect(html).toMatch(/<link rel="stylesheet" href="\/admin-assets\/theme-fawanees\.[0-9a-z]+\.css"/);
       expect(html).toMatch(/<link rel="stylesheet" href="\/admin-assets\/app\.[0-9a-z]+\.css"/);
       expect(html).toContain('class="card gate-card" data-testid="no-access"');
@@ -555,7 +556,7 @@ describe("the CMS pages outside the staff shell wear the shared header", () => {
       const res = await makeWorker()("/no-such-page?mode=dark", { headers: { "accept-language": "ar" } });
       expect(res.status).toBe(404);
       const html = await res.text();
-      expect(html).toMatch(/<html lang="ar" dir="rtl" data-theme="[a-z]+" data-mode="dark" class="dark">/);
+      expect(html).toMatch(/<html lang="ar" dir="rtl" data-theme="[a-z]+" data-mode="dark"(?: data-fanous-street-variant="[1-4]")? class="dark(?: fanous-street)?">/);
       expect(html).toContain('data-error-status="404"');
       expect(html).toContain(brand("ar"));
       expect(html).toContain(envBadgeHtml("qa", "ar"));
