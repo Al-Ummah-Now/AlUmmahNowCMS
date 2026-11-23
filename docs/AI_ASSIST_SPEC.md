@@ -243,13 +243,12 @@ Measured per action (real runs, 2026-11-10):
 Per month: **expected** use, 10 editors × 22 working days × (3 translations of ~2 chunks + 5 SEO +
 5 checks) ≈ 960,000 Neurons ≈ **$11/month**. **Ceiling** set by the per-user rate limit (§4: 60 weight
 a day) if every one of 10 editors maxed it every day of the month with 100,000-character
-translations: 20 × 4,200 × 10 × 30 ≈ 25M Neurons ≈ $277/month. The realistic figure is well inside
-the $500/month whole-platform cap, and even the theoretical ceiling stays under it at 10 editors. The
-monthly budget stop (§5.1) removes the dependence on editor count.
+translations: 20 × 4,200 × 10 × 30 ≈ 25M Neurons ≈ $277/month. The monthly budget stop (§5.1) keeps
+spend bounded regardless of editor count.
 
 ### 5.1 Monthly budget
 
-`monthlyBudgetUsd` in the settings (default $50, at most $500, empty = no cap) per environment. The
+`monthlyBudgetUsd` in the settings (default $50, admin-configurable per environment, empty = no cap). The
 month-to-date sum of `ai_usage.cost_usd` (UTC calendar month, this env) is checked before a job is
 created (`402 budget_reached`) and before every model call of a running job (the job fails with
 `budget_reached`, flagged). The editor sees a plain sentence, and admins see the spend against the cap on

@@ -95,7 +95,7 @@ that service. It is a URL like any other.
 - **Monthly budget:** the month-to-date estimate (`ai_usage.cost_usd`, UTC month, this environment)
   against the cap. When the estimate reaches the cap, new jobs get `402 budget_reached`. Running jobs
   stop before their next call, and editors see "AI assist has reached this month's budget…". Default
-  $50, maximum $500 (the platform cap).
+  $50, admin-configurable per environment.
 
 ## What "Test connection" does
 
