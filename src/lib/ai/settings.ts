@@ -36,7 +36,7 @@ export interface AiSettings {
 }
 
 export const DEFAULT_BUDGET_USD = 50;
-export const MAX_BUDGET_USD = 500;
+export const MAX_BUDGET_USD = 100_000;
 export const MAX_PROVIDERS = 12;
 
 export function defaultSettings(): AiSettings {
