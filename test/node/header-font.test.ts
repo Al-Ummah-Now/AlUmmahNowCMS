@@ -30,10 +30,10 @@ describe("the header's typeface is the contract's", () => {
    });
 });
 
-// One header in every app (AUDIT-2 2026-11-22): the material and its edge come from the contract
-// (above); the CMS only keeps its language button's text clear of the border
+// One header in every app (AUDIT-2 2026-11-22): the material, its edge and the controls' sizes come from
+// the contract; the CMS adds no padding of its own (the language pill is the same size as on videos)
 describe("the CMS header glue", () => {
-   it("the language button's text keeps 4px+ from its border on phones", () => {
-      expect(HEADER_GLUE_CSS).toContain("@media(max-width:24.99rem){.cms-hd .aun-lang{padding-inline:6px}}");
+   it("never resizes the header's controls", () => {
+      expect(HEADER_GLUE_CSS).not.toMatch(/\.aun-lang|\.aun-icon-btn|\.aun-signin/);
    });
 });
