@@ -214,7 +214,7 @@ describe("settings validation", () => {
       expect(errorsOf(withProviders(shapeA({ pricing: { inputPer1k: -1, outputPer1k: 99 } })))).toEqual(
          expect.arrayContaining(["providers.1.pricing.inputPer1k:out_of_range", "providers.1.pricing.outputPer1k:out_of_range"]),
       );
-      expect(errorsOf({ ...defaultSettings(), monthlyBudgetUsd: 501 })).toContain("monthlyBudgetUsd:out_of_range");
+      expect(errorsOf({ ...defaultSettings(), monthlyBudgetUsd: 100_001 })).toContain("monthlyBudgetUsd:out_of_range");
       expect(errorsOf({ ...defaultSettings(), monthlyBudgetUsd: 0 })).toContain("monthlyBudgetUsd:out_of_range");
       expect(validateSettings({ ...defaultSettings(), monthlyBudgetUsd: null }, local).ok).toBe(true);
    });

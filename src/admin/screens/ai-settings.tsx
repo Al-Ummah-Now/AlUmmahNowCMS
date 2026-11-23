@@ -12,7 +12,7 @@ import type { Child } from "hono/jsx";
 import { budgetState } from "../../lib/ai/budget.ts";
 import { FEATURES } from "../../lib/ai/prompts.ts";
 import { HTTP_METHODS } from "../../lib/ai/providers/http.ts";
-import { blankHttpProvider, boundSecretNames, loadSettings, recentAudit } from "../../lib/ai/settings.ts";
+import { MAX_BUDGET_USD, blankHttpProvider, boundSecretNames, loadSettings, recentAudit } from "../../lib/ai/settings.ts";
 import type { Env } from "../../env.ts";
 import { Icon } from "../ui/icons.tsx";
 import { PageHead, type View } from "../ui/layout.tsx";
@@ -230,7 +230,7 @@ export async function aiSettingsScreen(v: View, env: Env) {
                </h2>
                <div class="field" style="max-width:280px">
                   <label for="ai-budget">{a.budgetLabel}</label>
-                  <input id="ai-budget" class="input" data-budget type="text" min={1} max={500} step="any" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" dir="ltr" aria-describedby="ai-budget-help ai-budget-spent" />
+                  <input id="ai-budget" class="input" data-budget type="text" min={1} max={MAX_BUDGET_USD} step="any" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" dir="ltr" aria-describedby="ai-budget-help ai-budget-spent" />
                </div>
                <p class="help" id="ai-budget-help">
                   {a.budgetHelp}
