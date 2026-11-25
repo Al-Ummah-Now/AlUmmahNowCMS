@@ -21,7 +21,7 @@ bknd's permissions or data flow don't fit a browser client; none needs a bknd ch
 | Search combined with filters (found while building) | bknd 0.21 joins a `$or` group to its sibling conditions with OR, so `{status: "draft", $or: {title, slug}}` also returns published rows. | The list runs two AND-only bknd queries (title match, address match) with the filters and merges them in the Worker (`src/admin/screens/content.tsx`, capped at 500 per branch). |
 | Time comparisons in a list filter (found while building #7) | bknd 0.21's guard validates `$gt`/`$lte` as numbers only, and `publish_at` is an ISO string. | The Scheduled/Published filters and the overview ask bknd for "has a schedule" (`publish_at: {$isnull: false}`) and compare the time in the Worker (`listWheres`, capped at 500 per branch). |
 | List totals (found while building #7) | bknd 0.21's list `meta` has no total (only `items`), so counts and the pager stopped at one page. | `Data.list`/`Data.count` read the total from `POST /api/data/entity/:e/fn/count`. |
-| The site theme | `site.theme` is owned by the videos admin (AlUmmahNow #492, `GET <ADMIN_API_URL>/public/site-theme`), not by the CMS. | Server-side read in the Worker (30 s cache, 500 ms timeout, Fawanees on any failure). No CMS endpoint. |
+| The site theme | `site.theme` is owned by the videos admin (AlUmmahNow #492, `GET <ADMIN_API_URL>/public/site-theme`), not by the CMS. | Server-side read in the Worker (30 s cache, 500 ms timeout; a failed read keeps the last theme for up to a day, Fawanees without one). No CMS endpoint. |
 
 Schema editing (bknd's schema builder, `/data/schema`, `/api/data/sync`) stays code-only: the model is
 `src/schema.ts` + `migrations/`, `/api/data/sync` is already blocked (`src/lib/paths.ts:14`), and the new
@@ -231,8 +231,8 @@ same-origin `Origin`.
 ## 5. Themes (fanous-tokens)
 
 - **Which theme:** `site.theme` from `GET ${ADMIN_API_URL}/public/site-theme` (AlUmmahNow #492),
-  cached 30 s per isolate, 500 ms timeout, **Fawanees** when unset, unknown, slow or failing (the same
-  rules as www and auth #257). New var `ADMIN_API_URL` per env. On QA and stage only, `?theme=<id>`
+  cached 30 s per isolate, 500 ms timeout, **Fawanees** when unset or unknown; a slow or failing read
+  keeps the isolate's last theme for up to a day, Fawanees without one (as www does). New var `ADMIN_API_URL` per env. On QA and stage only, `?theme=<id>`
   previews a theme for that browser (cookie `cms_theme_preview`, cleared by `?theme=site`) so all four
   can be checked before #492 ships; production ignores it (THEMES.md: no user theme choice).
 - **Consuming fanous-tokens outside the monorepo:** the package is private and unpublished
