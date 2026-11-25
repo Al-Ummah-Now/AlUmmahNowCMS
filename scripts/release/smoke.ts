@@ -25,11 +25,17 @@ export interface SmokeOptions {
    fetchImpl?: typeof fetch;
    now?: () => number;
    sleep?: (ms: number) => Promise<void>;
+   /** How long one request may take (tests). */
+   requestTimeoutMs?: number;
 }
 
 /** How long /healthz may keep answering with another version than the candidate, and the pause between tries. */
 export const VERSION_WAIT_MS = 90_000;
 export const VERSION_PAUSE_MS = 5_000;
+
+/** One request may take this long (a stalled one must not outlive the waits around it). */
+export const REQUEST_TIMEOUT_MS = 15_000;
+export const isTimeout = (error: unknown): boolean => (error as Error)?.name === "TimeoutError";
 
 export function overrideHeader(worker: string, version: string): string {
    return `${worker}="${version}"`;
@@ -42,7 +48,9 @@ export async function runSmoke(opts: SmokeOptions): Promise<CheckResult[]> {
    const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
    const headers: Record<string, string> = { "User-Agent": "al-ummah-now-cms-release-smoke" };
    if (opts.version) headers["Cloudflare-Workers-Version-Overrides"] = overrideHeader(info.worker, opts.version);
-   const get = (path: string) => doFetch(`${info.url}${path}`, { headers, redirect: "manual" });
+   const requestTimeout = opts.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
+   const get = (path: string, timeoutMs = requestTimeout, method = "GET") =>
+      doFetch(`${info.url}${path}`, { method, headers, redirect: "manual", signal: AbortSignal.timeout(timeoutMs) });
    const results: CheckResult[] = [];
    const check = async (name: string, fn: () => Promise<string>) => {
       try {
@@ -55,15 +63,24 @@ export async function runSmoke(opts: SmokeOptions): Promise<CheckResult[]> {
    await check("healthz deep (config + D1 + version)", async () => {
       const start = now();
       for (;;) {
-         const res = await get("/healthz?deep=1");
-         const body = (await res.json()) as { status?: string; version?: string | null; checks?: Record<string, string> };
-         if (res.status !== 200 || body.status !== "ok") throw new Error(`status ${res.status} ${JSON.stringify(body.checks ?? body)}`);
-         const waited = Math.round((now() - start) / 1000);
-         if (!opts.version || body.version === opts.version) return `ok (version ${body.version})${waited >= 1 && opts.version ? ` (after ${waited} s)` : ""}`;
+         let served: string;
+         try {
+            const res = await get("/healthz?deep=1", Math.min(requestTimeout, Math.max(VERSION_PAUSE_MS, VERSION_WAIT_MS - (now() - start))));
+            const body = (await res.json()) as { status?: string; version?: string | null; checks?: Record<string, string> };
+            if (res.status !== 200 || body.status !== "ok") throw new Error(`status ${res.status} ${JSON.stringify(body.checks ?? body)}`);
+            const after = Math.round((now() - start) / 1000);
+            if (!opts.version || body.version === opts.version) return `ok (version ${body.version})${after >= 1 && opts.version ? ` (after ${after} s)` : ""}`;
+            served = `served by ${body.version}`;
+         } catch (error) {
+            // A request that stalls says nothing about the candidate yet
+            if (!opts.version || !isTimeout(error)) throw error;
+            served = "no answer in time";
+         }
          // Edge locations learn of a new deployment at different times: one can still answer with the version
-         // before it, after waitForVersion saw the candidate. Only that is waited for: an error, another status
-         // or an unhealthy answer fails above, at once, on every try.
-         if (now() - start + VERSION_PAUSE_MS > VERSION_WAIT_MS) throw new Error(`served by ${body.version}, expected ${opts.version} (after ${waited} s)`);
+         // before it, after waitForVersion saw the candidate. Only that (and a stalled request) is waited for: an
+         // error, another status or an unhealthy answer fails above, at once, on every try.
+         const waited = Math.round((now() - start) / 1000);
+         if (now() - start + VERSION_PAUSE_MS > VERSION_WAIT_MS) throw new Error(`${served}, expected ${opts.version} (after ${waited} s)`);
          await sleep(VERSION_PAUSE_MS);
       }
    });
@@ -105,7 +122,7 @@ export async function runSmoke(opts: SmokeOptions): Promise<CheckResult[]> {
    });
 
    await check("bknd password login is gone", async () => {
-      const res = await doFetch(`${info.url}/api/auth/password/login`, { method: "POST", headers, redirect: "manual" });
+      const res = await get("/api/auth/password/login", requestTimeout, "POST");
       if (res.status !== 404) throw new Error(`status ${res.status}`);
       return "404";
    });

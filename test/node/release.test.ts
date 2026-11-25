@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { checkBindings } from "../../scripts/check-secrets.ts";
 import { checkWranglerConfig } from "../../scripts/check-wrangler-config.ts";
 import { consumerPlan, consumersFor } from "../../scripts/release/queue-consumers.ts";
@@ -7,7 +9,7 @@ import { parseJsonc } from "../../scripts/lib/jsonc.ts";
 import { currentVersion, isNotDeployed, parseVersionId, promote, type PromoteDeps, waitForVersion } from "../../scripts/release/promote.ts";
 import { lastReleasedSha } from "../../scripts/release/last-released.ts";
 import { parseRollbackArgs, rollbackArgv, rollbackTarget, targetFromResult } from "../../scripts/release/rollback.ts";
-import { overrideHeader, runSmoke, VERSION_PAUSE_MS, VERSION_WAIT_MS, type CheckResult } from "../../scripts/release/smoke.ts";
+import { overrideHeader, REQUEST_TIMEOUT_MS, runSmoke, VERSION_PAUSE_MS, VERSION_WAIT_MS, type CheckResult } from "../../scripts/release/smoke.ts";
 import { SECRETS_MANIFEST } from "../../scripts/secrets-manifest.ts";
 
 const V1 = "11111111-1111-1111-1111-111111111111";
@@ -111,7 +113,22 @@ describe("rollback", () => {
    });
 });
 
+/** A real server whose answers stall: no headers, or headers and half a body, then nothing. */
+async function stalling(run: (url: string) => Promise<void>): Promise<void> {
+   const server = createServer((req, res) => {
+      if (req.url === "/body") res.writeHead(200, { "Content-Type": "application/json" }).write('{"status":');
+   });
+   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+   try {
+      await run(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+   } finally {
+      server.closeAllConnections();
+      server.close();
+   }
+}
+
 describe("smoke", () => {
+   afterEach(() => void vi.restoreAllMocks());
    it("builds the override header", () => expect(overrideHeader("al-ummah-now-cms", V2)).toBe(`al-ummah-now-cms="${V2}"`));
    it("passes against a healthy fake CMS and sends the override", async () => {
       const seen: Headers[] = [];
@@ -155,6 +172,72 @@ describe("smoke", () => {
    };
    const says = (version: string | null, over: object = {}, status = 200) => () => Response.json({ status: "ok", version, ...over }, { status });
    const healthz = (results: CheckResult[]) => results.find((r) => r.name.startsWith("healthz"))!;
+
+   it("gives every request a timeout, and one that stalls in any other check is a failure", async () => {
+      const signals: unknown[] = [];
+      const results = await runSmoke({
+         env: "production",
+         version: V2,
+         requestTimeoutMs: 30,
+         fetchImpl: (async (url: string, init: RequestInit) => {
+            signals.push(init.signal);
+            if (new URL(url).pathname === "/healthz") return says(V2)();
+            return new Promise((_, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason as Error)));
+         }) as unknown as typeof fetch,
+      });
+      expect(signals.length).toBeGreaterThan(5);
+      expect(signals.every((s) => s instanceof AbortSignal)).toBe(true);
+      for (const r of results) expect([r.ok, /timeout/i.test(r.detail)], r.name).toEqual(r.name.startsWith("healthz") ? [true, false] : [false, true]);
+   });
+
+   it.each(["/headers", "/body"])("a stalled answer (%s) is not yet while the candidate is waited for, and a failure otherwise", async (path) => {
+      await stalling(async (url) => {
+         const run = async (version?: string) => {
+            const h = answering(says(V2));
+            let n = 0;
+            const results = await runSmoke({
+               env: "stage",
+               version,
+               requestTimeoutMs: 50,
+               sleep: async () => {},
+               fetchImpl: (async (u: string, init: RequestInit) => (new URL(u).pathname === "/healthz" && n++ === 0 ? fetch(url + path, init) : h.fetchImpl(u, init))) as unknown as typeof fetch,
+            });
+            return { health: healthz(results), asked: n };
+         };
+         expect(await run(V2)).toMatchObject({ health: { ok: true }, asked: 2 });
+         expect(await run()).toMatchObject({ health: { ok: false, detail: expect.stringMatching(/timeout/i) }, asked: 1 });
+      });
+   });
+
+   it("never waits past the deadline when every answer stalls", async () => {
+      const c = clock();
+      let t = 0;
+      const timeouts: number[] = [];
+      vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => (timeouts.push(ms), new AbortController().signal));
+      const results = await runSmoke({
+         env: "production",
+         version: V2,
+         now: () => c.now() + t,
+         sleep: c.sleep,
+         fetchImpl: (async (url: string) => {
+            if (new URL(url).pathname !== "/healthz") return new Response(null, { status: 500 });
+            t += timeouts.at(-1)!;
+            throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+         }) as unknown as typeof fetch,
+      });
+      expect(healthz(results)).toMatchObject({ ok: false, detail: `no answer in time, expected ${V2} (after 90 s)` });
+      expect(c.now() + t).toBe(VERSION_WAIT_MS);
+      expect(Math.max(...timeouts)).toBe(REQUEST_TIMEOUT_MS);
+   });
+
+   it("release.yml limits every job, the promoting ones well above what a promote with its rollback takes", () => {
+      const workflow = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
+      const jobs = workflow.slice(workflow.indexOf("\njobs:")).split(/\n(?= {2}[a-z][a-z0-9-]*:\n)/).slice(1);
+      const limits = Object.fromEntries(jobs.map((j) => [/^ {2}([a-z0-9-]+):/.exec(j)![1], Number(/\n {4}timeout-minutes: (\d+)/.exec(j)?.[1])]));
+      expect(Object.keys(limits)).toEqual(expect.arrayContaining(["build", "stage", "production"]));
+      for (const [job, minutes] of Object.entries(limits)) expect(minutes, job).toBeGreaterThan(0);
+      expect(Math.min(limits.stage, limits.production)).toBeGreaterThanOrEqual(45);
+   });
 
    describe.each(["stage", "production"] as const)("the version that answers on %s", (env) => {
       it("fails when the candidate never answers, after waiting as long as allowed and no longer", async () => {

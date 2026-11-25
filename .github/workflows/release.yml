@@ -149,6 +149,7 @@ jobs:
     name: Build once
     needs: resolve
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
@@ -184,6 +185,8 @@ jobs:
     name: Stage (migrate, promote, E2E)
     needs: build
     runs-on: ubuntu-24.04
+    # Generous: a timeout in the middle of a promote skips its auto-rollback
+    timeout-minutes: 45
     environment:
       name: stage
       url: https://cms.stage.alummahnow.net
@@ -270,6 +273,8 @@ jobs:
     needs: [resolve, stage]
     if: needs.resolve.outputs.production == 'true'
     runs-on: ubuntu-24.04
+    # Generous: a timeout in the middle of a promote skips its auto-rollback
+    timeout-minutes: 45
     environment:
       name: production
       url: https://cms.alummahnow.net
@@ -377,6 +382,7 @@ jobs:
     name: Rollback dry run
     needs: production
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     # Uses the production-scoped Cloudflare token, so it runs under the production environment.
     environment: production
     steps:
