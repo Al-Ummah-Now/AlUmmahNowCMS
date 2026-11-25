@@ -58,7 +58,8 @@ prod only via stage-then-promote; out-of-scope work becomes `queue` issues.
 - `build` job: install, lint, typecheck, unit, `wrangler deploy --dry-run --outdir dist/<env>` per
   env (the Astro build is env-independent; env comes from vars), uploaded as an artifact.
 - `stage` job: CMS migrate stage → `scripts/release/promote.ts --env stage` (upload version,
-  0 % + override smoke, 100 %, smoke) → Playwright against stage.
+  0 % + override smoke whose checks count only when the candidate answered (`X-Release-Check`,
+  src/lib/release-check.ts), 100 %, smoke) → Playwright against stage.
 - `resolve` job: a tag push must be a valid `vYYYY.MM.DD` tag on a commit on `main` (production run);
   a dispatch on `main` is stage only; anything else is refused.
 - `production` job (environment `production`, tag runs only): a "tag still points at this commit?" guard → migrate prod
