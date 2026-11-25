@@ -5,7 +5,8 @@
  *   node --experimental-strip-types scripts/release/smoke.ts --env production --version <id>
  *
  * With --version, every request carries `Cloudflare-Workers-Version-Overrides`, so the checks
- * hit that (0 %-traffic) version with production bindings, and /healthz must report it.
+ * hit that (0 %-traffic) version with production bindings, and /healthz must report it, waited for up
+ * to VERSION_WAIT_MS. Every other check asks once.
  */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,7 +23,13 @@ export interface SmokeOptions {
    /** Candidate version id (pre-traffic smoke). */
    version?: string;
    fetchImpl?: typeof fetch;
+   now?: () => number;
+   sleep?: (ms: number) => Promise<void>;
 }
+
+/** How long /healthz may keep answering with another version than the candidate, and the pause between tries. */
+export const VERSION_WAIT_MS = 90_000;
+export const VERSION_PAUSE_MS = 5_000;
 
 export function overrideHeader(worker: string, version: string): string {
    return `${worker}="${version}"`;
@@ -31,6 +38,8 @@ export function overrideHeader(worker: string, version: string): string {
 export async function runSmoke(opts: SmokeOptions): Promise<CheckResult[]> {
    const info = ENVS[opts.env];
    const doFetch = opts.fetchImpl ?? fetch;
+   const now = opts.now ?? Date.now;
+   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
    const headers: Record<string, string> = { "User-Agent": "al-ummah-now-cms-release-smoke" };
    if (opts.version) headers["Cloudflare-Workers-Version-Overrides"] = overrideHeader(info.worker, opts.version);
    const get = (path: string) => doFetch(`${info.url}${path}`, { headers, redirect: "manual" });
@@ -44,11 +53,19 @@ export async function runSmoke(opts: SmokeOptions): Promise<CheckResult[]> {
    };
 
    await check("healthz deep (config + D1 + version)", async () => {
-      const res = await get("/healthz?deep=1");
-      const body = (await res.json()) as { status?: string; version?: string | null; checks?: Record<string, string> };
-      if (res.status !== 200 || body.status !== "ok") throw new Error(`status ${res.status} ${JSON.stringify(body.checks ?? body)}`);
-      if (opts.version && body.version !== opts.version) throw new Error(`served by ${body.version}, expected ${opts.version}`);
-      return `ok (version ${body.version})`;
+      const start = now();
+      for (;;) {
+         const res = await get("/healthz?deep=1");
+         const body = (await res.json()) as { status?: string; version?: string | null; checks?: Record<string, string> };
+         if (res.status !== 200 || body.status !== "ok") throw new Error(`status ${res.status} ${JSON.stringify(body.checks ?? body)}`);
+         const waited = Math.round((now() - start) / 1000);
+         if (!opts.version || body.version === opts.version) return `ok (version ${body.version})${waited >= 1 && opts.version ? ` (after ${waited} s)` : ""}`;
+         // Edge locations learn of a new deployment at different times: one can still answer with the version
+         // before it, after waitForVersion saw the candidate. Only that is waited for: an error, another status
+         // or an unhealthy answer fails above, at once, on every try.
+         if (now() - start + VERSION_PAUSE_MS > VERSION_WAIT_MS) throw new Error(`served by ${body.version}, expected ${opts.version} (after ${waited} s)`);
+         await sleep(VERSION_PAUSE_MS);
+      }
    });
 
    await check("public API /site", async () => {
