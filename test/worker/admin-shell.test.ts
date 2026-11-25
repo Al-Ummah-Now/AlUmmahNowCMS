@@ -217,7 +217,8 @@ describe("siteTheme", () => {
       expect(await siteTheme("https://a.test", ok("nahas"), 2000)).toBe("zujaj");
       expect(await siteTheme("https://a.test", ok("nahas"), 40_000)).toBe("nahas");
    });
-   it("falls back to Fawanees: unset URL, unknown value, error, network failure", async () => {
+   it("keeps the last answer while reads fail, for a day", async () => {
+      expect(await siteTheme("https://a.test", ok("nahas"), 40_000)).toBe("nahas");
       const down = (async () => { throw new Error("down"); }) as unknown as typeof fetch;
       const unavailable = (async () => new Response("{}", { status: 503 })) as unknown as typeof fetch;
       const empty = (async () => Response.json(null)) as unknown as typeof fetch;
@@ -233,6 +234,9 @@ describe("siteTheme", () => {
       expect(await siteTheme("https://a.test", down, 320_000 + 25 * 3_600_000)).toBe("fawanees");
       // Another environment's answer is not this one's
       expect(await siteTheme("https://other.test", down, 400_000)).toBe("fawanees");
+   });
+
+   it("falls back to Fawanees: unset URL, unknown value, error, network failure", async () => {
       expect(await siteTheme(undefined, ok("zujaj"))).toBe("fawanees");
       resetThemeCache();
       expect(await siteTheme("https://b.test", ok("neon"))).toBe("fawanees");
