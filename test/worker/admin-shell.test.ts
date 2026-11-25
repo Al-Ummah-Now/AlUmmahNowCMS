@@ -218,6 +218,21 @@ describe("siteTheme", () => {
       expect(await siteTheme("https://a.test", ok("nahas"), 40_000)).toBe("nahas");
    });
    it("falls back to Fawanees: unset URL, unknown value, error, network failure", async () => {
+      const down = (async () => { throw new Error("down"); }) as unknown as typeof fetch;
+      const unavailable = (async () => new Response("{}", { status: 503 })) as unknown as typeof fetch;
+      const empty = (async () => Response.json(null)) as unknown as typeof fetch;
+      // A read that fails keeps the last answer (for a day), never drops to the default
+      expect(await siteTheme("https://a.test", unavailable, 80_000)).toBe("nahas");
+      expect(await siteTheme("https://a.test", down, 120_000)).toBe("nahas");
+      expect(await siteTheme("https://a.test", empty, 160_000)).toBe("nahas");
+      expect(await siteTheme("https://a.test", ok("zujaj"), 200_000)).toBe("zujaj");
+      // A builder theme is an answer: the default stands in, also while reads fail
+      expect(await siteTheme("https://a.test", ok("eid-lights"), 240_000)).toBe("fawanees");
+      expect(await siteTheme("https://a.test", unavailable, 280_000)).toBe("fawanees");
+      expect(await siteTheme("https://a.test", ok("zujaj"), 320_000)).toBe("zujaj");
+      expect(await siteTheme("https://a.test", down, 320_000 + 25 * 3_600_000)).toBe("fawanees");
+      // Another environment's answer is not this one's
+      expect(await siteTheme("https://other.test", down, 400_000)).toBe("fawanees");
       expect(await siteTheme(undefined, ok("zujaj"))).toBe("fawanees");
       resetThemeCache();
       expect(await siteTheme("https://b.test", ok("neon"))).toBe("fawanees");

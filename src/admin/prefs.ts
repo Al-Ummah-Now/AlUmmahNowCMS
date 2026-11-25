@@ -2,7 +2,8 @@
  * Per-request presentation: the site theme (docs/ADMIN_UI_SPEC.md §5), light/dark, UI language.
  *
  * Theme: `site.theme` from the videos admin (`GET ${ADMIN_API_URL}/public/site-theme` → `{ theme }`),
- * cached 30 s per isolate, 500 ms timeout, Fawanees on any failure. On QA, stage and local a
+ * cached 30 s per isolate, 500 ms timeout. A failed read keeps the isolate's last answer for up to a day,
+ * Fawanees without one. On QA, stage and local a
  * `?theme=<id>` preview is kept in a cookie for that browser; production ignores it.
  */
 import { getCookie, setCookie } from "hono/cookie";
@@ -20,6 +21,8 @@ export const MODES: readonly Mode[] = ["light", "dark"];
 
 const TTL_MS = 30_000;
 const TIMEOUT_MS = 500;
+/** How long the last answer stands in for reads that fail. */
+const LAST_KNOWN_MS = 24 * 60 * 60 * 1000;
 const PREVIEW_COOKIE = "cms_theme_preview";
 const MODE_COOKIE = "cms_mode";
 export const LANG_COOKIE = "cms_lang";
@@ -27,7 +30,8 @@ const YEAR = 365 * 24 * 60 * 60;
 
 export const isThemeId = (v: unknown): v is ThemeId => typeof v === "string" && (THEME_IDS as readonly string[]).includes(v);
 
-let cache: { url: string; at: number; theme: ThemeId } | undefined;
+/** `known`: the theme of the last read that answered, and when. */
+let cache: { url: string; at: number; theme: ThemeId; known?: { theme: ThemeId; at: number } } | undefined;
 
 /** Test hook. */
 export function resetThemeCache(): void {
@@ -38,17 +42,20 @@ export async function siteTheme(adminApiUrl: string | undefined, fetcher: typeof
    if (!adminApiUrl) return DEFAULT_THEME;
    const url = `${adminApiUrl.replace(/\/+$/, "")}/public/site-theme`;
    if (cache && cache.url === url && now - cache.at < TTL_MS) return cache.theme;
-   let theme: ThemeId = DEFAULT_THEME;
+   const known = cache?.url === url ? cache.known : undefined;
+   let answer: ThemeId | undefined;
    try {
       const res = await fetcher(url, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: { accept: "application/json" } });
       if (res.ok) {
-         const body = (await res.json()) as { theme?: unknown };
-         if (isThemeId(body.theme)) theme = body.theme;
+         const body = (await res.json()) as { theme?: unknown } | null;
+         // A theme made in the admin's builder is not vendored here: the default stands in for it
+         if (typeof body?.theme === "string" && body.theme) answer = isThemeId(body.theme) ? body.theme : DEFAULT_THEME;
       }
    } catch {
-      // slow or down: the default renders, and the next request tries again after the TTL
+      // slow or down: the last answer renders, and the next request tries again after the TTL
    }
-   cache = { url, at: now, theme };
+   const theme = answer ?? (known && now - known.at < LAST_KNOWN_MS ? known.theme : DEFAULT_THEME);
+   cache = { url, at: now, theme, known: answer ? { theme: answer, at: now } : known };
    return theme;
 }
 
