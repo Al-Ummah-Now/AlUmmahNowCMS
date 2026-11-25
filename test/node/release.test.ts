@@ -7,7 +7,7 @@ import { parseJsonc } from "../../scripts/lib/jsonc.ts";
 import { currentVersion, isNotDeployed, parseVersionId, promote, type PromoteDeps, waitForVersion } from "../../scripts/release/promote.ts";
 import { lastReleasedSha } from "../../scripts/release/last-released.ts";
 import { parseRollbackArgs, rollbackArgv, rollbackTarget, targetFromResult } from "../../scripts/release/rollback.ts";
-import { overrideHeader, runSmoke } from "../../scripts/release/smoke.ts";
+import { overrideHeader, runSmoke, VERSION_PAUSE_MS, VERSION_WAIT_MS, type CheckResult } from "../../scripts/release/smoke.ts";
 import { SECRETS_MANIFEST } from "../../scripts/secrets-manifest.ts";
 
 const V1 = "11111111-1111-1111-1111-111111111111";
@@ -141,10 +141,74 @@ describe("smoke", () => {
       expect(results.filter((r) => !r.ok)).toEqual([]);
       expect(seen.every((h) => h.get("Cloudflare-Workers-Version-Overrides") === `al-ummah-now-cms-stage="${V2}"`)).toBe(true);
    });
-   it("fails when /healthz is served by another version", async () => {
-      const fake = (async () => Response.json({ status: "ok", version: V1 })) as unknown as typeof fetch;
-      const results = await runSmoke({ env: "production", version: V2, fetchImpl: fake });
-      expect(results[0]).toMatchObject({ ok: false });
+   /** A clock that moves only when somebody sleeps. */
+   const clock = () => {
+      let t = 0;
+      return { now: () => t, sleep: async (ms: number) => void (t += ms) };
+   };
+   /** /healthz answers with these in turn (the last one from then on); the other checks are not under test. */
+   const answering = (...answers: (() => Response)[]) => {
+      let n = 0;
+      const fetchImpl = (async (url: string) =>
+         new URL(url).pathname === "/healthz" ? answers[Math.min(n++, answers.length - 1)]() : new Response(null, { status: 500 })) as unknown as typeof fetch;
+      return { fetchImpl, asked: () => n };
+   };
+   const says = (version: string | null, over: object = {}, status = 200) => () => Response.json({ status: "ok", version, ...over }, { status });
+   const healthz = (results: CheckResult[]) => results.find((r) => r.name.startsWith("healthz"))!;
+
+   describe.each(["stage", "production"] as const)("the version that answers on %s", (env) => {
+      it("fails when the candidate never answers, after waiting as long as allowed and no longer", async () => {
+         const c = clock();
+         const h = answering(says(V1));
+         expect(healthz(await runSmoke({ env, version: V2, fetchImpl: h.fetchImpl, ...c }))).toMatchObject({ ok: false, detail: `served by ${V1}, expected ${V2} (after 90 s)` });
+         expect(c.now()).toBe(VERSION_WAIT_MS);
+      });
+      it("waits for the candidate while an edge location still answers with the version before", async () => {
+         const c = clock();
+         const h = answering(says(V1), says(null), says(V2));
+         expect(healthz(await runSmoke({ env, version: V2, fetchImpl: h.fetchImpl, ...c }))).toMatchObject({ ok: true, detail: `ok (version ${V2}) (after ${(2 * VERSION_PAUSE_MS) / 1000} s)` });
+         expect([h.asked(), c.now()]).toEqual([3, 2 * VERSION_PAUSE_MS]);
+      });
+      it("does not wait for an error, a status or an unhealthy answer, not even between tries", async () => {
+         const bad: [string, () => Response, RegExp][] = [
+            ["status", says(V2, {}, 500), /status 500/],
+            ["unhealthy", says(V2, { status: "degraded", checks: { db: "fail" } }), /fail/],
+            ["unhealthy, old version", says(V1, { status: "degraded", checks: { db: "fail" } }, 503), /status 503/],
+            ["not JSON", () => new Response("<html>"), /./],
+            ["network", () => { throw new TypeError("fetch failed"); }, /fetch failed/],
+         ];
+         for (const [name, answer, detail] of bad) {
+            const first = clock();
+            const a = answering(answer, says(V2));
+            const atOnce = healthz(await runSmoke({ env, version: V2, fetchImpl: a.fetchImpl, ...first }));
+            expect([atOnce.ok, a.asked(), first.now()], name).toEqual([false, 1, 0]);
+            expect(atOnce.detail, name).toMatch(detail);
+            const later = clock();
+            const b = answering(says(V1), answer, says(V2));
+            const afterOne = healthz(await runSmoke({ env, version: V2, fetchImpl: b.fetchImpl, ...later }));
+            expect([afterOne.ok, b.asked(), later.now()], name).toEqual([false, 2, VERSION_PAUSE_MS]);
+            expect(afterOne.detail, name).toMatch(detail);
+         }
+      });
+      it("asks once without a version (after the promotion waitForVersion reads it)", async () => {
+         const c = clock();
+         const h = answering(says(V1));
+         expect(healthz(await runSmoke({ env, fetchImpl: h.fetchImpl, ...c }))).toMatchObject({ ok: true, detail: `ok (version ${V1})` });
+         expect([h.asked(), c.now()]).toEqual([1, 0]);
+      });
+      it("promotes only when the candidate itself answered the pre-traffic smoke", async () => {
+         const release = async (version: string) => {
+            const { deps, calls } = fakeDeps();
+            deps.smoke = async (wanted) => [healthz(await runSmoke({ env, version: wanted, fetchImpl: answering(says(version)).fetchImpl, ...clock() }))];
+            return { calls, done: await promote(env, "b", "m", deps).catch((e: Error) => e) };
+         };
+         const stale = await release(V1);
+         expect(stale.done).toMatchObject({ rolledBack: true, message: expect.stringContaining(`expected ${V2}`) });
+         expect(stale.calls.some((c) => c.includes(`${V2}@100%`))).toBe(false);
+         const fresh = await release(V2);
+         expect(fresh.done).toMatchObject({ candidate: V2 });
+         expect(fresh.calls.some((c) => c.includes(`${V2}@100%`))).toBe(true);
+      });
    });
 });
 
