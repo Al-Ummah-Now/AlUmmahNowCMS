@@ -15,7 +15,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ENVS, parseEnv, type EnvName } from "./envs.ts";
-import { runSmoke, type CheckResult } from "./smoke.ts";
+import { REQUEST_TIMEOUT_MS, runSmoke, type CheckResult } from "./smoke.ts";
 
 export type ReleaseEnv = Extract<EnvName, "stage" | "production">;
 
@@ -159,7 +159,7 @@ export async function waitForVersion(
    let inARow = 0;
    while (Date.now() < deadline) {
       try {
-         const res = await doFetch(`${info.url}/healthz`, { headers });
+         const res = await doFetch(`${info.url}/healthz`, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
          const body = (await res.json()) as { version?: string | null };
          if (body.version === version) {
             if (++inARow >= steady) return;
