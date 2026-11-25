@@ -130,10 +130,13 @@ async function stalling(run: (url: string) => Promise<void>): Promise<void> {
 describe("smoke", () => {
    afterEach(() => void vi.restoreAllMocks());
    it("builds the override header", () => expect(overrideHeader("al-ummah-now-cms", V2)).toBe(`al-ummah-now-cms="${V2}"`));
-   it("passes against a healthy fake CMS and sends the override", async () => {
-      const seen: Headers[] = [];
-      const fake = (async (url: string, init: RequestInit) => {
-         seen.push(new Headers(init.headers));
+   /** A clock that moves only when somebody sleeps. */
+   const clock = () => {
+      let t = 0;
+      return { now: () => t, sleep: async (ms: number) => void (t += ms) };
+   };
+   /** A healthy stage CMS, of no particular version. */
+   const answer = (url: string): Response => {
          const u = new URL(url);
          if (u.pathname === "/healthz") return Response.json({ status: "ok", version: V2 });
          if (u.pathname === "/api/public/v1/site") {
@@ -153,21 +156,78 @@ describe("smoke", () => {
          if (u.pathname === "/api/auth/password/login") return new Response(null, { status: 404 });
          if (u.pathname === "/api/data/entity/posts") return new Response(null, { status: 403 });
          return new Response(null, { status: 500 });
+   };
+   /** The same, whose candidate answers every request that asks for it (X-Release-Check). */
+   const proven = (url: string, init?: RequestInit): Response => {
+      const res = answer(url);
+      if (new Headers(init?.headers).has("X-Release-Check")) res.headers.set("X-Release-Check", "ok");
+      return res;
+   };
+   it("passes against a healthy fake CMS and sends the override", async () => {
+      const seen: Headers[] = [];
+      const fake = (async (url: string, init: RequestInit) => {
+         seen.push(new Headers(init.headers));
+         return proven(url, init);
       }) as unknown as typeof fetch;
-      const results = await runSmoke({ env: "stage", version: V2, fetchImpl: fake });
+      const results = await runSmoke({ env: "stage", version: V2, fetchImpl: fake, ...clock() });
       expect(results.filter((r) => !r.ok)).toEqual([]);
       expect(seen.every((h) => h.get("Cloudflare-Workers-Version-Overrides") === `al-ummah-now-cms-stage="${V2}"`)).toBe(true);
+      // /healthz says its version itself
+      expect(seen.map((h) => h.get("X-Release-Check"))).toEqual([null, ...Array(6).fill(V2)]);
    });
-   /** A clock that moves only when somebody sleeps. */
-   const clock = () => {
-      let t = 0;
-      return { now: () => t, sleep: async (ms: number) => void (t += ms) };
-   };
+
+   describe("who answered the other checks (X-Release-Check)", () => {
+      type Page = (url: URL, init: RequestInit, n: number) => Response | null;
+      const run = async (page: Page, version: string | undefined = V2, c = clock()) => {
+         let n = 0;
+         const seen: (string | null)[] = [];
+         const fetchImpl = (async (url: string, init: RequestInit) => {
+            seen.push(new Headers(init.headers).get("X-Release-Check"));
+            return page(new URL(url), init, n++) ?? proven(url, init);
+         }) as unknown as typeof fetch;
+         return { results: await runSmoke({ env: "stage", version, fetchImpl, ...c }), seen, waited: c.now() };
+      };
+      const isSite = (url: URL) => url.pathname === "/api/public/v1/site" && url.searchParams.get("locale") === "en";
+      const site = (results: CheckResult[]) => results.find((r) => r.name === "public API /site")!;
+
+      it("sends nothing and asks once without a version", async () => {
+         const r = await run((url) => answer(String(url)), "");
+         expect(r.results.filter((x) => !x.ok)).toEqual([]);
+         expect([r.waited, r.seen]).toEqual([0, Array(7).fill(null)]);
+      });
+      it("an old version that would pass every check passes none, within one deadline for all", async () => {
+         const r = await run((url) => answer(String(url)));
+         const rest = r.results.filter((x) => !x.name.startsWith("healthz"));
+         expect(rest).toHaveLength(6);
+         for (const x of rest) expect([x.ok, x.detail.startsWith(`not answered by candidate ${V2} of al-ummah-now-cms-stage (after 90 s; last answer, of another version: `)], x.detail).toEqual([false, true]);
+         expect(r.waited).toBe(VERSION_WAIT_MS);
+      });
+      it("what an old version answers wrongly is asked again; what the candidate answers wrongly fails at once", async () => {
+         let n = 0;
+         const late = await run((url) => (isSite(url) && n++ < 2 ? new Response(null, { status: 500 }) : null));
+         expect(late.results.filter((x) => !x.ok)).toEqual([]);
+         expect([site(late.results).detail, late.waited]).toEqual(["200 JSON (after 10 s)", 2 * VERSION_PAUSE_MS]);
+         const bad = await run((url) => (isSite(url) ? new Response(null, { status: 503, headers: { "X-Release-Check": "ok" } }) : null));
+         expect([site(bad.results).detail, bad.waited]).toEqual(["status 503", 0]);
+      });
+      it("a failed connection fails at once, and only an exact ok is proof", async () => {
+         const broken = await run((url) => { if (isSite(url)) throw new TypeError("fetch failed"); return null; });
+         expect([site(broken.results).ok, site(broken.results).detail, broken.waited]).toEqual([false, "fetch failed", 0]);
+         for (const value of ["OK", V2, "ok, ok"]) {
+            const r = await run((url) => { if (!isSite(url)) return null; const res = answer(String(url)); res.headers.set("X-Release-Check", value); return res; });
+            expect(site(r.results).detail, value).toContain("not answered by candidate");
+         }
+      });
+      it("every environment binds the version", () => {
+         const config = parseJsonc<{ version_metadata?: object; env: Record<string, { version_metadata?: object }> }>(readFileSync(new URL("../../wrangler.jsonc", import.meta.url), "utf8"));
+         for (const block of [config, config.env.stage, config.env.qa]) expect(block.version_metadata).toEqual({ binding: "CF_VERSION_METADATA" });
+      });
+   });
    /** /healthz answers with these in turn (the last one from then on); the other checks are not under test. */
    const answering = (...answers: (() => Response)[]) => {
       let n = 0;
       const fetchImpl = (async (url: string) =>
-         new URL(url).pathname === "/healthz" ? answers[Math.min(n++, answers.length - 1)]() : new Response(null, { status: 500 })) as unknown as typeof fetch;
+         new URL(url).pathname === "/healthz" ? answers[Math.min(n++, answers.length - 1)]() : new Response(null, { status: 500, headers: { "X-Release-Check": "ok" } })) as unknown as typeof fetch;
       return { fetchImpl, asked: () => n };
    };
    const says = (version: string | null, over: object = {}, status = 200) => () => Response.json({ status: "ok", version, ...over }, { status });
@@ -179,6 +239,7 @@ describe("smoke", () => {
          env: "production",
          version: V2,
          requestTimeoutMs: 30,
+         ...clock(),
          fetchImpl: (async (url: string, init: RequestInit) => {
             signals.push(init.signal);
             if (new URL(url).pathname === "/healthz") return says(V2)();
@@ -187,7 +248,7 @@ describe("smoke", () => {
       });
       expect(signals.length).toBeGreaterThan(5);
       expect(signals.every((s) => s instanceof AbortSignal)).toBe(true);
-      for (const r of results) expect([r.ok, /timeout/i.test(r.detail)], r.name).toEqual(r.name.startsWith("healthz") ? [true, false] : [false, true]);
+      for (const r of results) expect([r.ok, /no answer in time/.test(r.detail)], r.name).toEqual(r.name.startsWith("healthz") ? [true, false] : [false, true]);
    });
 
    it.each(["/headers", "/body"])("a stalled answer (%s) is not yet while the candidate is waited for, and a failure otherwise", async (path) => {
@@ -220,7 +281,7 @@ describe("smoke", () => {
          now: () => c.now() + t,
          sleep: c.sleep,
          fetchImpl: (async (url: string) => {
-            if (new URL(url).pathname !== "/healthz") return new Response(null, { status: 500 });
+            if (new URL(url).pathname !== "/healthz") return new Response(null, { status: 500, headers: { "X-Release-Check": "ok" } });
             t += timeouts.at(-1)!;
             throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
          }) as unknown as typeof fetch,
