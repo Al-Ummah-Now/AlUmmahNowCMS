@@ -130,7 +130,30 @@ describe("status pages", () => {
       const res = await makeWorker()("/does-not-exist");
       expect(res.status).toBe(404);
       expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
-      expect(await res.text()).toContain("Page not found");
+      const html = await res.text();
+      expect(html).toContain("Page not found");
+      // The error-page family's card (wiki guides/error-pages.md) in the site theme with the shared header
+      expect(html).toContain('data-error-status="404"');
+      expect(html).toContain("Error 404");
+      expect(html).toContain('<meta name="robots" content="noindex, nofollow"');
+      expect(html).not.toMatch(/class="ep-card"[\s\S]*@keyframes/);
+      // The family's own buttons, title format and words (AUDIT-2): Go back (shown with history) then Home page
+      expect(html).toMatch(/<button type="button" class="ep-btn ep-btn-secondary" data-ep-back="true" hidden="">[\s\S]*?<a class="ep-btn ep-btn-primary" href="\/">[\s\S]*?<span>Home page<\/span>/);
+      expect(html).not.toMatch(/class="btn[ "]/);
+      expect(html).toContain("<title>Page not found | Al Ummah Now</title>");
+      expect(html).toContain("We couldn’t find this page.");
+      expect(html.match(/<h1\b/g)).toHaveLength(1);
+   });
+   it("the Arabic 404 is right to left with ٠–٩ in the code line", async () => {
+      const res = await makeWorker()("/does-not-exist?lang=ar");
+      const html = await res.text();
+      expect(res.status).toBe(404);
+      expect(html).toContain('dir="rtl"');
+      expect(html).toContain("خطأ ٤٠٤");
+      expect(html).toContain("<title>الصفحة غير موجودة | الأمة الآن</title>");
+      // one inline-block span a sentence: no line ends on «ربما», the next sentence's first word
+      expect(html).toContain('<p class="ep-body"><span class="ep-s">لم نعثر على هذه الصفحة.</span> <span class="ep-s">ربما الرابط غير صحيح أو نُقلت الصفحة.</span></p>');
+      expect(html).toContain(".ep-s{display:inline-block}");
    });
    it("healthz", async () => {
       const res = await makeWorker()("/healthz?deep=1");
@@ -150,5 +173,14 @@ describe("fail closed", () => {
       const health = await app.fetch(new Request(`${CMS}/healthz?deep=1`), broken, createExecutionContext());
       expect(health.status).toBe(503);
       expect(await health.json()).toMatchObject({ checks: { config: "BKND_JWT_SECRET is not set" } });
+   });
+   it("the 503 page: Home page then Try again on this origin (never protocol-relative), no Go back", async () => {
+      const app = createWorker({ fetch, getApp: () => Promise.reject(new Error("must not boot")) });
+      const broken = { ...env, BKND_JWT_SECRET: undefined, ENVIRONMENT: "production" };
+      const res = await app.fetch(new Request(`${CMS}//evil.example/x?y=1`), broken, createExecutionContext());
+      const html = await res.text();
+      expect(res.status).toBe(503);
+      expect(html).toMatch(/<a class="ep-btn ep-btn-secondary" href="\/">[\s\S]*?<span>Home page<\/span><\/a><a class="ep-btn ep-btn-primary" href="\/evil\.example\/x\?y=1">/);
+      expect(html).not.toContain("data-ep-back");
    });
 });

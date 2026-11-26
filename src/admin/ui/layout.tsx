@@ -37,6 +37,8 @@ export interface View {
    ai: boolean;
    /** Staff passkey grace (src/lib/passkeys.ts): the banner "Add a passkey by <date>" until the deadline. */
    passkey?: { deadline: number; setupUrl: string } | null;
+   /** The Fawanees street's tile variant (1-4) for this response, sent as <html data-fanous-street-variant>. */
+   streetVariant?: number;
 }
 
 export const isAdmin = (v: View) => v.user.role === "admin";
@@ -233,7 +235,7 @@ export function Shell(props: { v: View; title: string; children: Child }) {
    const dark = prefs.mode !== "light";
    const searchAction = isWriter(v) ? "/posts" : "/pages";
    return (
-      <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} class={dark ? "dark" : undefined}>
+      <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} data-fanous-street-variant={v.streetVariant ?? undefined} class={dark ? "dark" : undefined}>
          <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

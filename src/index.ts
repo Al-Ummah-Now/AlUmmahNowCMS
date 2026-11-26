@@ -60,7 +60,7 @@ import { pingIndexNow } from "./lib/indexnow.ts";
 import { pickerRoutes } from "./routes/picker.ts";
 import { previewApi, previewRoutes } from "./routes/preview.ts";
 import { publicApi } from "./routes/public-api.ts";
-import { renderStatus, ssoRoutes } from "./routes/sso.ts";
+import { renderErrorStatus, renderStatus, ssoRoutes } from "./routes/sso.ts";
 import { sessionEnded } from "./lib/sign-outs.ts";
 import { passkeyNeededPath, passkeySetupUrl, sessionPasskeyLapsed } from "./lib/passkeys.ts";
 import type { AppEnv, AuthUser, Ctx, Deps } from "./types.ts";
@@ -238,7 +238,8 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       } catch (error) {
          if (!(error instanceof ConfigError)) throw error;
          console.error("config error:", error.message);
-         return withHeaders(renderStatus(c, "error", 503), contentSecurityPolicy({ nonce: n }));
+         // The family's 503 card (it needs no runtime config: no session, the built-in theme)
+         return withHeaders(await renderErrorStatus(c, "unavailable", 503), contentSecurityPolicy({ nonce: n }));
       }
       await next();
       // Private headers on everything that is not the public API (already returned above).
@@ -393,14 +394,14 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       return res;
    });
 
-   app.all("*", (c) => renderStatus(c, "not_found", 404));
+   app.all("*", (c) => renderErrorStatus(c, "not_found", 404));
 
    app.onError((err, c) => {
       console.error("unhandled", err instanceof Error ? `${err.name}: ${err.message}` : String(err));
       if (c.req.path.startsWith("/api/") || c.req.path.startsWith("/picker/api/") || c.req.path.startsWith("/admin/api/")) {
          return c.json({ error: "internal_error" }, 500);
       }
-      return renderStatus(c, "error", 500);
+      return renderErrorStatus(c, "error", 500);
    });
 
    return app;

@@ -8,6 +8,7 @@ import { buildAuthorizeUrl, exchangeCode, signInLang, OidcError, parsePrompt, ve
 import { passkeyNeededPage, statusPage } from "../lib/pages.ts";
 import { STRINGS } from "../lib/i18n.ts";
 import { esc } from "../lib/html.ts";
+import { formatNumber } from "../lib/format.ts";
 import { accountsSection } from "../lib/accounts.ts";
 import { tabIconLinks } from "../lib/app-icons.ts";
 import { resolvePrefs } from "../admin/prefs.ts";
@@ -105,7 +106,34 @@ export function renderStatus(
    return c.html(html, status);
 }
 
-export type GateKind = "no_access" | "accounts" | "logged_out" | "sign_in_failed";
+/** The family's lucide shapes (monorepo ERROR_PAGE_ICONS). */
+const btnIcon = (paths: string) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
+const FAMILY_BUTTON_ICONS = {
+   home: btnIcon('<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+   retry: btnIcon('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'),
+   back: btnIcon('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>').replace("<svg ", '<svg data-icon="back" '),
+};
+const FAMILY_ICONS = {
+   notFound: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/><circle cx="12" cy="12" r="10"/></svg>',
+   alert: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+};
+
+/**
+ * The family's error page (404, 500, 503) in the site theme with the shared header; if even that fails
+ * (the theme lookup is what broke), the plain status page. Never a stack or the error's own text.
+ */
+export async function renderErrorStatus(c: Ctx, kind: FamilyKind, status: 404 | 500 | 503): Promise<Response> {
+   try {
+      return await renderGate(c, fetch, kind, status);
+   } catch (error) {
+      log.warn("themed error page failed; plain page instead", { kind, error: errText(error) });
+      return renderStatus(c, kind === "not_found" ? "not_found" : "error", status);
+   }
+}
+
+export type GateKind = "no_access" | "accounts" | "logged_out" | "sign_in_failed" | FamilyKind;
+/** The error-page family (wiki guides/error-pages.md): an unknown page, a server error, the CMS unavailable. */
+export type FamilyKind = "not_found" | "error" | "unavailable";
 
 /**
  * The themed version of the CMS's own pages (src/admin/ui/gate.tsx): the site theme, Light/Dark and
@@ -115,7 +143,7 @@ export async function renderGate(
    c: Ctx,
    fetcher: typeof fetch,
    kind: GateKind,
-   status: 200 | 400 | 403 | 502,
+   status: 200 | 400 | 403 | 404 | 500 | 502 | 503,
    o: { accounts?: { returnPath: string }; account?: string } = {},
 ) {
    const cfg = c.get("cfg");
@@ -124,7 +152,7 @@ export async function renderGate(
    const admin = stringsFor(prefs.lang);
    const www = `${cfg?.wwwUrl ?? "https://www.alummahnow.net"}/${prefs.lang}/`;
    const chooser = o.accounts && cfg ? accountsSection({ lang: prefs.lang, issuer: cfg.issuer, returnPath: o.accounts.returnPath, hint: kind === "no_access" }) : undefined;
-   const content: Record<GateKind, Omit<GateContent, "chooser" | "testId">> = {
+   const content: Record<Exclude<GateKind, FamilyKind>, Omit<GateContent, "chooser" | "testId">> = {
       no_access: {
          icon: "alert",
          title: t.noAccessTitle,
@@ -153,6 +181,16 @@ export async function renderGate(
       },
    };
    const url = new URL(c.req.url);
+   const code = (n: number) => t.errorCode.replace("{code}", formatNumber(n, prefs.lang, { useGrouping: false }));
+   const help = `${esc(t.needHelp)} <a href="${esc(`${cfg?.wwwUrl ?? "https://www.alummahnow.net"}/${prefs.lang}/contact`)}">${esc(t.contactUs)}</a>`;
+   const family = (status: number, icon: "notFound" | "alert", title: string) => ({ status, codeLabel: code(status), pageTitle: t.pageTitle.replace("{title}", title), iconSvg: FAMILY_ICONS[icon], helpHtml: help, backLabel: t.goBack, backIconSvg: FAMILY_BUTTON_ICONS.back });
+   const retry = `<a class="ep-btn ep-btn-primary" href="${esc(`/${url.pathname.replace(/^[/\\]+/, "")}${url.search}`)}">${FAMILY_BUTTON_ICONS.retry}<span>${esc(t.tryAgain)}</span></a>`;
+   const home = (primary: boolean) => `<a class="ep-btn ${primary ? "ep-btn-primary" : "ep-btn-secondary"}" href="/">${FAMILY_BUTTON_ICONS.home}<span>${esc(t.goHome)}</span></a>`;
+   const familyContent: Record<FamilyKind, Omit<GateContent, "chooser" | "testId">> = {
+      not_found: { icon: "alert", title: t.notFoundTitle, body: t.notFoundBody, actionsHtml: home(true), family: family(404, "notFound", t.notFoundTitle) },
+      error: { icon: "alert", title: t.errorTitle, body: t.errorBody, actionsHtml: home(false) + retry, family: family(500, "alert", t.errorTitle) },
+      unavailable: { icon: "alert", title: t.unavailableTitle, body: t.unavailableBody, actionsHtml: home(false) + retry, family: family(503, "alert", t.unavailableTitle) },
+   };
    // The language / appearance links keep only the page's own safe parameters
    const keep = new URLSearchParams();
    if (o.accounts && url.searchParams.has("return")) keep.set("return", o.accounts.returnPath);
@@ -165,10 +203,12 @@ export async function renderGate(
          path: url.pathname,
          search: keep.toString(),
          environment: c.env.ENVIRONMENT,
-         signInHref: kind === "logged_out" || kind === "sign_in_failed" ? "/sso/login" : undefined,
+         // Sign in on the signed-out landings, and on an error page seen without a session (as the videos
+         // admin's signed-out header shows it): the gate header has no account button to show instead
+         signInHref: kind === "logged_out" || kind === "sign_in_failed" || (kind in familyContent && !/(?:^|;\s*)auth=/.test(c.req.header("Cookie") ?? "")) ? "/sso/login" : undefined,
          strings: { cms: t.cms, skip: admin.skip },
       },
-      c: { ...content[kind], chooser, testId: kind.replace("_", "-") },
+      c: { ...(kind in familyContent ? familyContent[kind as FamilyKind] : content[kind as Exclude<GateKind, FamilyKind>]), chooser, testId: kind in familyContent ? "error-screen" : kind.replace("_", "-") },
    });
    return c.html("<!doctype html>" + (await html.toString()), status);
 }

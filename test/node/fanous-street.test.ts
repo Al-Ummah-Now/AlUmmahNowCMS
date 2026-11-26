@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { lightMaterials, STREET_DTS_OUT, STREET_JS_OUT, streetTokens } from "../../scripts/sync-fanous.ts";
+import { checkTile, lightMaterials, STREET_DTS_OUT, STREET_JS_OUT, STREET_TILE_MAX_BYTES, STREET_TILES_DIR, streetTileFiles, streetTokens } from "../../scripts/sync-fanous.ts";
+import { pickStreetVariant } from "../../src/admin/street-variant.ts";
 import { STREET_CSS, THEMES } from "../../src/admin/theme/vendor.generated.ts";
 
 const lights = 'url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%2F%3E")';
@@ -35,5 +36,38 @@ describe("the lantern street, vendored by scripts/sync-fanous.ts", () => {
       const lock = JSON.parse(readFileSync("fanous.lock.json", "utf8")) as { refs: { tokens: string }; street: Record<string, string> };
       expect(Object.keys(lock.street).sort()).toEqual([STREET_DTS_OUT, STREET_JS_OUT].sort());
       expect(readFileSync(STREET_JS_OUT, "utf8")).toContain(`Al-Ummah-Now/AlUmmahNow@${lock.refs.tokens}`);
+   });
+
+   it("keeps the street tile and its variants only as our own WebP files under /fanous/street/", () => {
+      const tile = (f: string) => `image-set(url("/fanous/street/${f}") 2x)`;
+      const css = `html[data-theme='fawanees']:not(.dark) { --fanous-street-on: 1; --fanous-street-tile: ${tile("street-tile-1.webp")}; --fanous-street-tile-4: ${tile("street-tile-4.webp")}; }
+html[data-theme='fawanees'].dark { --fanous-street-on: 1; --fanous-street-tile-2: ${tile("street-tile-dark-2.webp")}; }`;
+      const out = streetTokens(css, "fawanees");
+      expect(out).toContain(`--fanous-street-tile-4:${tile("street-tile-4.webp")}`);
+      expect(streetTileFiles([out])).toEqual(["street-tile-1.webp", "street-tile-4.webp", "street-tile-dark-2.webp"]);
+      expect(() => streetTokens(css.replace(tile("street-tile-1.webp"), 'image-set(url("https://evil.test/t.webp") 2x)'), "fawanees")).toThrow(/unexpected value/);
+      expect(() => streetTokens(css.replace("--fanous-street-tile-4", "--fanous-street-tile-9"), "fawanees")).toThrow(/unexpected value/);
+      expect(() => streetTokens(css.replace("--fanous-street-tile-4", "--fanous-street-glow"), "fawanees")).toThrow(/unexpected value/);
+   });
+
+   it("takes only WebP tiles under the size cap", () => {
+      const webp = (n: number) => { const b = new Uint8Array(n); b.set(new TextEncoder().encode("RIFF"), 0); b.set(new TextEncoder().encode("WEBP"), 8); return b; };
+      expect(() => checkTile("a.webp", webp(1000))).not.toThrow();
+      expect(() => checkTile("a.webp", webp(STREET_TILE_MAX_BYTES + 1))).toThrow(/over/);
+      expect(() => checkTile("a.webp", new TextEncoder().encode("<svg/>"))).toThrow(/not a WebP/);
+   });
+
+   it("serves exactly the tiles the vendored themes name, each locked and under 300 KB, four variants per mode", () => {
+      const lock = JSON.parse(readFileSync("fanous.lock.json", "utf8")) as { streetTiles: Record<string, string> };
+      const named = streetTileFiles(Object.values(THEMES).map((t) => t.css));
+      expect(named).toEqual([1, 2, 3, 4].flatMap((n) => [`street-tile-${n}.webp`, `street-tile-dark-${n}.webp`]).sort());
+      expect(readdirSync(STREET_TILES_DIR).sort()).toEqual(named);
+      expect(Object.keys(lock.streetTiles).sort()).toEqual(named.map((f) => `${STREET_TILES_DIR}/${f}`));
+      for (const f of named) expect(statSync(`${STREET_TILES_DIR}/${f}`).size).toBeLessThanOrEqual(STREET_TILE_MAX_BYTES);
+   });
+
+   it("the CMS picks the variant on the server (no inline head script)", () => {
+      expect(pickStreetVariant("aun_street_variant=2", () => 0)).toBe(2);
+      expect(pickStreetVariant(null, () => 0.99)).toBe(4);
    });
 });

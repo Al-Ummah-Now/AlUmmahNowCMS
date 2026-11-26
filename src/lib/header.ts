@@ -132,9 +132,8 @@ export function publicHeaderHtml(o: {
 }
 
 /**
- * What the CMS adds to the shared header CSS (NAV_CSS), on every page: the Light / Dark pair (only the
- * link for the mode on screen shows). The bar's band, edge, blur and control font are the contract's
- * (its theme header block), the same as in every app.
+ * What the CMS adds to the shared header CSS (NAV_CSS), on every page: the Light / Dark pair (only the link for the mode on screen shows). The bar's band, edge, blur
+ * and control font are the contract's (its theme header block), the same as in every app.
  */
 export const HEADER_GLUE_CSS =
    ".cms-hd a{text-underline-offset:.2em}" +

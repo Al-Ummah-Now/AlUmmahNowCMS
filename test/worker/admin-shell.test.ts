@@ -21,7 +21,7 @@ describe("staff shell", () => {
       const res = await makeWorker()("/", { headers: { cookie } });
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).toMatch(/^<!doctype html><html lang="en" dir="ltr" data-theme="fawanees" class="dark">/);
+      expect(html).toMatch(/^<!doctype html><html lang="en" dir="ltr" data-theme="fawanees" data-fanous-street-variant="[1-4]" class="dark">/);
       expect(html).toContain('aria-current="page"');
       expect(html).not.toContain('href="/people"');
       expect(html).toContain('href="/pages/new"');
@@ -29,18 +29,31 @@ describe("staff shell", () => {
       expect(res.headers.get("cache-control")).toBe("private, no-store");
    });
 
+   it("sends the street variant in the HTML: random per request, pinned by the aun_street_variant cookie, no inline picker", async () => {
+      const cookie = await session(["Moderator"], "shell-street");
+      const f = makeWorker();
+      const variant = async (extra = "") => /<html[^>]*\sdata-fanous-street-variant="([^"]*)"/.exec(await (await f("/", { headers: { cookie: cookie + extra } })).text())?.[1];
+      const seen = new Set<string | undefined>();
+      for (let i = 0; i < 16 && seen.size < 2; i++) seen.add(await variant());
+      expect([...seen].every((v) => v !== undefined && /^[1-4]$/.test(v))).toBe(true);
+      expect(seen.size).toBeGreaterThan(1);
+      for (let i = 0; i < 3; i++) expect(await variant("; aun_street_variant=3")).toBe("3");
+      expect(await variant("; aun_street_variant=9")).toMatch(/^[1-4]$/);
+      expect(await (await f("/", { headers: { cookie } })).text()).not.toContain("__AUN_STREET_VARIANT__");
+   });
+
    it("Arabic UI is rtl and remembered in a cookie; mode=light is remembered too", async () => {
       const cookie = await session(["Admin"], "shell-ar");
       const f = makeWorker();
       const res = await f("/?lang=ar&mode=light", { headers: { cookie } });
       const html = await res.text();
-      expect(html).toMatch(/<html lang="ar" dir="rtl" data-theme="fawanees" data-mode="light">/);
+      expect(html).toMatch(/<html lang="ar" dir="rtl" data-theme="fawanees" data-mode="light" data-fanous-street-variant="[1-4]">/);
       expect(html).toContain("نظرة عامة");
       const set = res.headers.getSetCookie().join("\n");
       expect(set).toMatch(/cms_lang=ar/);
       expect(set).toMatch(/cms_mode=light/);
       const again = await (await f("/", { headers: { cookie: `${cookie}; cms_lang=ar; cms_mode=dark` } })).text();
-      expect(again).toMatch(/<html lang="ar" dir="rtl" data-theme="fawanees" data-mode="dark" class="dark">/);
+      expect(again).toMatch(/<html lang="ar" dir="rtl" data-theme="fawanees" data-mode="dark" data-fanous-street-variant="[1-4]" class="dark">/);
    });
 
    it("Light / Dark with no System option: no choice follows the device; an old cms_mode=system is dropped", async () => {
@@ -49,7 +62,7 @@ describe("staff shell", () => {
       // nothing saved: no data-mode (the head script lets the device decide before paint)
       const first = await f("/", { headers: { cookie } });
       const html = await first.text();
-      expect(html).toMatch(/<html lang="en" dir="ltr" data-theme="fawanees" class="dark">/);
+      expect(html).toMatch(/<html lang="en" dir="ltr" data-theme="fawanees" data-fanous-street-variant="[1-4]" class="dark">/);
       expect(html).toContain('data-mode-toggle="light"');
       expect(html).toContain('data-mode-toggle="dark"');
       expect(html).toContain('aria-label="Switch to light mode"');
@@ -68,7 +81,7 @@ describe("staff shell", () => {
       expect(old.headers.getSetCookie().join("\n")).toMatch(/cms_mode=;.*Max-Age=0/i);
       // a click saves the choice
       const dark = await f("/?mode=dark", { headers: { cookie } });
-      expect(await dark.text()).toMatch(/data-mode="dark" class="dark"/);
+      expect(await dark.text()).toMatch(/data-mode="dark" data-fanous-street-variant="[1-4]" class="dark"/);
       expect(dark.headers.getSetCookie().join("\n")).toMatch(/cms_mode=dark/);
    });
 
@@ -251,5 +264,23 @@ describe("siteTheme", () => {
       const html = await (await makeWorker(undefined, { ENVIRONMENT: "production" })("/?theme=zujaj", { headers: { cookie } })).text();
       expect(html).toContain('data-theme="fawanees"');
       expect(html).not.toContain("preview-bar");
+   });
+});
+
+describe("error-page family (AUDIT-2, the family's street and header)", () => {
+   it("a signed-out 404 shows the lantern street (class and variant sent with the page) and Sign in", async () => {
+      const res = await makeWorker()("/no-such-page-at-all", { headers: { accept: "text/html" } });
+      expect(res.status).toBe(404);
+      const html = await res.text();
+      expect(html).toMatch(/<html lang="en" dir="ltr" data-theme="fawanees" data-fanous-street-variant="[1-4]" class="dark fanous-street">/);
+      expect(html).toContain('data-testid="error-screen"');
+      expect(html).toContain('href="/sso/login"');
+   });
+
+   it("a 404 seen with a session has no Sign in", async () => {
+      const cookie = await session(["Moderator"], "ep-404-in");
+      const html = await (await makeWorker()("/no-such-page-at-all", { headers: { accept: "text/html", cookie } })).text();
+      expect(html).toContain('data-testid="error-screen"');
+      expect(html).not.toContain('href="/sso/login"');
    });
 });

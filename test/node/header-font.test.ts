@@ -29,3 +29,11 @@ describe("the header's typeface is the contract's", () => {
       expect(NAV_FONTS_CSS).toMatch(/@font-face\{[^}]*src:url\('\/aun-nav\/fonts\//);
    });
 });
+
+// One header in every app (AUDIT-2 2026-11-22): the material, its edge and the controls' sizes come from
+// the contract; the CMS adds no padding of its own (the language pill is the same size as on videos)
+describe("the CMS header glue", () => {
+   it("never resizes the header's controls", () => {
+      expect(HEADER_GLUE_CSS).not.toMatch(/\.aun-lang|\.aun-icon-btn|\.aun-signin/);
+   });
+});

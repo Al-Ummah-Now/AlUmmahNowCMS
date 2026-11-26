@@ -10,7 +10,19 @@ import { ICON_THEME_COLOR, type IconLink } from "../../lib/app-icons.ts";
 import type { Prefs } from "../prefs.ts";
 import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "./icons.tsx";
+
+/**
+ * The error card's body sentences, each drawn as its own `.ep-s` (an inline block): two share a line
+ * only when both fit, so no line ends on the next sentence's first words («… الصفحة. ربما»).
+ * The same split as the videos app's errorBodySentences.
+ */
+export const bodySentences = (body: string): string[] => body.split(/(?<=[.!?؟])\s+(?=\S)/u).filter(Boolean);
 import { publicHeaderHtml, withQuery } from "../../lib/header.ts";
+import { ERROR_PAGE_CSS } from "../theme/error-page-css.vendored.ts";
+import { pickStreetVariant } from "../street-variant.ts";
+
+/** The error card's Go back: shown only when there is a page to go back to. */
+const BACK_SCRIPT = `(function(){var b=document.querySelector("[data-ep-back]");if(!b||history.length<2)return;b.hidden=false;b.addEventListener("click",function(){history.back()})})();`;
 
 const MODE_SCRIPT = `(function(){var h=document.documentElement;if(h.dataset.mode)return;var m=matchMedia("(prefers-color-scheme: dark)");var a=function(){h.classList.toggle("dark",m.matches)};a();m.addEventListener("change",a)})();`;
 
@@ -26,6 +38,8 @@ export interface GateView {
    environment?: string;
    /** A solid Sign in in the header, on the signed-out landings (Signed out, Sign-in failed). */
    signInHref?: string;
+   /** The lantern street's tile variant (1-4); picked at random when absent (tests pin it). */
+   streetVariant?: number;
    strings: {
       cms: string;
       skip: string;
@@ -43,6 +57,11 @@ export interface GateContent {
    /** The account chooser (src/lib/accounts.ts), already safe HTML, and its script. */
    chooser?: { html: string; script: string };
    testId: string;
+   /**
+    * The error-page family's card (404, 500, 503; wiki guides/error-pages.md) instead of the gate card:
+    * the same badge, "Error 404" line, words and actions as every Al Ummah Now app.
+    */
+   family?: { status: number; codeLabel: string; /** The tab title: "{title} | Al Ummah Now" (the same format on every app) */ pageTitle: string; iconSvg: string; helpHtml: string; backLabel: string; backIconSvg: string };
 }
 
 const withParam = (v: GateView, key: string, value: string) => withQuery(v.path, v.search, key, value);
@@ -52,14 +71,19 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
    const { prefs, strings: t } = v;
    const theme = THEMES[prefs.theme];
    const dark = prefs.mode !== "light";
+   // The lantern street, as on the videos site's error pages: the gate pages load no app script, so the
+   // class the street module would set (the theme switches it on: --fanous-street-on 1, Fawanees) is
+   // sent with the page, with the tile variant; fanous-street.css (in the app sheet) paints it.
+   const street = /--fanous-street-on:\s*1\b/.test(theme.css);
+   const htmlClass = [dark ? "dark" : "", street ? "fanous-street" : ""].filter(Boolean).join(" ") || undefined;
    return (
-      <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} class={dark ? "dark" : undefined}>
+      <html lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-theme={prefs.theme} data-mode={prefs.mode ?? undefined} data-fanous-street-variant={street ? (v.streetVariant ?? pickStreetVariant(null)) : undefined} class={htmlClass}>
          <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
             <meta name="robots" content="noindex, nofollow" />
             <meta name="color-scheme" content="dark light" />
-            <title>{`${c.title} · ${t.cms}`}</title>
+            <title>{c.family ? c.family.pageTitle : `${c.title} · ${t.cms}`}</title>
             <script nonce={v.nonce}>{raw(MODE_SCRIPT)}</script>
             {v.tabIcons.map((l) => <link rel="icon" href={l.href} type={l.type} sizes={l.sizes} />)}
             <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -77,6 +101,31 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
             {/* The shared header (src/lib/header.ts): brand, badge, language, sun/moon, and Sign in
                 on the signed-out landings */}
             {raw(publicHeaderHtml({ lang: prefs.lang, environment: v.environment, link: (key, value) => withParam(v, key, value), signInHref: v.signInHref }))}
+            {c.family ? (
+               <main id="main" class="gate">
+                  <style>{raw(ERROR_PAGE_CSS)}</style>
+                  <div class="ep" lang={prefs.lang} dir={prefs.lang === "ar" ? "rtl" : "ltr"} data-error-status={String(c.family.status)} data-testid={c.testId} role={c.family.status >= 500 ? "alert" : undefined}>
+                     <section class="ep-card" aria-labelledby="ep-title">
+                        <div class="ep-head">
+                           <span class="ep-badge" aria-hidden="true">{raw(c.family.iconSvg)}</span>
+                           <div class="ep-heading">
+                              <p class="ep-code">{c.family.codeLabel}</p>
+                              <h1 class="ep-title" id="ep-title">{c.title}</h1>
+                           </div>
+                           <p class="ep-body">{bodySentences(c.body).map((s, i) => <>{i ? " " : null}<span class="ep-s">{s}</span></>)}</p>
+                        </div>
+                        <footer class="ep-foot">
+                           <p class="ep-help">{raw(c.family.helpHtml)}</p>
+                           <div class="ep-actions">
+                              {c.family.status < 500 ? <button type="button" class="ep-btn ep-btn-secondary" data-ep-back hidden>{raw(c.family.backIconSvg)}<span>{c.family.backLabel}</span></button> : null}
+                              {raw(c.actionsHtml)}
+                           </div>
+                        </footer>
+                     </section>
+                  </div>
+                  {c.family.status < 500 ? <script nonce={v.nonce}>{raw(BACK_SCRIPT)}</script> : null}
+               </main>
+            ) : (
             <main id="main" class="gate">
                <section class="card gate-card" data-testid={c.testId} aria-labelledby="gate-h">
                   <span class="gate-ic">
@@ -89,6 +138,7 @@ export function GatePage(props: { v: GateView; c: GateContent }) {
                   {c.chooser ? raw(c.chooser.html) : null}
                </section>
             </main>
+            )}
             {c.chooser ? <script nonce={v.nonce}>{raw(c.chooser.script)}</script> : null}
          </body>
       </html>

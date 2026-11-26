@@ -16,6 +16,8 @@ import { tabIconLinks } from "../lib/app-icons.ts";
 import type { Child } from "hono/jsx";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
 import { assetResponse, assetUrls } from "./assets.ts";
+// The lantern street's tile variant, picked per request on the server
+import { pickStreetVariant } from "./street-variant.ts";
 import { Data } from "./data.ts";
 import { ADMIN_STRINGS } from "./i18n.ts";
 import { resolvePrefs } from "./prefs.ts";
@@ -78,6 +80,8 @@ export async function buildView(c: Ctx, deps: Deps): Promise<View> {
       tabIcons: tabIconLinks(c.env.ENVIRONMENT),
       ai: await aiReady(c.env).catch(() => false),
       passkey: passkeyBanner(user, cfg, url, prefs.lang),
+      // Staff screens are never cached, so the variant is picked while rendering (the aun_street_variant cookie pins it for tests)
+      streetVariant: pickStreetVariant(c.req.header("cookie")),
    };
 }
 
