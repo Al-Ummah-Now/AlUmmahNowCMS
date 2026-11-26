@@ -184,10 +184,21 @@ async function syncOne(env: Env, link: Row, fetchImpl: typeof fetch): Promise<"s
    return "hidden";
 }
 
-/** Links that gave up (Overview flag) and a retry for them. */
-export async function deadLinks(db: D1Database): Promise<number> {
-   const r = await db.prepare("SELECT COUNT(*) AS n FROM community_links WHERE state = 'dead'").first<{ n: number }>();
-   return Number(r?.n ?? 0);
+export interface DeadCommunityLink {
+   post_id: number;
+   title: string | null;
+   locale: string | null;
+   last_error: string | null;
+}
+
+/** Links that gave up, including hide failures after the article was deleted. */
+export async function deadLinks(db: D1Database): Promise<DeadCommunityLink[]> {
+   const { results } = await db.prepare(
+      `SELECT l.post_id, p.title, p.locale, l.last_error
+       FROM community_links l LEFT JOIN posts p ON p.id = l.post_id
+       WHERE l.state = 'dead' ORDER BY l.updated_at DESC, l.post_id DESC`,
+   ).all<DeadCommunityLink>();
+   return results;
 }
 
 export async function retryDeadLinks(db: D1Database): Promise<number> {

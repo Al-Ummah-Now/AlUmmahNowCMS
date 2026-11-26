@@ -12,6 +12,7 @@ import { Icon, type IconName } from "../ui/icons.tsx";
 import { Empty, isAdmin, withParam, type View } from "../ui/layout.tsx";
 import { deadSnapshots, type DeadSnapshot } from "../../lib/video-snapshots.ts";
 import { feedStatus, type FeedStatus } from "../../lib/feed/jobs.ts";
+import { deadLinks, type DeadCommunityLink } from "../../lib/scholars/community.ts";
 
 interface Tile {
    entity: "pages" | "posts" | "curated_videos" | "nav_items";
@@ -79,10 +80,46 @@ function FeedFlag(props: { v: View; s: FeedStatus | null }) {
    );
 }
 
+/** Scholar articles whose channel Community tab sync gave up. */
+function CommunityFlag({ v, dead }: { v: View; dead: DeadCommunityLink[] }) {
+   if (!dead.length) return null;
+   const { t } = v;
+   return (
+      <section class="notice bad" role="alert" aria-labelledby="cflag-h" style="margin-block-end:20px;display:grid;gap:10px" data-community-flag>
+         <div style="display:flex;gap:10px;align-items:flex-start">
+            <Icon name="alert" />
+            <div>
+               <h2 id="cflag-h" style="margin:0;font-size:16px">
+                  {t.featuring.communityDead(dead.length)}
+               </h2>
+               <ul style="margin:8px 0 0;padding-inline-start:18px">
+                  {dead.map((d) => (
+                     <li>
+                        {d.title === null ? t.featuring.communityArticle(d.post_id) : (
+                           <a href={`/posts/${d.post_id}`} lang={d.locale ?? undefined} dir="auto">{d.title}</a>
+                        )}
+                        {d.last_error && <> · <code dir="ltr">{d.last_error}</code></>}
+                     </li>
+                  ))}
+               </ul>
+            </div>
+         </div>
+         <div>
+            <button type="button" class="btn sm" data-community-retry data-done={t.featuring.communityRetried} data-failed={t.common.failed}>
+               <Icon name="refresh" size={16} /> {t.featuring.communityRetry}
+            </button>
+         </div>
+      </section>
+   );
+}
+
 export async function overviewScreen(v: View, data: Data, db?: D1Database, aiFailures: Parameters<typeof AiFailuresCard>[0]["failures"] = null) {
    const { t } = v;
-   const dead = db ? await deadSnapshots(db).catch(() => ({ items: [], total: 0 })) : { items: [], total: 0 };
-   const feed = db ? await feedStatus(db).catch(() => null) : null;
+   const [dead, feed, community] = await Promise.all([
+      db ? deadSnapshots(db).catch(() => ({ items: [], total: 0 })) : { items: [], total: 0 },
+      db ? feedStatus(db).catch(() => null) : null,
+      db ? deadLinks(db).catch(() => []) : [],
+   ]);
    const tiles: Tile[] = [
       { entity: "pages", href: "/pages", icon: "file", label: t.nav.pages },
       { entity: "posts", href: "/posts", icon: "pen", label: t.nav.posts },
@@ -132,6 +169,7 @@ export async function overviewScreen(v: View, data: Data, db?: D1Database, aiFai
       <>
          <FeedFlag v={v} s={feed} />
          <VideoFlag v={v} dead={dead} />
+         <CommunityFlag v={v} dead={community} />
          <section class="hero" aria-labelledby="ov-h">
             <div class="hero-copy">
                <p class="muted" style="margin:0 0 6px;font-weight:600">{t.overview.greeting}{v.prefs.lang === "ar" ? "، " : ", "}{name}</p>

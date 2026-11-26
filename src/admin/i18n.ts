@@ -982,8 +982,10 @@ const en = {
       videoAdded: "Featured on the home timeline",
       videoAlready: "Already on the home timeline",
       videoRemoved: "Removed from the home timeline",
-      communityDead: (n: number) => (n === 1 ? "1 article couldn't be posted to its channel's Community tab." : `${n} articles couldn't be posted to their channels' Community tab.`),
+      communityDead: (n: number) => (n === 1 ? "1 article couldn't sync with its channel's Community tab." : `${n} articles couldn't sync with their channels' Community tab.`),
+      communityArticle: (id: number) => `Article #${id}`,
       communityRetry: "Try again",
+      communityRetried: "Community posts queued for retry.",
    },
    people: {
       title: "People",
@@ -2282,8 +2284,10 @@ const ar: Strings = {
       videoAdded: "أُبرز في الخط الزمني للرئيسية",
       videoAlready: "موجود في الخط الزمني للرئيسية",
       videoRemoved: "أُزيل من الخط الزمني للرئيسية",
-      communityDead: P({ one: "تعذّر نشر مقال واحد في تبويب المجتمع في قناته.", two: "تعذّر نشر مقالين في تبويب المجتمع في قناتيهما.", few: "تعذّر نشر {n} مقالات في تبويب المجتمع في قنواتها.", many: "تعذّر نشر {n} مقالًا في تبويب المجتمع في قنواتها.", other: "تعذّر نشر {n} مقال في تبويب المجتمع في قنواتها." }),
+      communityDead: P({ one: "تعذّرت مزامنة مقال واحد مع تبويب المجتمع في قناته.", two: "تعذّرت مزامنة مقالين مع تبويب المجتمع في قناتيهما.", few: "تعذّرت مزامنة {n} مقالات مع تبويب المجتمع في قنواتها.", many: "تعذّرت مزامنة {n} مقالًا مع تبويب المجتمع في قنواتها.", other: "تعذّرت مزامنة {n} مقال مع تبويب المجتمع في قنواتها." }),
+      communityArticle: (id: number) => `المقال رقم ${N(id)}`,
       communityRetry: "أعد المحاولة",
+      communityRetried: "أُضيفت منشورات المجتمع إلى قائمة إعادة المحاولة.",
    },
    people: {
       title: "الأشخاص",
