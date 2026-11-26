@@ -32,11 +32,11 @@ screen's Videos tab, or "Search all videos").
 | Auth role | CMS role | May |
 |---|---|---|
 | Super Admin, Admin | `admin` | everything |
-| Moderator | `editor` | all content, timeline, featuring; no deletes, no settings |
+| Content Editor or legacy Moderator | `editor` | all content, timeline, featuring; no deletes, no settings |
 | **Scholar** (`role_scholar`, AlUmmahNowAuth 0029) | **`writer`** | create, edit, publish, unpublish, schedule and delete (soft) **their own posts**; media upload and the library; the video embed picker; AI assist (same per-user budget); their own profile |
 | **Writer** (`role_writer`, AlUmmahNowAuth, staff) | **`staff_writer`** | write, edit, publish and unpublish **Al Ummah Now's own posts** (no scholar author) in the full CMS editor; media, AI assist, translation flags, history, preview. No pages, navigation, settings, timeline, featuring, scholars or deletes (SS18, 2026-11-13: the staff writer role stays) |
 
-The strongest role wins (a Scholar who is also a Moderator is an editor). A writer can't open pages,
+The strongest role wins (a Scholar who is also a Content Editor is an editor). A writer can't open pages,
 navigation, site settings, the timeline, featuring, other scholars' profiles or anyone else's posts.
 
 Enforcement, two layers (`src/lib/scholars/ownership.ts`):

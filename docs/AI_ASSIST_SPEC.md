@@ -115,7 +115,7 @@ characters per call en → ar repeated sections in 2 of 2 runs (the invariant ch
 ## 2. Access, configuration and failure modes
 
 - **Roles:** every endpoint checks the session role is `admin` or `editor` (SPEC §3: Super Admin and
-  Admin → `admin`, Moderator → `editor`), the existing `sessionUser` gate. All endpoints are under
+  Admin → `admin`, Content Editor/Moderator → `editor`), the existing `sessionUser` gate. All endpoints are under
   `/admin/api/ai/*`, which is behind the session gate and the same-origin `Origin` check. There is no
   public endpoint. A job is readable only by the user who started it, or by an admin.
 - **Model:** by default the Workers AI binding, `"ai": { "binding": "AI" }`, declared in every env of
@@ -133,7 +133,7 @@ characters per call en → ar repeated sections in 2 of 2 runs (the invariant ch
   - `GET /admin/api/ai/status` → `{ configured: false }`; feature endpoints → `503 { error: "ai_not_configured" }`.
   - Admins see one muted card in the editor: "AI assist isn't set up for this site", which points to
     AI assist settings. No buttons.
-  - Editors (Moderator) see nothing: no card, no buttons.
+  - Editors see nothing: no card, no buttons.
 - **Errors are never raw.** The client maps every failure to a sentence: rate limit ("You've used AI
   assist a lot just now. Try again in N minutes."), too long, the model declined, temporarily
   unavailable, failed after retries. Provider messages and stack traces stay in logs.
@@ -355,7 +355,7 @@ E2E accounts (`isTestAccount`) never reach a provider on a deployed env. Worker 
     in the English and Arabic UI (RTL), light and dark, with axe and accessible-name assertions, plus
     the not-set-up states (admin notice, editor hidden).
   - *QA (deployed):* QA has the binding, so both roles get the AI controls (an env without the binding
-    shows admins the notice and moderators nothing). Real model calls are checked by hand on QA, not in
+    shows admins the notice and editors nothing). Real model calls are checked by hand on QA, not in
     CI (they cost Neurons and depend on capacity).
 
 ## 10. Out of scope (queue issues)

@@ -72,7 +72,7 @@ the QF reference and translation by id.
 
 ## 6. Roles
 
-Editors (Moderator) and admins flag, resolve, dismiss, reopen, re-translate and add to the glossary.
+Editors and admins flag, resolve, dismiss, reopen, re-translate and add to the glossary.
 A scholar (writer) can flag their own posts and see their flags, but cannot resolve them or use the
 glossary.
 

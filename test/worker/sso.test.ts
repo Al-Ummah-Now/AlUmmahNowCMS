@@ -94,7 +94,7 @@ describe("callback", () => {
       // The page names the refused account, so a wrong active account is obvious
       expect(html).toContain("You&#39;re signed in as <bdi><strong>viewer@example.com</strong></bdi>, which can&#39;t open the CMS.");
       // Every role that opens the CMS is named
-      expect(html).toContain("Super Admin, Admin, Moderator, Writer and Scholar accounts can sign in.");
+      expect(html).toContain("Super Admin, Admin, Content Editor, Moderator, Writer and Scholar accounts can sign in.");
       expect(callback.headers.getSetCookie().some((c) => c.startsWith("auth="))).toBe(false);
       expect(await usersCount()).toBe(before);
    });
@@ -142,8 +142,11 @@ describe("callback", () => {
       expect(res.headers.get("cache-control")).toBe("private, no-store");
    });
 
-   it("an editor can create but not delete content; mutations need a same-origin Origin", async () => {
-      const { callback, fetchCms } = await signIn(["Moderator"], { id: "ed-2", email: "ed2@example.com" });
+   it.each(["Content Editor", "content_editor"])("%s can create, edit and publish, with no delete or user administration", async (role) => {
+      const id = role === "Content Editor" ? "editor-display-name" : "editor-role-key";
+      const { callback, fetchCms } = await signIn([role], { id, email: `${id}@example.com` });
+      expect(callback.status).toBe(302);
+      expect((await env.DB.prepare("SELECT role FROM users WHERE sso_sub = ?").bind(id).first())?.role).toBe("editor");
       const cookie = cookiesOf(callback);
       const json = { "content-type": "application/json", cookie };
       const noOrigin = await fetchCms("/api/data/entity/posts", { method: "POST", headers: json, body: JSON.stringify({ slug: "a", locale: "en", title: "A" }) });
@@ -153,12 +156,21 @@ describe("callback", () => {
       const created = await fetchCms("/api/data/entity/posts", {
          method: "POST",
          headers: { ...json, origin: CMS },
-         body: JSON.stringify({ slug: "editor-post", locale: "en", title: "Editor post", status: "published" }),
+         body: JSON.stringify({ slug: id, locale: "en", title: "Editor post", status: "draft" }),
       });
       expect(created.status).toBe(201);
       const { data } = (await created.json()) as { data: { id: number; published_at: string | null; created_at: string | null } };
-      expect(data.published_at).toBeTruthy();
+      expect(data.published_at).toBeNull();
       expect(data.created_at).toBeTruthy();
+      const updated = await fetchCms(`/api/data/entity/posts/${data.id}`, {
+         method: "PATCH",
+         headers: { ...json, origin: CMS },
+         body: JSON.stringify({ title: "Updated editor post", status: "published" }),
+      });
+      expect(updated.status).toBe(200);
+      expect((await updated.json()) as object).toMatchObject({
+         data: { title: "Updated editor post", status: "published", published_at: expect.any(String) },
+      });
       const del = await fetchCms(`/api/data/entity/posts/${data.id}`, { method: "DELETE", headers: { cookie, origin: CMS } });
       expect(del.status).toBe(403);
       const users = await fetchCms("/api/data/entity/users", { headers: { cookie } });
@@ -355,7 +367,7 @@ describe("no-access is never a dead end (2026-11-14: a super admin kept getting 
       expect(html).toMatch(/<link rel="stylesheet" href="\/admin-assets\/app\.[0-9a-z]+\.css"/);
       expect(html).toContain('class="card gate-card" data-testid="no-access"');
       expect(html).toContain("لا تملك صلاحية الوصول");
-      expect(html).toContain("المشرف العام والمشرف والمراقب والكاتب والعالِم");
+      expect(html).toContain("المشرف العام والمشرف ومحرر المحتوى والمراقب والكاتب والعالِم");
       const css = await makeWorker()(html.match(/href="(\/admin-assets\/app\.[0-9a-z]+\.css)"/)![1]);
       expect(css.status).toBe(200);
       expect(await css.text()).toContain(".gate-card{");

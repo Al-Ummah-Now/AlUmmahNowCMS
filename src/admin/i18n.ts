@@ -992,7 +992,7 @@ const en = {
    },
    people: {
       title: "People",
-      intro: "Everyone who has signed in to the CMS. Roles come from Al Ummah Now accounts: Super Admin and Admin can do everything here; Moderator can write and publish but not delete.",
+      intro: "Everyone who has signed in to the CMS. Roles come from Al Ummah Now accounts: Super Admin and Admin can do everything here; Content Editor and Moderator can write and publish but not delete.",
       email: "Email",
       role: "CMS role",
       manage: "Manage roles in accounts admin",
@@ -2297,7 +2297,7 @@ const ar: Strings = {
    },
    people: {
       title: "الأشخاص",
-      intro: "كل من دخل إلى نظام المحتوى. تأتي الأدوار من حسابات الأمة الآن: المشرف العام والمشرف يستطيعان كل شيء هنا، والمراقب يكتب وينشر لكن لا يحذف.",
+      intro: "كل من دخل إلى نظام المحتوى. تأتي الأدوار من حسابات الأمة الآن: المشرف العام والمشرف يستطيعان كل شيء هنا، ومحرر المحتوى والمراقب يستطيعان الكتابة والنشر دون الحذف.",
       email: "البريد الإلكتروني",
       role: "الدور في النظام",
       manage: "إدارة الأدوار في إدارة الحسابات",

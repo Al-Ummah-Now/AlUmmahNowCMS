@@ -2,7 +2,7 @@
  * The account menu's "Al Ummah Now apps" section: the same apps, order and labels in every app
  * (AlUmmahNow docs/design/NAV.md; packages/shared-types/src/app-links.ts there). The CMS knows its
  * own role, which maps from the auth roles (src/lib/roles.ts): admin = super_admin/admin, editor =
- * moderator, writer = scholar. The gates mirror each app's guard (the profile app's catalog).
+ * content_editor or moderator, writer = scholar. The gates mirror each app's guard (the profile app's catalog).
  */
 import type { BkndRole } from "./roles.ts";
 

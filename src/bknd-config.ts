@@ -19,7 +19,7 @@ const contentOnly = (permission: string) => ({
 
 /**
  * Roles (SPEC §3). The guest role is the default (`is_default`) and has no permissions at all.
- * `admin` is allowed everything. `editor` (auth "Moderator") may read/create/update content
+ * `admin` is allowed everything. `editor` (Auth "Content Editor" or "Moderator") may read/create/update content
  * entities and upload media; no deletes, no settings, no users.
  */
 export const roles = {
