@@ -73,7 +73,6 @@ describe("public API contract (www)", () => {
       await send("POST", "/api/data/entity/pages", { slug: "launch", locale: "en", title: "Launch", body: "x", status: "published", publish_at: tomorrow, show_in_sitemap: true });
 
       // Navigation, settings, curated videos (the picker endpoint), as the screens do.
-      await send("POST", "/api/data/entity/nav_items", { menu: "header", locale: "en", label: "Videos", url: "/videos", sort: 10, status: "published" });
       await send("POST", "/api/data/entity/nav_items", { menu: "footer", locale: "en", label: "Contact", url: "https://example.org/contact", sort: 10, status: "published" });
       await send("POST", "/api/data/entity/nav_items", { menu: "header", locale: "en", label: "Hidden link", url: "/x", sort: 20, status: "draft" });
       await send("POST", "/api/data/entity/site_settings", { locale: "en", site_title: "Al Ummah Now", tagline: "Tag", hero_title: "Hero", hero_body: "Body", social: [{ kind: "youtube", url: "https://youtube.com/@x" }] });
