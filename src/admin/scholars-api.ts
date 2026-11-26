@@ -2,7 +2,7 @@
  * Scholar profiles and featuring (docs/SCHOLARS.md). Staff session, same-origin (src/index.ts).
  *
  *   GET    /admin/api/scholars/me                 the writer's own profile + the channels they own
- *   PUT    /admin/api/scholars/me                 { name_en, name_ar, bio_en, bio_ar, slug, avatar_media_id, channel_ids, updated_at }
+ *   PUT    /admin/api/scholars/me                 { name_en, name_ar, bio_en, bio_ar, slug, avatar_media_id, channel_ids, primary_channel_id, updated_at }
  *   GET    /admin/api/scholars/:id                staff: a profile + its scholar's channels
  *   PUT    /admin/api/scholars/:id                staff: the same edit
  *   DELETE /admin/api/scholars/:id    { reason? } admin: soft delete (restorable for 30 days)
@@ -51,17 +51,18 @@ async function save(c: C, deps: Deps, scholar: Scholar) {
    const b = await body(c);
    if (!b) return c.json({ error: "bad_request" }, 400);
    try {
-      const owned = b.channel_ids !== undefined ? await channelsOf(c, deps, scholar.sso_sub) : [];
-      const fields = validateScholarInput(b, owned === null ? null : owned.map((ch) => ch.id));
+      const editsChannels = b.channel_ids !== undefined || b.primary_channel_id !== undefined;
+      const owned = editsChannels ? await channelsOf(c, deps, scholar.sso_sub) : [];
+      const fields = validateScholarInput(b, owned?.map((ch) => ch.id) ?? null, scholar.channel_ids);
       // The avatar must be an image in the library (picked or uploaded in the media dialog).
       if (typeof fields.avatar_media_id === "number") {
          const m = await c.env.DB.prepare("SELECT 1 AS x FROM media WHERE id = ?1 AND mime_type LIKE 'image/%'").bind(fields.avatar_media_id).first();
          if (!m) throw new ScholarError(400, "bad_avatar");
       }
       if (!Object.keys(fields).length) return c.json({ error: "nothing_to_change" }, 400);
-      const saved = await updateScholar(c.env.DB, scholar.id, fields, b.updated_at, c.get("user").email);
-      // A different first channel: every article moves its community post to the new channel.
-      if (fields.channel_ids !== undefined && saved.channel_ids[0] !== scholar.channel_ids[0]) await requeueScholarPosts(c.env, saved.sso_sub);
+      const expected = editsChannels && (typeof b.updated_at !== "string" || !b.updated_at) ? scholar.updated_at : b.updated_at;
+      const saved = await updateScholar(c.env.DB, scholar.id, fields, expected, c.get("user").email);
+      if (editsChannels && saved.primary_channel_id !== scholar.primary_channel_id) await requeueScholarPosts(c.env, saved.sso_sub);
       return c.json({ data: saved });
    } catch (error) {
       return fail(c, error);

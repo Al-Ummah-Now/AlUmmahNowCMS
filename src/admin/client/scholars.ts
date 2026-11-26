@@ -59,6 +59,25 @@ function initProfile(): void {
       remove.hidden = true;
       choose.focus();
    });
+   const channels = $<HTMLFieldSetElement>("[data-channels]", form);
+   const primaryChannels = $<HTMLFieldSetElement>("[data-primary-channels]", form);
+   const selectedChannels = () => $$<HTMLInputElement>("input[name=channel_ids]:checked:not([disabled])", form).map((x) => x.value);
+   channels?.addEventListener("change", () => {
+      if (!primaryChannels) return;
+      const selected = selectedChannels();
+      const radios = $$<HTMLInputElement>("input[name=primary_channel_id]", primaryChannels);
+      for (const radio of radios) {
+         radio.disabled = !selected.includes(radio.value);
+         radio.closest("label")!.hidden = radio.disabled;
+         if (radio.disabled) radio.checked = false;
+      }
+      if (!radios.some((radio) => radio.checked)) {
+         const first = radios.find((radio) => !radio.disabled);
+         if (first) first.checked = true;
+      }
+      primaryChannels.hidden = selected.length === 0;
+   });
+
    const slugErr = $<HTMLElement>("#sp-slug-err", form);
    form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -74,7 +93,10 @@ function initProfile(): void {
          updated_at: form.dataset.updated ?? "",
       };
       // Channels can only be changed while the videos API answers (the list is on the page).
-      if ($("[data-channels]", form)) body.channel_ids = $$<HTMLInputElement>("input[name=channel_ids]:checked", form).map((x) => x.value);
+      if (channels) {
+         body.channel_ids = selectedChannels();
+         body.primary_channel_id = $<HTMLInputElement>("input[name=primary_channel_id]:checked:not([disabled])", form)?.value ?? null;
+      }
       const submit = $<HTMLButtonElement>("button[type=submit]", form)!;
       submit.disabled = true;
       slugErr?.setAttribute("hidden", "");

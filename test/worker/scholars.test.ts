@@ -21,6 +21,7 @@ interface Videos {
    puts: { userId: string; externalId: string; body: Record<string, unknown> }[];
    deletes: { userId: string; externalId: string }[];
    down?: boolean;
+   videoChannelReads?: string[];
    /** Public profiles (`GET /api/profiles/:id`) by auth user id */
    profiles?: Record<string, Record<string, unknown>>;
 }
@@ -32,6 +33,11 @@ function videosApi(v: Videos): Upstream {
       if (prof) {
          const p = v.profiles?.[decodeURIComponent(prof[1])];
          return p ? Response.json({ success: true, result: { profile: p } }) : Response.json({ success: false }, { status: 404 });
+      }
+      const channel = /^\/api\/channels\/([^/]+)\/videos$/.exec(url.pathname);
+      if (channel) {
+         v.videoChannelReads?.push(channel[1]);
+         return Response.json({ data: [] });
       }
       if (!url.pathname.startsWith("/internal/")) return new Response("nf", { status: 404 });
       if ((init?.headers as Record<string, string> | undefined)?.["X-API-Key"] !== KEY) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -283,6 +289,28 @@ describe("community posts follow the article (legacy CMS scholar posts, until co
       expect(v.deletes).toHaveLength(2);
    });
 
+   it("requeues an existing article when its scholar chooses a different main channel", async () => {
+      const v = fresh();
+      v.channels["sch-move"] = [{ id: "ch-old", name: "Old" }, { id: "ch-main", name: "Main" }];
+      const w = client(v, await session(v, ["Scholar"], "sch-move"));
+      const staff = client(v, await session(v, ["Moderator"], "ed-move"));
+      const id = await legacyPost(staff.call, "sch-move", "scholar-primary-move");
+      await noteCommunityChange(E, [id]);
+      await syncCommunity(E, { fetch: fetchOf(v) });
+      expect(v.puts.map((p) => p.body.channelId)).toEqual(["ch-old"]);
+
+      const saved = await w.call("PUT", "/admin/api/scholars/me", { channel_ids: ["ch-old", "ch-main"], primary_channel_id: "ch-main" });
+      expect(saved.status).toBe(200);
+      expect(await saved.json()).toMatchObject({ data: { channel_ids: ["ch-main", "ch-old"], primary_channel_id: "ch-main" } });
+      expect(await env.DB.prepare("SELECT state FROM community_links WHERE post_id = ?1").bind(id).first()).toMatchObject({ state: "pending" });
+      await syncCommunity(E, { fetch: fetchOf(v) });
+      expect(v.puts.map((p) => p.body.channelId)).toEqual(["ch-old", "ch-main"]);
+      expect(v.puts[1].externalId).toBe(v.puts[0].externalId);
+
+      const write = await w.call("GET", "/write?lang=en");
+      expect(await write.text()).toContain("https://videos.test/en/settings/channel/ch-main/community/new");
+   });
+
    it("a draft never posts; a failure backs off and is retried; no channel waits; a reference is never synced", async () => {
       const v = fresh();
       v.channels["sch-retry"] = [{ id: "ch-r", name: "R" }];
@@ -370,6 +398,55 @@ describe("Overview community sync failures", () => {
 });
 
 describe("profiles", () => {
+   it("lets staff choose the scholar's main channel and validates ownership and selection", async () => {
+      const v = fresh();
+      v.channels["sch-primary"] = [
+         { id: "ch-first", name: "First" },
+         { id: "ch-main", name: "Main" },
+         { id: "ch-other", name: "Other" },
+      ];
+      const w = client(v, await session(v, ["Scholar"], "sch-primary"));
+      v.channels["sch-primary"].push({ id: "ch-unlinked", name: "Unlinked" });
+      const profile = (await (await w.call("GET", "/admin/api/scholars/me")).json()) as { data: { id: number; slug: string } };
+      const staff = client(v, await session(v, ["Moderator"], "ed-primary"));
+      const endpoint = `/admin/api/scholars/${profile.data.id}`;
+
+      const unowned = await staff.call("PUT", endpoint, { primary_channel_id: "ch-unowned" });
+      expect(unowned.status).toBe(403);
+      expect(await unowned.json()).toEqual({ error: "not_your_channel" });
+      const unlinked = await staff.call("PUT", endpoint, { primary_channel_id: "ch-unlinked" });
+      expect(unlinked.status).toBe(400);
+      expect(await unlinked.json()).toEqual({ error: "bad_primary_channel" });
+
+      const saved = await staff.call("PUT", endpoint, { primary_channel_id: "ch-main" });
+      expect(saved.status).toBe(200);
+      expect(await saved.json()).toMatchObject({ data: { channel_ids: ["ch-main", "ch-first", "ch-other"], primary_channel_id: "ch-main" } });
+      const pub = makeWorker();
+      const publicProfile = await pub(`/api/public/v1/scholars/${profile.data.slug}?locale=en`);
+      expect(await publicProfile.json()).toMatchObject({ scholar: { channel_ids: ["ch-main", "ch-first", "ch-other"], primary_channel_id: "ch-main" } });
+
+      v.videoChannelReads = [];
+      expect((await staff.call("GET", "/featuring?tab=videos")).status).toBe(200);
+      expect(v.videoChannelReads).toContain("ch-main");
+      expect(v.videoChannelReads).not.toContain("ch-first");
+
+      for (const [lang, dir, label] of [["en", "ltr", "Main channel"], ["ar", "rtl", "القناة الرئيسية"]] as const) {
+         const res = await staff.call("GET", `/scholars/${profile.data.id}?lang=${lang}`);
+         expect(res.status).toBe(200);
+         const html = await res.text();
+         expect(html).toContain(`<html lang="${lang}" dir="${dir}"`);
+         expect(html).toContain(`>${label}</legend>`);
+         expect(html).toContain('type="radio" name="primary_channel_id" value="ch-main" checked');
+      }
+
+      const fallback = await w.call("PUT", "/admin/api/scholars/me", { channel_ids: ["ch-first", "ch-other"] });
+      expect(fallback.status).toBe(200);
+      expect(await fallback.json()).toMatchObject({ data: { channel_ids: ["ch-first", "ch-other"], primary_channel_id: "ch-first" } });
+      const cleared = await w.call("PUT", "/admin/api/scholars/me", { channel_ids: [] });
+      expect(cleared.status).toBe(200);
+      expect(await cleared.json()).toMatchObject({ data: { channel_ids: [], primary_channel_id: null } });
+   });
+
    it("a scholar edits their profile; channels must be their own; slugs are unique", async () => {
       const v = fresh();
       v.channels["sch-prof"] = [

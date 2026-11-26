@@ -233,6 +233,7 @@ export interface ScholarInput {
    bio_ar?: unknown;
    avatar_media_id?: unknown;
    channel_ids?: unknown;
+   primary_channel_id?: unknown;
    updated_at?: unknown;
 }
 
@@ -249,7 +250,7 @@ const clean = (v: unknown, max: number, field: string): string | null => {
  * its ownership index): a profile can only link channels its scholar owns, so nobody can claim
  * someone else's channel. Pure; unit-tested.
  */
-export function validateScholarInput(input: ScholarInput, allowedChannels: string[] | null): Record<string, unknown> {
+export function validateScholarInput(input: ScholarInput, allowedChannels: string[] | null, currentChannels: string[] = []): Record<string, unknown> {
    const out: Record<string, unknown> = {};
    if (input.slug !== undefined) {
       if (typeof input.slug !== "string" || !SLUG_RE.test(input.slug) || input.slug.length > SLUG_MAX || RESERVED.has(input.slug)) throw new ScholarError(400, "bad_slug");
@@ -265,15 +266,19 @@ export function validateScholarInput(input: ScholarInput, allowedChannels: strin
       else if (Number.isSafeInteger(Number(v)) && Number(v) > 0) out.avatar_media_id = Number(v);
       else throw new ScholarError(400, "bad_avatar");
    }
-   if (input.channel_ids !== undefined) {
-      const ids = input.channel_ids;
+   if (input.channel_ids !== undefined || input.primary_channel_id !== undefined) {
+      const ids = input.channel_ids === undefined ? currentChannels : input.channel_ids;
       if (!Array.isArray(ids) || ids.length > CHANNELS_MAX || ids.some((x) => typeof x !== "string" || !CHANNEL_ID_RE.test(x))) throw new ScholarError(400, "bad_channels");
       const unique = [...new Set(ids as string[])];
+      const requested = input.primary_channel_id ?? unique[0];
+      if (requested !== undefined && (typeof requested !== "string" || !CHANNEL_ID_RE.test(requested))) throw new ScholarError(400, "bad_primary_channel");
       if (allowedChannels === null) throw new ScholarError(409, "channels_unavailable");
-      if (unique.some((x) => !allowedChannels.includes(x))) throw new ScholarError(403, "not_your_channel");
-      out.channel_ids = JSON.stringify(unique);
-      // The first linked channel is the primary one: its community posts are the scholar's posts (§7).
-      out.primary_channel_id = unique[0] ?? null;
+      if (unique.some((x) => !allowedChannels.includes(x)) || (requested !== undefined && !allowedChannels.includes(requested))) throw new ScholarError(403, "not_your_channel");
+      if (requested !== undefined && !unique.includes(requested)) throw new ScholarError(400, "bad_primary_channel");
+
+      // Keep the main channel first for readers that still use channel_ids[0].
+      out.channel_ids = JSON.stringify(requested === undefined ? [] : [requested, ...unique.filter((id) => id !== requested)]);
+      out.primary_channel_id = requested ?? null;
    }
    return out;
 }

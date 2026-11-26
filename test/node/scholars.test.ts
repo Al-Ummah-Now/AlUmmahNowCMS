@@ -72,6 +72,30 @@ describe("profiles", () => {
       expect(() => validateScholarInput({ name_en: "x".repeat(121) }, [])).toThrow("too_long_name");
       expect(() => validateScholarInput({ avatar_media_id: "abc" }, [])).toThrow("bad_avatar");
    });
+
+   it("puts the chosen primary first and preserves the order of the other linked channels", () => {
+      const owned = ["c1", "c2", "c3"];
+      const expected = { channel_ids: '["c3","c1","c2"]', primary_channel_id: "c3" };
+      expect(validateScholarInput({ channel_ids: ["c1", "c2", "c3", "c3"], primary_channel_id: "c3" }, owned)).toEqual(expected);
+      expect(validateScholarInput({ primary_channel_id: "c3" }, owned, ["c1", "c2", "c3"])).toEqual(expected);
+   });
+
+   it("rejects malformed, unlinked and unowned primary channels", () => {
+      const selected = { channel_ids: ["c1"] };
+      expect(() => validateScholarInput({ ...selected, primary_channel_id: 2 }, ["c1"])).toThrow("bad_primary_channel");
+      expect(() => validateScholarInput({ ...selected, primary_channel_id: "c2" }, ["c1", "c2"])).toThrow("bad_primary_channel");
+      expect(() => validateScholarInput({ ...selected, primary_channel_id: "c2" }, ["c1"])).toThrow("not_your_channel");
+      expect(() => validateScholarInput({ primary_channel_id: "c1" }, null, ["c1"])).toThrow("channels_unavailable");
+   });
+
+   it("defaults to the first submitted channel when no main channel is specified and clears an empty list", () => {
+      const owned = ["c1", "c2", "old-main"];
+      expect(validateScholarInput({ channel_ids: ["c2", "c1"] }, owned, ["old-main", "c2", "c1"])).toEqual({
+         channel_ids: '["c2","c1"]',
+         primary_channel_id: "c2",
+      });
+      expect(validateScholarInput({ channel_ids: [], primary_channel_id: null }, owned, ["old-main"])).toEqual({ channel_ids: "[]", primary_channel_id: null });
+   });
 });
 
 describe("community sync", () => {
