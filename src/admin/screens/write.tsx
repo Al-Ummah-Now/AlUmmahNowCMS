@@ -10,8 +10,7 @@ import { scholarOfSub } from "../../lib/scholars/profiles.ts";
 export async function writeScreen(v: View, db: D1Database) {
    const tw = v.t.write;
    const scholar = await scholarOfSub(db, v.user.sub ?? null);
-   const stored = scholar ? await db.prepare("SELECT primary_channel_id FROM scholars WHERE id = ?1").bind(scholar.id).first<{ primary_channel_id: string | null }>() : null;
-   const primary = stored?.primary_channel_id ?? scholar?.channel_ids[0] ?? null;
+   const primary = scholar?.primary_channel_id ?? null;
    const videos = trimSlash(v.videosWebUrl ?? "");
    const lang = v.prefs.lang;
    const studio = primary ? `${videos}/${lang}/settings/channel/${encodeURIComponent(primary)}/community` : `${videos}/${lang}/studio`;

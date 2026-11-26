@@ -152,7 +152,7 @@ async function syncOne(env: Env, link: Row, fetchImpl: typeof fetch): Promise<"s
    }
    if (link.want === "show" && row && Number(row.live) === 1 && sub) {
       const scholar = await scholarOfSub(env.DB, sub);
-      const channelId = scholar?.channel_ids[0] ?? null;
+      const channelId = scholar?.primary_channel_id ?? null;
       if (!channelId) {
          // No channel linked yet: nothing to post. Linking one requeues every post (requeueScholarPosts).
          await done(env, link, { state: "no_channel", last_error: "no_channel" });

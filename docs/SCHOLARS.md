@@ -70,13 +70,16 @@ language), with `author: { slug, name, avatar }` added. Staff posts keep the fre
 - **Edited** by the scholar (`/scholars/me`) and by admins and editors (`/scholars/:id`), with an
   optimistic lock on `updated_at`. An empty name field shows the account's name (display name, else first +
   last) as its placeholder and hint. Channels are checkboxes of the channels the scholar owns (asked from
-  api-videos every time); a channel id that isn't theirs is refused (`not_your_channel`). No raw ids.
+  api-videos every time); a channel id that isn't theirs is refused (`not_your_channel`). The **Main
+  channel** radio group uses the checked channels. Unchecking the main channel selects the first
+  remaining one. Both profile PUT routes accept `primary_channel_id` from the linked channels.
+  Omitting it on a channel-list edit defaults to the first submitted channel. An empty list clears it.
 - **Deleted** by an admin: a soft delete into the trash (kind `scholars`), restorable for 30 days. The
   page leaves www; the posts stay published (without a byline link).
 
 ## 4. Community posts
 
-Publishing also posts the article to the scholar's **first linked channel**'s Community tab:
+Publishing also posts the article to the scholar's **main channel**'s Community tab:
 title, excerpt (or the start of the body), cover and the www link (`src/lib/scholars/community.ts`).
 
 - Every post change (save, publish, unpublish, schedule, delete, restore, a scheduled post going live)
@@ -111,7 +114,7 @@ itself, the scholar page, search, the sitemap or picked-post blocks.
   `POST /admin/api/featuring/posts/:id { on }` sets `featured_at`/`featured_by` on the post **and its
   translations by the same scholar**, turns "Show on home timeline" back on, clears a pin on unfeature,
   marks the feed dirty and logs `feature` / `unfeature` in `timeline_changes` (who, when).
-- **Feature a video**: Scholar videos tab (each scholar's first channel, latest public videos) or
+- **Feature a video**: Scholar videos tab (each scholar's main channel, latest public videos) or
   "Search all videos" (the picker), both the timeline's own `POST /admin/api/timeline/videos`; unfeature =
   `DELETE /admin/api/timeline/entries/:key` (soft, restorable), confirmed in an in-page dialog.
 - After this ships, the KV feed's post summaries carry `author`: run "Rebuild everything" on the
@@ -142,8 +145,9 @@ channel's community posts; www holds hidden references), SS8 (no opt-out: editor
 feature). SS18 (scholars write only in Studio) and SS14 (keep GIF, add Link) follow the spec's
 recommendations and still await the owner's explicit confirmation.
 
-- **Primary channel:** `scholars.primary_channel_id` (migration 0019), the first linked channel. Saving
-  the profile's channels sets it; the 30-minute cron fills it where missing.
+- **Primary channel:** `scholars.primary_channel_id` (migration 0019) stores the main channel.
+  Profile saves also put its ID first in `channel_ids` for existing readers. The 30-minute cron uses
+  the first linked channel to fill missing values.
 - **One format:** `src/lib/post-schema.generated.ts`, vendored from AlUmmahNow
   `packages/shared-types/src/post-schema.ts` (`npm run sync:posts -- --ref <sha>`, `check:posts` in CI).
 - **References:** rows in `posts` with `ref_post_id` (unique), `ref_channel_id`, `summary_json`

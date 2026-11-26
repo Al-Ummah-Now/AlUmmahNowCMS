@@ -8,7 +8,7 @@ import { trimSlash, type Env } from "../../env.ts";
 import { stableImageUrl } from "../../lib/stable-thumb.ts";
 import { mediaUrl } from "../../lib/media-ref.ts";
 import { articleCandidates, featuredVideoKeys } from "../../lib/scholars/featuring.ts";
-import { BIO_MAX, listScholars, NAME_MAX, scholarName, SLUG_MAX, type Scholar } from "../../lib/scholars/profiles.ts";
+import { BIO_MAX, listScholars, NAME_MAX, primaryChannelOf, scholarName, SLUG_MAX, type Scholar } from "../../lib/scholars/profiles.ts";
 import type { OwnedChannel } from "../../lib/scholars/videos-internal.ts";
 import { channelVideos, type ItemDetail } from "../../lib/videos.ts";
 import { errText, log } from "../../lib/log.ts";
@@ -58,8 +58,11 @@ export function profileScreen(
    const tt = t.scholars;
    const own = isWriter(v);
    const avatar = o.avatarPath ? mediaUrl(o.publicUrl, o.avatarPath) : null;
-   const linked = new Set(s.channel_ids);
-   // Channels linked earlier that the videos API no longer lists as theirs stay visible (unchecked on save).
+   const owned = o.channels ?? [];
+   const ownedIds = new Set(owned.map((ch) => ch.id));
+   const linked = new Set(s.channel_ids.filter((id) => ownedIds.has(id)));
+   const storedPrimary = s.primary_channel_id;
+   const primary = storedPrimary && linked.has(storedPrimary) ? storedPrimary : owned.find((ch) => linked.has(ch.id))?.id;
    // An empty name field shows the account's name (display name, else first + last) as its hint.
    const hintEn = !s.name_en?.trim() ? (o.accountNames?.en ?? "") : "";
    const hintAr = !s.name_ar?.trim() ? (o.accountNames?.ar ?? "") : "";
@@ -67,7 +70,8 @@ export function profileScreen(
       const h = l === "en" ? hintEn : hintAr;
       return h ? { placeholder: h, "aria-describedby": `sp-name-${l}-hint` } : {};
    };
-   const channels: OwnedChannel[] = o.channels ? [...o.channels, ...s.channel_ids.filter((id) => !o.channels!.some((c) => c.id === id)).map((id) => ({ id, name: tt.channelGone, handle: null, avatarUrl: null, isPublic: false }))] : [];
+   // Channels that are no longer owned stay visible so the scholar can see why they were unchecked.
+   const channels = [...owned, ...s.channel_ids.filter((id) => !ownedIds.has(id)).map((id) => ({ id, name: tt.channelGone, handle: null }))];
    return (
       <>
          <PageHead title={own ? tt.myProfile : scholarName(s, v.prefs.lang)} intro={own ? tt.myProfileIntro : tt.profileIntro} back={own ? undefined : { href: "/scholars", label: tt.title }}>
@@ -146,20 +150,29 @@ export function profileScreen(
                      {tt.channelsUnavailable}
                   </p>
                ) : channels.length ? (
-                  <fieldset class="stack" style="border:0;padding:0;margin:0" aria-describedby="sp-ch-help" data-channels>
-                     <legend class="vh">{tt.channels}</legend>
-                     {channels.map((ch) => (
-                        <label class="switch">
-                           <input type="checkbox" name="channel_ids" value={ch.id} checked={linked.has(ch.id)} />
-                           <span dir="auto">{ch.name}</span>
-                           {ch.handle ? (
-                              <span class="muted" dir="ltr">
-                                 @{ch.handle}
-                              </span>
-                           ) : null}
-                        </label>
-                     ))}
-                  </fieldset>
+                  <>
+                     <fieldset class="stack" style="border:0;padding:0;margin:0" aria-describedby="sp-ch-help" data-channels>
+                        <legend class="vh">{tt.channels}</legend>
+                        {channels.map((ch) => (
+                           <label class="switch">
+                              <input type="checkbox" name="channel_ids" value={ch.id} checked={linked.has(ch.id)} disabled={!ownedIds.has(ch.id)} />
+                              <span dir="auto">{ch.name}</span>
+                              {ch.handle ? <span class="muted" dir="ltr">@{ch.handle}</span> : null}
+                           </label>
+                        ))}
+                     </fieldset>
+                     <fieldset style="border:0;padding:0;margin:0;min-inline-size:0" aria-describedby="sp-primary-help" data-primary-channels hidden={!primary}>
+                        <legend style="padding-inline:0;font-weight:600">{tt.primaryChannel}</legend>
+                        <p class="help" id="sp-primary-help">{tt.primaryChannelHelp}</p>
+                        {owned.map((ch) => (
+                           <label class="check" hidden={!linked.has(ch.id)}>
+                              <input type="radio" name="primary_channel_id" value={ch.id} checked={ch.id === primary} disabled={!linked.has(ch.id)} />
+                              <span dir="auto">{ch.name}</span>
+                              {ch.handle ? <span class="muted" dir="ltr">@{ch.handle}</span> : null}
+                           </label>
+                        ))}
+                     </fieldset>
+                  </>
                ) : (
                   <p class="help">{tt.noChannels}</p>
                )}
@@ -418,7 +431,10 @@ export async function featuringScreen(v: View, env: Env, p: FeaturingParams, vid
       .bind(VIDEO_SCHOLARS + 1, (p.page - 1) * VIDEO_SCHOLARS)
       .all<Row>();
    const more = results.length > VIDEO_SCHOLARS;
-   const scholars = results.slice(0, VIDEO_SCHOLARS).map((r) => ({ id: Number(r.id), slug: String(r.slug), name_en: (r.name_en as string | null) ?? null, name_ar: (r.name_ar as string | null) ?? null, channel: (JSON.parse(String(r.channel_ids)) as string[])[0] }));
+   const scholars = results.slice(0, VIDEO_SCHOLARS).flatMap((r) => {
+      const channel = primaryChannelOf(r);
+      return channel ? [{ id: Number(r.id), slug: String(r.slug), name_en: (r.name_en as string | null) ?? null, name_ar: (r.name_ar as string | null) ?? null, channel }] : [];
+   });
    const lists = await Promise.all(
       scholars.map(async (s) => {
          try {
