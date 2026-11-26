@@ -24,17 +24,18 @@ update "nav_items" as s set "sort" = 4
     );
 
 -- Insert all defaults together so each sees the same header state.
+with "defaults" ("locale", "label", "url", "sort") as (
+  values ('en', 'Articles', '/articles/', 1),
+         ('en', 'Videos', '/videos/', 2),
+         ('en', 'About', '/about/', 3),
+         ('ar', 'المقالات', '/articles/', 1),
+         ('ar', 'المرئيات', '/videos/', 2),
+         ('ar', 'من نحن', '/about/', 3)
+)
 insert into "nav_items" ("menu", "locale", "label", "url", "sort", "status", "created_at", "updated_at")
   select 'header', s."locale", s."label", s."url", s."sort", 'published',
          strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-  from (
-    select 'en' as "locale", 'Articles' as "label", '/articles/' as "url", 1 as "sort"
-    union all select 'en', 'Videos', '/videos/', 2
-    union all select 'en', 'About', '/about/', 3
-    union all select 'ar', 'المقالات', '/articles/', 1
-    union all select 'ar', 'المرئيات', '/videos/', 2
-    union all select 'ar', 'من نحن', '/about/', 3
-  ) s
+  from "defaults" s
   where exists (
     select 1 from "nav_items" sc join "nav_items_backup_0025" b on b."id" = sc."id"
     where sc."menu" = 'header' and sc."locale" = s."locale" and sc."sort" = 4
