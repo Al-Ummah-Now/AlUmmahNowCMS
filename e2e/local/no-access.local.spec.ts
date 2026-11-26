@@ -67,7 +67,9 @@ for (const lang of ["en", "ar"] as const) {
          const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundImage + "|" + getComputedStyle(document.body).backgroundColor);
          expect(bg).not.toBe("none|rgba(0, 0, 0, 0)");
          await expect(page.locator(".gate-lead")).toContainText(tester.email);
-         await expect(card).toContainText(lang === "ar" ? "المشرف العام والمشرف والمراقب والكاتب والعالِم" : "Super Admin, Admin, Moderator, Writer and Scholar");
+         await expect(card).toContainText(lang === "ar"
+            ? "المشرف العام والمشرف ومحرر المحتوى والمراقب والكاتب والعالِم"
+            : "Super Admin, Admin, Content Editor, Moderator, Writer and Scholar");
          const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
          expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
          const size = await page.evaluate(() => document.documentElement.scrollHeight);
