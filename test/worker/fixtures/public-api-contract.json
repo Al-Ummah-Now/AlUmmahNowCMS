@@ -63,31 +63,7 @@
                }
             ]
          },
-         "videos": [
-            {
-               "id": "<id>",
-               "kind": "video",
-               "ref_id": "vid-1",
-               "title_override": "Featured talk",
-               "snapshot": {
-                  "title": "Talk one",
-                  "thumbnail_url": "https://cdn.test/1.jpg",
-                  "channel_name": "Channel",
-                  "refreshed_at": "<iso-date>",
-                  "handle": null,
-                  "description": null,
-                  "titles": {},
-                  "descriptions": {},
-                  "duration_seconds": null,
-                  "upload_date": null,
-                  "video_count": null,
-                  "width": null,
-                  "height": null,
-                  "channel_names": {}
-               },
-               "sort": 10
-            }
-         ],
+         "videos": [],
          "posts": [
             {
                "slug": "second",
@@ -362,31 +338,7 @@
       "cache": "public, s-maxage=60, stale-while-revalidate=600",
       "etag": true,
       "body": {
-         "items": [
-            {
-               "id": "<id>",
-               "kind": "playlist",
-               "ref_id": "pl-1",
-               "title_override": null,
-               "snapshot": {
-                  "title": "Series",
-                  "thumbnail_url": null,
-                  "channel_name": "Channel",
-                  "refreshed_at": "<iso-date>",
-                  "handle": null,
-                  "description": null,
-                  "titles": {},
-                  "descriptions": {},
-                  "duration_seconds": null,
-                  "upload_date": null,
-                  "video_count": null,
-                  "width": null,
-                  "height": null,
-                  "channel_names": {}
-               },
-               "sort": 10
-            }
-         ]
+         "items": []
       }
    },
    "/api/public/v1/videos?locale=ar&placement=home": {
@@ -394,31 +346,7 @@
       "cache": "public, s-maxage=60, stale-while-revalidate=600",
       "etag": true,
       "body": {
-         "items": [
-            {
-               "id": "<id>",
-               "kind": "video",
-               "ref_id": "vid-1",
-               "title_override": "Featured talk",
-               "snapshot": {
-                  "title": "Talk one",
-                  "thumbnail_url": "https://cdn.test/1.jpg",
-                  "channel_name": "Channel",
-                  "refreshed_at": "<iso-date>",
-                  "handle": null,
-                  "description": null,
-                  "titles": {},
-                  "descriptions": {},
-                  "duration_seconds": null,
-                  "upload_date": null,
-                  "video_count": null,
-                  "width": null,
-                  "height": null,
-                  "channel_names": {}
-               },
-               "sort": 10
-            }
-         ]
+         "items": []
       }
    },
    "/api/public/v1/sitemap": {

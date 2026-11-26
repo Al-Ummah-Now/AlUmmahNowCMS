@@ -150,11 +150,11 @@ service binding; CORS is for the client-side language switcher and future island
 | GET | Returns |
 |---|---|
 | `/site?locale=` | settings + `nav: { header[], footer[] }` |
-| `/home?locale=` | settings hero, `videos` (placement home), `posts` (latest 3) |
+| `/home?locale=` | settings hero, `videos: []` (legacy), `posts` (latest 3) |
 | `/pages/:slug?locale=` | a page + `alternates: [{ locale, slug }]` + `blocks` (resolved) |
 | `/posts?locale=&page=&limit=` (≤ 20) | `{ items, page, total }` |
 | `/posts/:slug?locale=` | a post + alternates |
-| `/videos?locale=&placement=` | curated items |
+| `/videos?locale=&placement=` | `{ items: [] }` (legacy) |
 | `/cards?locale=&tag=&page=&limit=` (≤ 24) | card posts `{ items, page, total, tags }` |
 | `/sitemap` | `[{ type, locale, slug, updated_at }]` |
 | `/media/:path` | the R2 object, `Cache-Control: public, max-age=31536000, immutable` (media paths are content-addressed) |

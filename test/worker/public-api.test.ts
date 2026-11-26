@@ -44,11 +44,11 @@ beforeAll(async () => {
       ),
       db.prepare(
          `INSERT INTO curated_videos (id, kind, ref_id, placement, locale, title_override, sort, status, snapshot) VALUES
-          (1, 'video', 'v1', 'home', 'all', NULL, 2, 'published', '{"title":"V1","thumbnail_url":"https://cdn/t.jpg","channel_name":"C"}'),
+          (1, 'video', 'v1', 'home', 'all', 'English legacy title', 2, 'published', '{"title":"V1","thumbnail_url":"https://cdn/t.jpg","channel_name":"C"}'),
           (2, 'playlist', 'p1', 'home', 'en', 'Override', 1, 'published', NULL),
           (3, 'video', 'v-ar', 'home', 'ar', NULL, 0, 'published', NULL),
           (4, 'video', 'v-draft', 'home', 'all', '${DRAFT}', 0, 'draft', NULL),
-          (5, 'channel', 'c1', 'videos', 'all', NULL, 0, 'published', NULL)`,
+          (5, 'channel', 'c1', 'videos', 'all', 'عنوان قديم', 0, 'published', NULL)`,
       ),
       db.prepare(
          `INSERT INTO media (path, mime_type, size, reference, entity_id, scope, metadata) VALUES
@@ -109,12 +109,16 @@ describe("public API: shapes (docs/PUBLIC_API.md)", () => {
       const body = await (await api("/site?locale=ar")).json();
       expect(body).toEqual({ settings: null, nav: { header: [], footer: [] } });
    });
-   it("/home: home placement, locale or all, by sort; latest 3 posts", async () => {
-      const body = (await (await api("/home?locale=en")).json()) as { videos: { ref_id: string; title_override: string | null; snapshot: unknown }[]; posts: { slug: string }[] };
-      expect(body.videos.map((v) => v.ref_id)).toEqual(["p1", "v1"]);
-      expect(body.videos[0]).toEqual({ id: 2, kind: "playlist", ref_id: "p1", title_override: "Override", snapshot: null, sort: 1 });
-      expect(body.videos[1].snapshot).toEqual({ title: "V1", thumbnail_url: "https://cdn/t.jpg", channel_name: "C" });
-      expect(body.posts.map((p) => p.slug)).toEqual(["p4", "p3", "p2"]);
+   it.each([
+      ["en", ["p4", "p3", "p2"]],
+      ["ar", ["p1-ar"]],
+   ] as const)("/home in %s serves settings and posts with an empty legacy videos array", async (locale, slugs) => {
+      const res = await api(`/home?locale=${locale}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { settings: unknown; videos: unknown[]; posts: { slug: string }[] };
+      expect(body.videos).toEqual([]);
+      expect(body.settings).toEqual(locale === "en" ? expect.objectContaining({ hero_title: "Hero" }) : null);
+      expect(body.posts.map((p) => p.slug)).toEqual(slugs);
    });
    it("/pages/:slug with published alternates only", async () => {
       const body = await (await api("/pages/about?locale=en")).json();
@@ -155,9 +159,12 @@ describe("public API: shapes (docs/PUBLIC_API.md)", () => {
          alternates: [{ locale: "ar", slug: "p1-ar" }],
       });
    });
-   it("/videos defaults to the videos placement", async () => {
-      const body = (await (await api("/videos?locale=en")).json()) as { items: { ref_id: string }[] };
-      expect(body.items.map((v) => v.ref_id)).toEqual(["c1"]);
+   it.each(["en", "ar"])("/videos in %s serves no legacy rows for any placement", async (locale) => {
+      for (const placement of ["", "&placement=home", "&placement=videos"]) {
+         const res = await api(`/videos?locale=${locale}${placement}`);
+         expect(res.status).toBe(200);
+         expect(await res.json()).toEqual({ items: [] });
+      }
    });
    it("/sitemap lists published pages (show_in_sitemap) and posts", async () => {
       const body = (await (await api("/sitemap")).json()) as { items: { type: string; locale: string; slug: string }[] };

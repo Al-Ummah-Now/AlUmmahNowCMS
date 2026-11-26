@@ -70,19 +70,7 @@ interface Post extends PostSummary {
   slides?: Slide[];             // added; cards: every served slide ([] for articles). body is the slides' text as markdown.
 }
 
-interface CuratedVideo {
-  id: number;
-  kind: 'video' | 'playlist' | 'channel';
-  ref_id: string;               // videos-platform id
-  title_override: string | null;
-  snapshot: CuratedSnapshot | null;
-  sort: number;
-}
-
-// Taken by the picker and refreshed by the CMS every 30 minutes (src/lib/snapshots.ts), so www can
-// render a curated item without calling the videos API. Fields after channel_name are present only
-// once a row has been refreshed (refreshed_at set). Rows the refresh finds no longer public are
-// not served at all.
+// Snapshots are taken by the picker and refreshed by the CMS.
 // thumbnail_url (and a channel's latest[].thumbnail_url) never expires: a signed videos-platform
 // URL is served as the videos web app's `<VIDEOS_WEB_URL>/thumb/<videoId>.jpg` (src/lib/stable-thumb.ts),
 // or null when no video id can be told. Unsigned images (custom thumbnails, avatars) are served as-is.
@@ -99,11 +87,11 @@ interface CuratedSnapshot {
 | GET | Query | Response |
 |---|---|---|
 | `/site` | `locale` | `{ settings: SiteSettings \| null, nav: { header: NavItem[], footer: NavItem[] } }` |
-| `/home` | `locale` | `{ settings: SiteSettings \| null, videos: CuratedVideo[], posts: PostSummary[] }` (videos: placement `home`, locale = l or `all`, by sort, at most 48; posts: latest 3) |
+| `/home` | `locale` | `{ settings: SiteSettings \| null, videos: [], posts: PostSummary[] }` (legacy videos array; posts: latest 3) |
 | `/pages/:slug` | `locale` | `Page` or 404 |
 | `/posts` | `locale`, `page` (1-based, default 1), `limit` (1–20, default 10) | `{ items: PostSummary[], page: number, limit: number, total: number }` newest first |
 | `/posts/:slug` | `locale` | `Post` or 404 |
-| `/videos` | `locale`, `placement` (`home` \| `videos`, default `videos`) | `{ items: CuratedVideo[] }` (by sort, at most 48) |
+| `/videos` | `locale`, `placement` (`home` \| `videos`, default `videos`) | `{ items: [] }` (legacy videos array) |
 | `/cards` | `locale`, `tag` (optional), `page` (1-based, default 1), `limit` (1–24, default 12) | `{ items: PostSummary[], page: number, limit: number, total: number, tags: string[] }` card posts only, newest first; `tags` = every tag on this locale's live card posts (for the filter) |
 | `/timeline` | `locale`, `limit` (1–40, default 20), `before` (cursor from `next`) | `{ pinned: TimelineItem[], items: TimelineItem[], next: string \| null }`: the home timeline (see "Timeline"); `pinned` only on the first page; bad `before` → 400 |
 | `/search/suggest` | `locale` (or `lang`), `q`, `limit` (1–10, default 6) | `SearchHit[]`: the best few live posts for `q` (see "Search"); empty `q` → `[]` |

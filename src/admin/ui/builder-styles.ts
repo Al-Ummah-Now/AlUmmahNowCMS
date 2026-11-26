@@ -123,11 +123,12 @@ html.bld-lock,html.bld-lock body{overflow:hidden}
 .bld-open>.bld-head{gap:10px 16px;padding:10px 16px;background:var(--m-header,var(--fanous-color-surface));box-shadow:var(--m-header-edge,0 1px 0 var(--fanous-c-divider-line));position:relative;z-index:2}
 .bld-open .bld-intro,.bld-open .bld-open-row{display:none}
 .bld-open .bld-title{flex:none;min-width:0}
-.bld-open .bld-title h2{font-size:17px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.bld-open .bld-title h2{color:var(--fanous-c-nav-text);font-size:17px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.bld-open .bld-title .badge.loc{color:var(--fanous-c-nav-text);background:var(--fanous-c-nav-search-bg);box-shadow:inset 0 0 0 1px var(--fanous-c-nav-search-border)}
 .bld-open .bld-bar{display:flex;flex:1;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
 .bld-bar .seg button{min-height:32px;padding:0 12px;font-size:13px}
 .bld-sp{flex:1}
-.bld-theme{display:inline-flex;align-items:center;gap:6px;color:var(--fanous-color-text-secondary)}
+.bld-theme{display:inline-flex;align-items:center;gap:6px;color:var(--fanous-c-nav-icon)}
 .bld-theme select{min-height:36px;padding-block:0;width:auto}
 .bld-open .bld-main{display:grid;grid-template-columns:minmax(340px,440px) minmax(0,1fr);min-height:0}
 .bld-open .bld-edit{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 16px 40px;background:color-mix(in srgb,var(--fanous-color-surface) 55%,var(--fanous-color-background));box-shadow:inset -1px 0 0 var(--fanous-c-divider-line)}
