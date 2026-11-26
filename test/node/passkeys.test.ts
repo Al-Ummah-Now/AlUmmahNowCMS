@@ -12,11 +12,11 @@ import {
 const NOW = 1_800_000_000;
 
 describe("isAuthStaff", () => {
-   it.each([["Super Admin"], ["Admin"], ["Moderator"], ["Writer"], ["Content Reviewer"], ["Senior Reviewer"], ["  senior-reviewer "]])("%s is staff", (role) =>
+   it.each([["Super Admin"], ["Admin"], ["Content Editor"], ["content_editor"], ["Moderator"], ["Writer"], ["Content Reviewer"], ["Senior Reviewer"], ["  senior-reviewer "]])("%s is staff", (role) =>
       expect(isAuthStaff([role])).toBe(true),
    );
    it("Scholar, Member, unknown and malformed roles are not staff", () => {
-      expect(isAuthStaff(["Scholar", "Member", "Content Editor"])).toBe(false);
+      expect(isAuthStaff(["Scholar", "Member"])).toBe(false);
       expect(isAuthStaff([7, null])).toBe(false);
       expect(isAuthStaff([])).toBe(false);
       expect(isAuthStaff(undefined)).toBe(false);

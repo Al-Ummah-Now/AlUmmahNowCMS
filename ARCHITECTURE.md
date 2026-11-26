@@ -94,7 +94,7 @@ browser (staff) ──► cms.alummahnow.net  (Worker al-ummah-now-cms)
 
 `src/lib/passkeys.ts` applies the consumer rule at `/sso/callback`. Auth's access token carries
 `amr` (top level), `auth_time` and, for staff while enforcement is on, `properties.passkey_deadline`
-(epoch seconds). Staff = any Auth role Super Admin, Admin, Moderator, Writer, Content Reviewer or
+(epoch seconds). Staff = any Auth role Super Admin, Admin, Content Editor, Moderator, Writer, Content Reviewer or
 Senior Reviewer (Scholar and Member are not staff). For staff with a deadline whose `amr` lacks
 `passkey` (no `amr` = no passkey):
 

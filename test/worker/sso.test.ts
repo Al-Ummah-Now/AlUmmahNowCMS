@@ -177,6 +177,25 @@ describe("callback", () => {
       expect(users.status).toBe(403);
    });
 
+   it.each(["Content Editor", "content_editor"])("%s must use a passkey after the staff deadline", async (role) => {
+      const now = Math.floor(Date.now() / 1000);
+      const id = role === "Content Editor" ? "pk-editor-display" : "pk-editor-key";
+      const who = { id, email: `${id}@example.com` };
+      const before = await usersCount();
+
+      const blocked = await signIn([role], who, { amr: ["pwd"], deadline: now - 60, returnPath: "/posts" });
+      expect(blocked.callback.status).toBe(303);
+      expect(blocked.callback.headers.get("location")).toBe("/sso/passkey-needed?return=%2Fposts");
+      expect(blocked.callback.headers.getSetCookie().some((cookie) => cookie.startsWith("auth="))).toBe(false);
+      expect(await usersCount()).toBe(before);
+
+      const grace = await signIn([role], who, { amr: ["pwd"], deadline: now + 3600 });
+      expect(grace.callback.status).toBe(302);
+      const screen = await grace.fetchCms("/posts", { headers: { cookie: cookiesOf(grace.callback) } });
+      expect(screen.status).toBe(200);
+      expect(await screen.text()).toContain('data-testid="passkey-banner"');
+   });
+
    it("logout clears the session and goes to auth logout, then www", async () => {
       const res = await makeWorker()("/sso/logout");
       expect(res.status).toBe(302);

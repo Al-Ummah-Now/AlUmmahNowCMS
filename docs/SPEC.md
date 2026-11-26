@@ -58,8 +58,8 @@ moderation admin) and from `admin.auth.` (users and roles). Custom domains creat
   settings); `content_editor` or legacy `moderator` → bknd role `editor` (create, edit and publish pages, posts, navigation
   and curation; upload media; no deletes, no settings); `scholar` → bknd role `writer` (their own
   posts only, plus their profile; docs/SCHOLARS.md §2). Any other user gets a 403 "No access" page
-  (en/ar) with a link back to www, and nothing is created. A dedicated "Content Editor" auth role
-  is a queued follow-up.
+  (en/ar) with a link back to www, and nothing is created. Moderator grants continue to map to
+  `editor` while they migrate to Content Editor.
 - **Flow:** `/` (admin UI) and every non-public API need a bknd session. With none, the user is
   redirected to `/sso/login?return=…` → auth `/authorize` → `/sso/callback`: exchange the code,
   verify the access token (JWKS, `iss`, `exp`), check the roles, upsert the user in bknd `users`
