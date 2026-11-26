@@ -5,6 +5,7 @@
  */
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
 import type { Env } from "../../src/env.ts";
 import { feedItems } from "../../src/lib/feed/source.ts";
 import { noteCommunityChange, syncCommunity } from "../../src/lib/scholars/community.ts";
@@ -316,6 +317,55 @@ describe("community posts follow the article (legacy CMS scholar posts, until co
       await noteCommunityChange(E, [lone]);
       await syncCommunity(E, { now: later + 120_000, fetch: fetchOf(v) });
       expect(await env.DB.prepare("SELECT state FROM community_links WHERE post_id = ?1").bind(lone).first()).toMatchObject({ state: "no_channel" });
+   });
+});
+
+describe("Overview community sync failures", () => {
+   it("lists dead links and their error codes in English and Arabic, then lets staff requeue them", async () => {
+      const v = fresh();
+      const staff = client(v, await session(v, ["Moderator"], "ed-community-overview"));
+      const id = await legacyPost(staff.call, "sch-queue", "community-overview-en", { title: "A Community article" });
+      const arId = await legacyPost(staff.call, "sch-queue", "community-overview-ar", { title: "مقال في المجتمع", locale: "ar" });
+      const pendingId = await legacyPost(staff.call, "sch-queue", "community-overview-pending");
+      const removedId = 999999;
+      await env.DB.prepare(
+         `INSERT INTO community_links (post_id, author_sub, want, state, attempts, last_error, updated_at) VALUES
+          (?1, 'sch-queue', 'show', 'dead', 8, 'busy', '2026-11-23T00:00:00.000Z'),
+          (?2, 'sch-queue', 'show', 'dead', 1, 'not_owner', '2026-11-23T00:00:00.000Z'),
+          (?3, 'sch-queue', 'hide', 'dead', 1, 'channel_suspended', '2026-11-23T00:00:00.000Z'),
+          (?4, 'sch-queue', 'show', 'pending', 2, 'upstream_error', '2026-11-23T00:00:00.000Z')`,
+      ).bind(id, arId, removedId, pendingId).run();
+
+      for (const lang of ["en", "ar"] as const) {
+         const res = await staff.call("GET", `/?lang=${lang}`);
+         expect(res.status).toBe(200);
+         const notice = (await res.text()).match(/<section[^>]*data-community-flag[^>]*>[\s\S]*?<\/section>/)?.[0];
+         const t = ADMIN_STRINGS[lang].featuring;
+         expect(notice).toContain(t.communityDead(3).replaceAll("'", "&#39;"));
+         expect(notice).toContain(`href="/posts/${id}" lang="en" dir="auto">A Community article</a>`);
+         expect(notice).toContain(`href="/posts/${arId}" lang="ar" dir="auto">مقال في المجتمع</a>`);
+         expect(notice).toContain(t.communityArticle(removedId));
+         expect(notice).toContain('<code dir="ltr">busy</code>');
+         expect(notice).toContain('<code dir="ltr">not_owner</code>');
+         expect(notice).toContain('<code dir="ltr">channel_suspended</code>');
+         expect(notice).not.toContain("upstream_error");
+         expect(notice).not.toContain(`href="/posts/${removedId}"`);
+         expect(notice).toContain("data-community-retry");
+         expect(notice).toContain(t.communityRetry);
+      }
+
+      const retry = "/admin/api/featuring/community/retry";
+      const scholar = client(v, await session(v, ["Scholar"], "sch-queue"));
+      expect((await scholar.call("POST", retry)).status).toBe(403);
+      const res = await staff.call("POST", retry);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ data: { requeued: 3 } });
+      expect(await (await staff.call("POST", retry)).json()).toEqual({ data: { requeued: 0 } });
+      expect(await env.DB.prepare("SELECT state, attempts, next_attempt_at FROM community_links WHERE post_id = ?1").bind(id).first())
+         .toEqual({ state: "pending", attempts: 0, next_attempt_at: expect.any(String) });
+      expect(await env.DB.prepare("SELECT attempts FROM community_links WHERE post_id = ?1").bind(pendingId).first())
+         .toEqual({ attempts: 2 });
+      expect(await (await staff.call("GET", "/")).text()).not.toContain("data-community-flag");
    });
 });
 

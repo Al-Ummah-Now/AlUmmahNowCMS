@@ -225,7 +225,23 @@ function initFeaturing(): void {
    }
 }
 
+function initCommunityFlag(): void {
+   const button = $<HTMLButtonElement>("[data-community-flag] [data-community-retry]");
+   button?.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+         await api("POST", "/admin/api/featuring/community/retry");
+         toast(String(button.dataset.done));
+         button.closest("[data-community-flag]")?.remove();
+      } catch {
+         toast(String(button.dataset.failed), "bad");
+         button.disabled = false;
+      }
+   });
+}
+
 export function initScholars(): void {
    initProfile();
    initFeaturing();
+   initCommunityFlag();
 }
