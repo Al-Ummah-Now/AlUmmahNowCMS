@@ -20,12 +20,20 @@
          "nav": {
             "header": [
                {
-                  "label": "Scholars",
-                  "url": "/scholars/"
+                  "label": "Articles",
+                  "url": "/articles/"
                },
                {
                   "label": "Videos",
-                  "url": "/videos"
+                  "url": "/videos/"
+               },
+               {
+                  "label": "About",
+                  "url": "/about/"
+               },
+               {
+                  "label": "Scholars",
+                  "url": "/scholars/"
                }
             ],
             "footer": [
@@ -45,6 +53,18 @@
          "settings": null,
          "nav": {
             "header": [
+               {
+                  "label": "المقالات",
+                  "url": "/articles/"
+               },
+               {
+                  "label": "المرئيات",
+                  "url": "/videos/"
+               },
+               {
+                  "label": "من نحن",
+                  "url": "/about/"
+               },
                {
                   "label": "العلماء",
                   "url": "/scholars/"
