@@ -15,7 +15,7 @@
 import { normalizeRole } from "./roles.ts";
 
 /** Auth roles that count as staff (normalized: lower case, spaces as `_`). Scholar and Member are not staff. */
-export const STAFF_AUTH_ROLES: ReadonlySet<string> = new Set(["super_admin", "admin", "moderator", "writer", "content_reviewer", "senior_reviewer"]);
+export const STAFF_AUTH_ROLES: ReadonlySet<string> = new Set(["super_admin", "admin", "content_editor", "moderator", "writer", "content_reviewer", "senior_reviewer"]);
 
 /** Whether any of the token's Auth roles is a staff role. */
 export function isAuthStaff(roles: readonly unknown[] | undefined): boolean {
