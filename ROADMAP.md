@@ -20,4 +20,4 @@ unit + Workers-runtime tests, Playwright E2E, QA deploy, stage-then-promote rele
   `src/lib/embeds.ts` follows the AlUmmahNow embed contract (`docs/embeds/README.md`).
 - The stray `bknd` Worker never existed on the account; nothing to retire ([#11](https://github.com/Al-Ummah-Now/AlUmmahNowCMS/issues/11)).
 
-**Queued:** a dedicated "Content Editor" auth role (today Moderator maps to `editor`).
+**Role rollout:** the CMS accepts Content Editor and continues to accept Moderator as grants migrate.

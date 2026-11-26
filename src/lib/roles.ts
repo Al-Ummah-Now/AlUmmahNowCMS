@@ -1,10 +1,11 @@
 /**
- * Role mapping (SPEC §3). Auth puts role display names ("Super Admin", "Admin", "Moderator",
+ * Role mapping (SPEC §3). Auth puts role display names ("Super Admin", "Admin", "Content Editor", "Moderator",
  * "Scholar") in the access token's `properties.roles`. They are normalized to snake_case and mapped
  * to a bknd role. Anyone without an allowed role gets the 403 page and nothing is created for them.
  *
  *   super_admin, admin → admin         everything
- *   moderator          → editor        all content, the timeline, featuring; no deletes, no settings
+ *   content_editor     → editor        all content, the timeline, featuring; no deletes, no settings
+ *   moderator          → editor        legacy grant during the Content Editor rollout
  *   writer             → staff_writer  Al Ummah Now's own posts (staff posts): write, edit, publish;
  *                                      no pages, settings, timeline, featuring, scholar posts or deletes
  *   scholar            → writer        "Write in Studio" and their profile (docs/SCHOLARS.md §7, SS18)
@@ -21,6 +22,7 @@ export function normalizeRole(name: string): string {
 const MAP: Record<string, BkndRole> = {
    super_admin: "admin",
    admin: "admin",
+   content_editor: "editor",
    moderator: "editor",
    writer: "staff_writer",
    scholar: "writer",

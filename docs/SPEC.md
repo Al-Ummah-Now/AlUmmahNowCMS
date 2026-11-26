@@ -55,7 +55,7 @@ moderation admin) and from `admin.auth.` (users and roles). Custom domains creat
 
 - **Allowed roles** (token `properties.roles`, display names normalized to snake_case):
   `super_admin` and `admin` → bknd role `admin` (everything, including media deletes and
-  settings); `moderator` → bknd role `editor` (create, edit and publish pages, posts, navigation
+  settings); `content_editor` or legacy `moderator` → bknd role `editor` (create, edit and publish pages, posts, navigation
   and curation; upload media; no deletes, no settings); `scholar` → bknd role `writer` (their own
   posts only, plus their profile; docs/SCHOLARS.md §2). Any other user gets a 403 "No access" page
   (en/ar) with a link back to www, and nothing is created. A dedicated "Content Editor" auth role

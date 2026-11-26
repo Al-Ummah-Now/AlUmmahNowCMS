@@ -97,7 +97,7 @@ content-rules plugin runs on every write (`src/lib/content-rules.ts:97-124`).
 | A11 | Media upload | `/media` dropzone and per-field upload | Media library upload + cover upload; images only (jpeg/png/webp/avif) ≤ 10 MB, checked client-side and by the wrapper (`src/lib/paths.ts:20-41`, `src/index.ts:24-36`) | `POST /api/media/upload/:filename`, `POST /api/media/entity/:e/:id/cover?overwrite=true` |
 | A12 | Media replace | upload again with overwrite | "Replace image" on the cover card | `?overwrite=true` (bknd deletes the old file after the insert) |
 | A13 | Media delete | `/media` delete (needs `media.file.delete`: admins only) | admin only, confirm dialog; warns when the file is a cover | `DELETE /api/media/file/:path` |
-| A14 | Permissions / roles | `/auth/roles` read-only in code mode; users list | Users screen (admin, read-only) explaining the mapping Super Admin/Admin → admin, Moderator → editor (`src/lib/roles.ts:12-16`), with a link to auth's user admin | `GET /api/data/entity/users` |
+| A14 | Permissions / roles | `/auth/roles` read-only in code mode; users list | Users screen (admin, read-only) explaining the mapping Super Admin/Admin → admin, Content Editor/Moderator → editor (`src/lib/roles.ts`), with a link to auth's user admin | `GET /api/data/entity/users` |
 | A15 | Settings (module config) | `/settings` viewer; writes blocked (`paths.ts:15`) | not offered (code-only) | — |
 | A16 | Schema builder | `/data/schema` | not offered (code-only, see §0) | — |
 | A17 | Flows / tools | `/flows`, `/tools` | not offered (unused) | — |
@@ -222,7 +222,7 @@ the items' titles and **Retry now**.
 
 ## 4. Auth and permissions
 
-Unchanged model (SPEC §3): SSO → bknd session cookie; Super Admin/Admin → `admin`, Moderator →
+Unchanged model (SPEC §3): SSO → bknd session cookie; Super Admin/Admin → `admin`, Content Editor/Moderator →
 `editor`; anyone else → 403 page. The new UI hides actions a role can't perform (Delete, Media delete,
 People) **and** bknd's guard still refuses them (the UI is not the authority). Every new route sits
 behind the existing session gate; the two new endpoints check the role again and require JSON and a

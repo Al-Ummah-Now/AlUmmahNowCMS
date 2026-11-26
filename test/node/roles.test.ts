@@ -16,7 +16,13 @@ describe("mapRoles", () => {
       expect(mapRoles(["Super Admin"])).toBe("admin");
       expect(mapRoles(["Admin"])).toBe("admin");
    });
-   it("maps moderator to bknd editor", () => expect(mapRoles(["Moderator"])).toBe("editor"));
+   it.each(["Content Editor", "content_editor", "Moderator", "moderator"])("maps %s to bknd editor", (role) => {
+      expect(mapRoles([role])).toBe("editor");
+   });
+   it.each(["Admin", "Super Admin"])("%s takes precedence over Content Editor", (role) => {
+      expect(mapRoles(["Content Editor", role])).toBe("admin");
+      expect(mapRoles([role, "Content Editor"])).toBe("admin");
+   });
    it("maps scholar to bknd writer (Write in Studio, SS18)", () => expect(mapRoles(["Scholar", "Member"])).toBe("writer"));
    it("maps writer (staff) to bknd staff_writer (Al Ummah Now's own posts)", () => expect(mapRoles(["Writer"])).toBe("staff_writer"));
    it("a staff writer who is also a scholar is a staff writer; an editor outranks both", () => {
@@ -31,7 +37,6 @@ describe("mapRoles", () => {
    });
    it("denies everyone else", () => {
       expect(mapRoles(["Viewer"])).toBeNull();
-      expect(mapRoles(["Content Editor"])).toBeNull();
       expect(mapRoles([])).toBeNull();
       expect(mapRoles(undefined)).toBeNull();
       expect(mapRoles("Admin")).toBeNull();
