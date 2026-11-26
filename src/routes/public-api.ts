@@ -217,35 +217,6 @@ export function snapshotOf(stored: Row | null, ctx: SnapshotCtx) {
    return out;
 }
 
-function curatedOf(r: Row, videosWebUrl: string) {
-   return {
-      id: Number(r.id),
-      kind: r.kind as "video" | "playlist" | "channel",
-      ref_id: String(r.ref_id),
-      title_override: strOrNull(r.title_override),
-      snapshot: snapshotOf(parseJson<Row | null>(r.snapshot, null), { videosWebUrl, kind: String(r.kind), refId: String(r.ref_id) }),
-      sort: Number(r.sort ?? 0),
-   };
-}
-
-/** Most curated rows served per placement: www resolves each one, so the list must stay bounded (audit CMS-4/UI-1). */
-export const CURATED_MAX = 48;
-
-async function curated(env: Env, l: Locale, placement: "home" | "videos") {
-   const { results } = await env.DB.prepare(
-      `SELECT id, kind, ref_id, title_override, snapshot, sort FROM curated_videos
-       WHERE placement = ?1 AND status = 'published' AND (locale = ?2 OR locale = 'all' OR locale IS NULL)
-         -- the snapshot refresh found the item no longer public (src/lib/snapshots.ts)
-         AND NOT (json_valid(snapshot) AND json_extract(snapshot, '$.public') IS 0)
-       ORDER BY sort, id
-       LIMIT ?3`,
-   )
-      .bind(placement, l, CURATED_MAX)
-      .all<Row>();
-   const videosWebUrl = trimSlash(env.VIDEOS_WEB_URL);
-   return results.map((r) => curatedOf(r, videosWebUrl));
-}
-
 export const POST_SUMMARY_COLS = "id, slug, locale, title, excerpt, author_name, author_sub, tags, kind, slides, published_at, updated_at, created_at, ref_post_id, ref_channel_id, summary_json";
 
 /** A scholar post's byline (docs/SCHOLARS.md §3): the scholar's name in the post's language and their page. */
@@ -573,18 +544,18 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       return json(c, { settings: settingsOf(settings), nav: navs });
    });
 
+   // The legacy videos array is empty now that www reads the timeline.
    api.get("/home", async (c) => {
       const l = locale(c);
-      const [settings, videos, posts] = await Promise.all([
+      const [settings, posts] = await Promise.all([
          getSettings(c.env, l),
-         curated(c.env, l, "home"),
          c.env.DB.prepare(
             `SELECT ${POST_SUMMARY_COLS} FROM posts WHERE locale = ?1 AND ${LIVE_SQL} AND ${MAIN_SITE_SQL} ORDER BY published_at DESC, id DESC LIMIT 3`,
          )
             .bind(l)
             .all<Row>(),
       ]);
-      return json(c, { settings: settingsOf(settings), videos, posts: await postSummaries(c.env, posts.results) });
+      return json(c, { settings: settingsOf(settings), videos: [], posts: await postSummaries(c.env, posts.results) });
    });
 
    api.get("/pages/:slug", async (c) => {
@@ -754,11 +725,12 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       });
    });
 
-   api.get("/videos", async (c) => {
-      const l = locale(c);
+   // The legacy videos endpoint stays available for callers that expect this shape.
+   api.get("/videos", (c) => {
+      locale(c);
       const placement = c.req.query("placement") ?? "videos";
       if (placement !== "home" && placement !== "videos") throw new HttpError(400, "placement must be home or videos");
-      return json(c, { items: await curated(c.env, l, placement) });
+      return json(c, { items: [] });
    });
 
    api.get("/sitemap", async (c) => {

@@ -10,6 +10,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { ADMIN_STRINGS } from "../../src/admin/i18n.ts";
+import { THEME_IDS } from "../../src/admin/theme/vendor.generated.ts";
+
+// Browser globals used inside page.evaluate. This project typechecks E2E without the DOM lib.
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+declare const OffscreenCanvas: any, createImageBitmap: any, getComputedStyle: any, document: any;
 
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT ?? 8798}`;
 const ON = `http://localhost:${process.env.CMS_ON_PORT ?? 8595}`;
@@ -77,6 +82,72 @@ async function served(page: Page, slug: string, locale: string): Promise<{ statu
    const res = await page.request.get(`${ON}/api/public/v1/pages/${slug}?locale=${locale}`);
    return { status: res.status(), body: res.ok() ? ((await res.json()) as Served) : null };
 }
+
+// axe can mark gradients incomplete. Measure the lowest ratio over the rendered background pixels.
+async function minimumContrast(page: Page, foreground: string, background: Buffer): Promise<number> {
+   return page.evaluate(async ({ foreground, png }) => {
+      const bitmap = await createImageBitmap(new Blob([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], { type: "image/png" }));
+      const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d");
+      const linear = (value: number) => {
+         const channel = value / 255;
+         return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      };
+      const luminance = (r: number, g: number, b: number) => 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+      context.fillStyle = foreground;
+      context.fillRect(0, 0, 1, 1);
+      const color = context.getImageData(0, 0, 1, 1).data;
+      const text = luminance(color[0], color[1], color[2]);
+      context.drawImage(bitmap, 0, 0);
+      const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      let minimum = Infinity;
+      for (let i = 0; i < pixels.length; i += 4) {
+         const bg = luminance(pixels[i], pixels[i + 1], pixels[i + 2]);
+         minimum = Math.min(minimum, (Math.max(text, bg) + 0.05) / (Math.min(text, bg) + 0.05));
+      }
+      bitmap.close();
+      return minimum;
+   }, { foreground, png: background.toString("base64") });
+}
+
+test("the open builder title, block count and palette icon meet AA contrast in Light and Dark", async ({ page, isMobile }) => {
+   test.skip(isMobile, "the open builder hides its heading on narrow screens");
+   await signIn(page, `${RUN}-contrast`);
+   const id = await createPage(page, `builder-${RUN}-contrast`, "en", `${RUN}-contrast`, "Contrast test");
+   const heading = page.locator(".bld-open #blocks-h");
+   const count = heading.locator("[data-blk-count]");
+   const palette = page.locator(".bld-open .bld-theme > svg");
+   for (const theme of THEME_IDS) {
+      for (const mode of ["light", "dark"]) {
+         await page.goto(`${ON}/pages/${id}?lang=en&theme=${theme}&mode=${mode}`);
+         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+         await expect(page.locator("html")).toHaveAttribute("data-mode", mode);
+         await page.locator("[data-builder-open]").click();
+         await expect(heading).toBeVisible();
+         await expect(count).toBeVisible();
+         await expect(palette).toBeVisible();
+         const axe = await new AxeBuilder({ page }).include(".bld-open #blocks-h").withRules(["color-contrast"]).analyze();
+         expect.soft(violations(axe), `${theme} ${mode}`).toEqual([]);
+
+         const headingColor = await heading.evaluate((el) => String(getComputedStyle(el).color));
+         const headerBackground = await page.locator(".bld-open .bld-title").screenshot({ style: "#blocks-h { visibility: hidden }" });
+         expect.soft(await minimumContrast(page, headingColor, headerBackground), `${theme} ${mode} title contrast`).toBeGreaterThanOrEqual(4.5);
+
+         // Keep the pill visible and sample only where the count text is drawn, inside its border.
+         const { color, clip } = await count.evaluate((el) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const { x, y, width, height } = range.getBoundingClientRect();
+            return { color: String(getComputedStyle(el).color), clip: { x, y, width, height } };
+         });
+         const pillBackground = await page.screenshot({ clip, style: "#blocks-h [data-blk-count] { color: transparent }" });
+         expect.soft(await minimumContrast(page, color, pillBackground), `${theme} ${mode} block count contrast`).toBeGreaterThanOrEqual(4.5);
+
+         const paletteStroke = await palette.evaluate((el) => String(getComputedStyle(el).stroke));
+         const paletteBackground = await palette.screenshot({ style: ".bld-theme > svg { opacity: 0 }" });
+         expect.soft(await minimumContrast(page, paletteStroke, paletteBackground), `${theme} ${mode} palette icon contrast`).toBeGreaterThanOrEqual(3);
+      }
+   }
+});
 
 for (const lang of ["en", "ar"] as const) {
    test(`builds, previews and publishes a page in en and ar (${lang} admin)`, async ({ page }, info) => {

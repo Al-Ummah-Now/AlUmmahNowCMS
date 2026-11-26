@@ -51,7 +51,6 @@ describe("public API satisfies www's contract", () => {
    it("the schema rejects what would break www (it is not vacuous)", () => {
       const home = restore((snapshot as Record<string, Entry>)["/api/public/v1/home?locale=en"].body) as {
          settings: Record<string, unknown>;
-         videos: Record<string, unknown>[];
          posts: Record<string, unknown>[];
       };
       const page = restore((snapshot as Record<string, Entry>)["/api/public/v1/pages/about?locale=en"].body) as Record<string, unknown>;
@@ -60,9 +59,7 @@ describe("public API satisfies www's contract", () => {
       const h1 = clone(home);
       delete h1.posts[0].published_at;
       expect(wwwViolations("home", h1, CMS)).toEqual(["home.posts[0].published_at: expected ISO date-time, got undefined"]);
-      const h2 = clone(home);
-      h2.videos[0].kind = "short";
-      expect(wwwViolations("home", h2, CMS)[0]).toMatch(/^home\.videos\[0\]\.kind: expected video\|playlist\|channel/);
+      expect(wwwViolations("home", { ...home, videos: null }, CMS)).toEqual(["home.videos: expected array, got null"]);
       const h3 = clone(home);
       h3.settings.locale = "fr";
       expect(wwwViolations("home", h3, CMS)[0]).toMatch(/^home\.settings\.locale/);

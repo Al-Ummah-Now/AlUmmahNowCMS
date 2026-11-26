@@ -34,7 +34,7 @@ const snap = (title: string, thumbnail_url: string | null, extra: Record<string,
 
 async function seed() {
    await resetFeed();
-   await env.DB.batch(["curated_videos", "pages"].map((t) => env.DB.prepare(`DELETE FROM ${t}`)));
+   await env.DB.prepare("DELETE FROM pages").run();
    const rows: [string, string, string][] = [
       ["video", V1, snap("One", PATH_FORM(V1))],
       ["video", V2, snap("Two", QUERY_FORM(V2))],
@@ -44,7 +44,6 @@ async function seed() {
    for (const [kind, ref, s] of rows) {
       await env.DB.prepare("INSERT INTO video_snapshots (kind, ref_id, snapshot, attempts, created_at, updated_at) VALUES (?1, ?2, ?3, 0, ?4, ?4)").bind(kind, ref, s, at).run();
       await env.DB.prepare("INSERT INTO timeline_entries (kind, video_kind, ref_id, locale, entry_date, hidden, created_at, updated_at) VALUES ('video', ?1, ?2, 'all', ?3, 0, ?3, ?3)").bind(kind, ref, at).run();
-      await env.DB.prepare("INSERT INTO curated_videos (kind, ref_id, placement, locale, sort, status, snapshot) VALUES (?1, ?2, 'home', 'all', 0, 'published', ?3)").bind(kind, ref, s).run();
    }
    await env.DB.prepare("INSERT INTO posts (slug, locale, title, status, published_at, created_at, updated_at, kind, body, tags) VALUES ('p', 'en', 'Post', 'published', ?1, ?1, ?1, 'article', ?2, '[]')")
       .bind(at, `Watch\n\n::video[${V2}]\n`)
@@ -69,17 +68,17 @@ describe("stable thumbnails in public output", () => {
       expectNoSigned([out, ch]);
    });
 
-   it("home, videos, pages and timeline answers carry /thumb URLs only", async () => {
+   it("pages and timeline answers carry /thumb URLs only", async () => {
       const f = makeWorker();
-      for (const path of ["/api/public/v1/home?locale=en", "/api/public/v1/videos?locale=en&placement=home", "/api/public/v1/pages/watch?locale=en", "/api/public/v1/timeline?locale=en"]) {
+      for (const path of ["/api/public/v1/pages/watch?locale=en", "/api/public/v1/timeline?locale=en"]) {
          const res = await f(path);
          expect(res.status, path).toBe(200);
          const body = await res.json();
          expectNoSigned(body);
          expect(JSON.stringify(body), path).toContain(`${WEB}/thumb/`);
       }
-      const home = (await (await f("/api/public/v1/home?locale=en")).json()) as { videos: { kind: string; ref_id: string; snapshot: { thumbnail_url: string | null; latest?: { thumbnail_url: string }[] } }[] };
-      const byRef = new Map(home.videos.map((v) => [v.ref_id, v.snapshot]));
+      const timeline = (await (await f("/api/public/v1/timeline?locale=en")).json()) as { items: { video?: { ref_id: string; snapshot: { thumbnail_url: string | null; latest?: { thumbnail_url: string }[] } } }[] };
+      const byRef = new Map(timeline.items.flatMap(({ video }) => video ? [[video.ref_id, video.snapshot] as const] : []));
       expect(byRef.get(V1)?.thumbnail_url).toBe(`${WEB}/thumb/${V1}.jpg`);
       expect(byRef.get(V2)?.thumbnail_url).toBe(`${WEB}/thumb/${V2}.jpg`);
       // A playlist cover from a video's thumbnail is that video's /thumb.

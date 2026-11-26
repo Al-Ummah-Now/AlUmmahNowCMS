@@ -1,7 +1,6 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { refreshCuratedSnapshots } from "../../src/lib/snapshots.ts";
-import { makeWorker } from "./helpers.ts";
 
 const API = "https://videos.api.test";
 const OLD = JSON.stringify({ title: "Old", thumbnail_url: "https://cdn/old.jpg?token=x&expires=1", channel_name: "Ch" });
@@ -95,14 +94,5 @@ describe("curated snapshot refresh", () => {
       // Run 2 takes the 10 never-refreshed rows first, then the 10 oldest of run 1.
       expect(calls).toHaveLength(40);
       expect(new Set(calls.slice(20, 30))).toEqual(new Set(Array.from({ length: 10 }, (_, i) => `/api/videos/v-${20 + i}`)));
-   });
-
-   it("the public API hides rows found not public and serves the refreshed fields", async () => {
-      await seed(["v-1", "gone-1"]);
-      await refreshCuratedSnapshots(env.DB, { apiUrl: API, webUrl: "https://videos.test" }, videosApi());
-      const res = await makeWorker()("/api/public/v1/home?locale=en");
-      const { videos } = (await res.json()) as { videos: { ref_id: string; snapshot: Record<string, unknown> }[] };
-      expect(videos.map((v) => v.ref_id)).toEqual(["v-1"]);
-      expect(videos[0].snapshot).toMatchObject({ title: "Title v-1", duration_seconds: 125, titles: { ar: "عنوان v-1" }, refreshed_at: expect.any(String) });
    });
 });

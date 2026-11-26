@@ -1,6 +1,5 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { CURATED_MAX } from "../../src/routes/public-api.ts";
 import { CMS, cookiesOf, makeWorker, signIn } from "./helpers.ts";
 
 const videosApi = (url: URL) =>
@@ -66,16 +65,5 @@ describe("curated videos under concurrency", () => {
       expect(out.every((r) => r.status === 201 || r.status >= 400)).toBe(true);
       expect(await count()).toBe(1);
       expect(await count("locale = 'all'")).toBe(1);
-   });
-
-   it(`the public API serves at most ${CURATED_MAX} curated rows per placement`, async () => {
-      const stmt = env.DB.prepare("INSERT INTO curated_videos (kind, ref_id, placement, locale, sort, status) VALUES ('video', ?1, ?2, 'all', ?3, 'published')");
-      await env.DB.batch(Array.from({ length: 120 }, (_, i) => stmt.bind(`v${i}`, i % 2 ? "videos" : "home", i)));
-      const api = makeWorker();
-      const home = (await (await api("/api/public/v1/home?locale=en")).json()) as { videos: { ref_id: string; sort: number }[] };
-      expect(home.videos).toHaveLength(CURATED_MAX);
-      expect(home.videos[0].sort).toBe(0);
-      const videos = (await (await api("/api/public/v1/videos?locale=ar")).json()) as { items: unknown[] };
-      expect(videos.items).toHaveLength(CURATED_MAX);
    });
 });

@@ -82,7 +82,6 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       const locale = String(b.locale ?? "all");
       const status = String(b.status ?? "draft");
       const sort = Number(b.sort ?? 0);
-      const titleOverride = typeof b.title_override === "string" && b.title_override.trim() ? b.title_override.trim().slice(0, 200) : null;
       if (
          !VIDEO_KINDS.includes(kind) ||
          !refId ||
@@ -111,7 +110,6 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
          locale,
          sort,
          status,
-         title_override: titleOverride,
          snapshot: snapshotOf(item, new Date(), cfg.videosWebUrl),
       };
       try {
@@ -123,12 +121,12 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       // Idempotent: a double-click (or two editors) adding the same video to the same placement and
       // locale creates one row. The unique index (migrations/0002) makes this atomic across isolates.
       const inserted = await c.env.DB.prepare(
-         `INSERT INTO curated_videos (kind, ref_id, placement, locale, title_override, sort, status, snapshot, created_at, updated_at)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+         `INSERT INTO curated_videos (kind, ref_id, placement, locale, sort, status, snapshot, created_at, updated_at)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
           ON CONFLICT (kind, ref_id, placement, locale) DO NOTHING
           RETURNING ${CURATED_COLS}`,
       )
-         .bind(row.kind, row.ref_id, row.placement, row.locale, row.title_override, row.sort, row.status, JSON.stringify(row.snapshot), (row.created_at as Date).toISOString())
+         .bind(row.kind, row.ref_id, row.placement, row.locale, row.sort, row.status, JSON.stringify(row.snapshot), (row.created_at as Date).toISOString())
          .first<StoredRow>();
       if (inserted) return c.json({ data: hydrate(inserted, cfg.videosWebUrl) }, 201);
       const existing = await c.env.DB.prepare(`SELECT ${CURATED_COLS} FROM curated_videos WHERE kind = ?1 AND ref_id = ?2 AND placement = ?3 AND locale = ?4`)
