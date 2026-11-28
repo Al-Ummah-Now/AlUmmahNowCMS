@@ -1360,7 +1360,7 @@ const en = {
       failuresTitle: "AI assist needs a look",
       failuresBody: "These AI jobs failed after retries. Editors saw an error; nothing was changed.",
       dismiss: "Dismiss",
-      features: { translate: "Translation", seo: "Search & sharing", check: "Pre-publish check" } as Record<string, string>,
+      features: { translate: "Translation", seo: "Search & sharing", check: "Pre-publish check", "source-query": "Suggest a search" } as Record<string, string>,
       reasons: {
          declined: "The AI declined the text",
          retries_exhausted: "Failed after several tries",
@@ -2727,7 +2727,7 @@ const ar: Strings = {
       failuresTitle: "المساعد الذكي يحتاج إلى نظرة",
       failuresBody: "فشلت هذه المهام بعد عدة محاولات. رأى المحررون رسالة خطأ ولم يتغير شيء.",
       dismiss: "إخفاء",
-      features: { translate: "الترجمة", seo: "البحث والمشاركة", check: "فحص ما قبل النشر" } as Record<string, string>,
+      features: { translate: "الترجمة", seo: "البحث والمشاركة", check: "فحص ما قبل النشر", "source-query": "اقترح عبارة بحث" } as Record<string, string>,
       reasons: {
          declined: "رفض الذكاء الاصطناعي النص",
          retries_exhausted: "فشل بعد عدة محاولات",
