@@ -101,11 +101,11 @@ describe("CMS-1 & CMS-2: AI settings SSRF & model validation in Worker", () => {
       expect(badModel.status).toBe(400);
       expect(await badModel.json()).toMatchObject({ error: "invalid", errors: expect.arrayContaining([{ path: "model", code: "invalid" }]) });
 
-      // Stored loopback provider is rejected when loaded in non-local environment
+      // Stored loopback provider is accepted only when ENVIRONMENT=local and rejected in deployed environments
       await env.DB.prepare("DELETE FROM ai_settings").run();
       await saveSettings(
          env.DB,
-         { ...defaultSettings(), providers: [...defaultSettings().providers, shapeA({ url: "http://127.0.0.1:8788/v1/chat" })] },
+         { ...defaultSettings(), providers: [...defaultSettings().providers, shapeA({ id: "local-mock", label: "Local mock", url: "http://127.0.0.1:8788/v1/chat" })] },
          0,
          { id: 1, email: "inj-admin@example.com" },
          Date.now(),
@@ -113,6 +113,24 @@ describe("CMS-1 & CMS-2: AI settings SSRF & model validation in Worker", () => {
       );
       const nonLocal = await loadSettings(env.DB, { local: false });
       expect(nonLocal.settings.providers.map((p) => p.id)).toEqual(["workers-ai"]);
+      const localLoaded = await loadSettings(env.DB, { local: true });
+      expect(localLoaded.settings.providers.map((p) => p.id)).toEqual(["workers-ai", "local-mock"]);
+
+      // SSR /ai-settings screen matches: keeps loopback provider in ENVIRONMENT=local, drops to defaults in production
+      const localWorker = makeWorker(undefined, { ENVIRONMENT: "local" });
+      const localPage = await localWorker("/ai-settings", { headers: { cookie: adminCookie } });
+      expect(localPage.status).toBe(200);
+      const localHtml = await localPage.text();
+      expect(localHtml).toContain("http://127.0.0.1:8788/v1/chat");
+      expect(localHtml).toContain("Local mock");
+
+      const prodWorker = makeWorker(undefined, { ENVIRONMENT: "production" });
+      const prodPage = await prodWorker("/ai-settings", { headers: { cookie: adminCookie } });
+      expect(prodPage.status).toBe(200);
+      const prodHtml = await prodPage.text();
+      expect(prodHtml).not.toContain("http://127.0.0.1:8788/v1/chat");
+      expect(prodHtml).not.toContain("Local mock");
+
       await env.DB.prepare("DELETE FROM ai_settings").run();
    });
 });
