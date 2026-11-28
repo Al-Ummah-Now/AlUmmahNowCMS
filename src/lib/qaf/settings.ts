@@ -2,6 +2,9 @@ import { base64url } from "../pkce.ts";
 import { QAF_WEEK_LIMIT } from "./model.ts";
 
 export const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+export const isQafKey = (key: unknown): key is string =>
+   typeof key === "string" && /^qaf_sk_[A-Za-z0-9_-]{1,512}$/.test(key);
+
 const label = new TextEncoder().encode("al-ummah-now/cms/qaf-key/v1");
 
 async function sealingKey(secret: string): Promise<CryptoKey> {
@@ -20,7 +23,9 @@ export async function openQafKey(secret: string, sealed: string): Promise<string
    if (version !== "v1" || !nonce || !cipher) throw new Error("Invalid sealed Qaf key");
    const decode = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
    const data = await crypto.subtle.decrypt({ name: "AES-GCM", iv: decode(nonce) }, await sealingKey(secret), decode(cipher));
-   return new TextDecoder().decode(data);
+   const key = new TextDecoder().decode(data);
+   if (!isQafKey(key)) throw new Error("Invalid sealed Qaf key");
+   return key;
 }
 
 export type QafIncident = "week" | "invalid_keys" | "auth" | "sealed_key";

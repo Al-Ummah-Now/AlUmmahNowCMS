@@ -1,8 +1,11 @@
 import { sha256 } from "../ai/jobs.ts";
+import { isAllowedProviderUrl, isLoopbackHostname } from "../ai/url-guard.ts";
 import { log } from "../log.ts";
 import { QAF_GENRES } from "./genres.ts";
 import { UUID, type QafLocale } from "./model.ts";
 import { flagQaf, openQafKey, qafSettings, WEEK_MS } from "./settings.ts";
+
+export const QAF_API_BASE = "https://api.qaf.ai/v1";
 
 type Search = {
    query: string;
@@ -115,17 +118,30 @@ interface Options {
    db: D1Database;
    secret: string;
    base: string;
+   local?: boolean;
    fetch?: typeof fetch;
    wait?: (ms: number) => Promise<unknown>;
    /** An administrator explicitly retries a blocked credential through catalog lookup. */
    retryCredential?: boolean;
 }
 
+function qafEndpoint(base: string, path: string, local: boolean): string | null {
+   if (!isAllowedProviderUrl(base, { local })) return null;
+   const url = new URL(base);
+   if (base !== QAF_API_BASE && (!local || !isLoopbackHostname(url.hostname) || url.pathname !== "/qaf/v1" || url.search || url.hash)) return null;
+   const endpoint = base + path;
+   // Catalog queries support 200 characters. Percent-encoded Unicode can take more than 1,000 bytes.
+   return isAllowedProviderUrl(endpoint, { local, maxLength: 4096 }) ? endpoint : null;
+}
+
 export async function callQaf(o: Options, op: Operation): Promise<QafResult> {
+   const search = "search" in op;
+   const path = search ? "/search" : op.path;
+   const endpoint = qafEndpoint(o.base, path, o.local === true);
+   if (!endpoint) return failure("unavailable", 503);
    const settings = await qafSettings(o.db);
    if (!settings?.sealed_key) return failure("not_configured", 503);
    const { generation, error, request_id, retry_at, weekly_reset_at } = settings;
-   const search = "search" in op;
    if (error && error !== "week" && (!o.retryCredential || remainingSeconds(retry_at) > 0)) {
       return failure(error, error === "invalid_keys" ? 429 : 503, request_id, error === "invalid_keys" ? remainingSeconds(retry_at) : undefined);
    }
@@ -147,7 +163,6 @@ export async function callQaf(o: Options, op: Operation): Promise<QafResult> {
    }
 
    const wait = o.wait ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
-   const path = search ? "/search" : op.path;
    let retryMinute = true;
    for (let attempt = 0; ; attempt++) {
       if (attempt) {
@@ -162,13 +177,14 @@ export async function callQaf(o: Options, op: Operation): Promise<QafResult> {
       let result: QafResult;
       let serverFailure = false;
       try {
-         const res = await (o.fetch ?? fetch)(`${o.base}${path}`, {
+         const res = await (o.fetch ?? fetch)(endpoint, {
             method: search ? "POST" : "GET",
             headers: { Authorization: `Bearer ${key}`, Accept: "application/json", ...(search ? { "Content-Type": "application/json" } : {}) },
             body,
             redirect: "manual",
             signal: AbortSignal.timeout(32_000),
          });
+         if (res.status >= 300 && res.status < 400) return failure("unavailable", 503, requestIdOf(res));
          serverFailure = res.status >= 500;
          const data: unknown = await res.json().catch(() => null);
          result = res.ok && object(data) && !JSON.stringify(data).includes(key) ? { ok: true, data, requestId: requestIdOf(res) } : classify(res, data);

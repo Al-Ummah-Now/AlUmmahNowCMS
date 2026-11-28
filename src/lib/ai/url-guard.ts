@@ -184,8 +184,8 @@ export function hasPlaceholderInAuthority(raw: string): boolean {
 }
 
 /** Runtime check on a fully rendered provider URL right before `fetch()`. */
-export function isAllowedProviderUrl(raw: string, opts: { local: boolean }): boolean {
-   if (!raw || raw.length > 1000 || CTRL_OR_SPACE.test(raw)) return false;
+export function isAllowedProviderUrl(raw: string, opts: { local: boolean; maxLength?: number }): boolean {
+   if (!raw || raw.length > (opts.maxLength ?? 1000) || CTRL_OR_SPACE.test(raw)) return false;
    let u: URL;
    try {
       u = new URL(raw);
