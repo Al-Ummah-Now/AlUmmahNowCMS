@@ -30,10 +30,10 @@ export function StateBadge(props: { v: View; state: PublishState; attrs?: Record
 }
 
 /** Strings the client script needs, as JSON (`<` escaped so it can't close the script). */
-export function I18nScript(props: { nonce: string; strings: unknown }) {
+export function I18nScript(props: { nonce: string; strings: unknown; id?: string }) {
    const json = JSON.stringify(props.strings).replace(/</g, "\\u003c");
    return (
-      <script type="application/json" id="i18n" nonce={props.nonce}>
+      <script type="application/json" id={props.id ?? "i18n"} nonce={props.nonce}>
          {raw(json)}
       </script>
    );

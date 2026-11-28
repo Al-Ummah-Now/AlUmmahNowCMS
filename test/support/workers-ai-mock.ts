@@ -25,6 +25,12 @@ const tag = (text: string, name: string) => text.match(new RegExp(`<${name}>\\n(
 /** The default replies by feature (what the local E2E sees). */
 export function defaultReply(req: MockRequest): MockReply {
    const s = req.system;
+   if (s.includes("short Arabic library search query")) {
+      const data = req.user.includes("E2E-PROMPT-OVERRIDE")
+         ? { query: "<script>alert(1)</script> Here is an answer instead of a query." }
+         : { query: "الصبر عند المصيبة" };
+      return { kind: "json", data, input: 90, output: 12 };
+   }
    if (s.includes("Translate the draft")) {
       const toAr = s.includes("into Modern Standard Arabic");
       const mark = (t: string) => (t ? (toAr ? `ترجمة: ${t}` : `Translated: ${t}`) : "");

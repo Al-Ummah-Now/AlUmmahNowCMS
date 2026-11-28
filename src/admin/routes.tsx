@@ -37,6 +37,9 @@ import { isTrashKind } from "../lib/trash.ts";
 import { suggestApi } from "./suggest-api.ts";
 import { timelineScreen } from "./screens/timeline.tsx";
 import { parseCursor } from "../lib/feed/model.ts";
+import { qafRoutes } from "./qaf-api.ts";
+import { qafStatus, qafConfigured } from "../lib/qaf/settings.ts";
+import { aiBinding } from "../lib/ai/config.ts";
 import { aiRoutes } from "./ai-api.ts";
 import { aiSettingsScreen } from "./screens/ai-settings.tsx";
 import { aiReady } from "../lib/ai/router.ts";
@@ -109,8 +112,10 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       // A staff writer's home is the posts list (Al Ummah Now's own posts)
       if (c.get("user")?.role === "staff_writer") return c.redirect("/posts", 302);
       const v = await buildView(c, deps);
-      const failures = v.user.role === "admin" ? await flaggedFailures(c.env.DB).catch(() => null) : null;
-      return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps), c.env.DB, failures));
+      const [failures, qaf] = v.user.role === "admin"
+         ? await Promise.all([flaggedFailures(c.env.DB).catch(() => null), qafStatus(c.env.DB).catch(() => null)])
+         : [null, null];
+      return render(c, v, v.t.overview.title, await overviewScreen(v, new Data(c, deps), c.env.DB, failures, qaf));
    });
 
    r.get("/write", async (c) => {
@@ -122,6 +127,11 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    r.use("/posts/*", async (c, next) => (c.get("user")?.role === "writer" ? c.redirect("/write", 302) : next()));
    r.use("/posts", async (c, next) => (c.get("user")?.role === "writer" ? c.redirect("/write", 302) : next()));
 
+   const qafOptions = async (c: Ctx) => {
+      const role = c.get("user").role;
+      const configured = (role === "admin" || role === "editor") && await qafConfigured(c.env.DB).catch(() => false);
+      return { configured, canSuggest: configured && !!c.env.AI_JOBS && !!aiBinding(c.env) };
+   };
    for (const kind of ["pages", "posts"] as ContentKind[]) {
       r.get(`/${kind}`, async (c) => {
          const v = await buildView(c, deps);
@@ -130,11 +140,11 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
       r.get(`/${kind}/new`, async (c) => {
          const v = await buildView(c, deps);
          const locale = c.req.query("locale") === "ar" ? "ar" : c.req.query("locale") === "en" ? "en" : v.prefs.lang;
-         return render(c, v, kind === "pages" ? v.t.content.newPage : v.t.content.newPost, await contentEditor(v, new Data(c, deps), kind, null, locale, c.env.DB));
+         return render(c, v, kind === "pages" ? v.t.content.newPage : v.t.content.newPost, await contentEditor(v, new Data(c, deps), kind, null, locale, c.env.DB, await qafOptions(c)));
       });
       r.get(`/${kind}/:id{[0-9]+}`, async (c) => {
          const v = await buildView(c, deps);
-         const body = await contentEditor(v, new Data(c, deps), kind, Number(c.req.param("id")), v.prefs.lang, c.env.DB);
+         const body = await contentEditor(v, new Data(c, deps), kind, Number(c.req.param("id")), v.prefs.lang, c.env.DB, await qafOptions(c));
          if (!body) return render(c, v, v.t.common.notFound, <p class="notice">{v.t.common.notFound}</p>, 404);
          return render(c, v, v.t.entities[kind].one, body);
       });
@@ -180,6 +190,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    r.route("/admin/api/featuring", featuringApi());
    r.route("/admin/api/suggest", suggestApi(deps));
    r.route("/admin/api/ai", aiRoutes(deps));
+   r.route("/admin/api/ai/qaf", qafRoutes(deps));
    r.route("/admin/api/trash", trashApi());
    r.route("/admin/api/translation-flags", translationFlagsApi(deps));
    r.route("/admin/api/glossary", glossaryApi());

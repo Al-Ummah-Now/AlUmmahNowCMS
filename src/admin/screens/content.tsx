@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 /** Pages and posts: list (search, filters, sort, paging) and editor (docs/ADMIN_UI_SPEC.md E1–E16, A1–A12). */
+import { QafCard, QafDialog } from "../ui/qaf.tsx";
 import { AiCard, AiCheckButton, AiDialogs, AiSeoButton, AiSeoPanel, aiClientStrings } from "../ui/ai.tsx";
 import { TrFlagsCard, TrFlagsDialogs, TrFlagsPopover, trFlagsClientStrings } from "../ui/translation-flags.tsx";
 import { openCounts } from "../../lib/translation-flags/store.ts";
@@ -340,7 +341,7 @@ export async function blocksFragment(v: View, data: Data, id: number, locale: "e
    };
 }
 
-export async function contentEditor(v: View, data: Data, kind: ContentKind, id: number | null, newLocale: "en" | "ar", db?: D1Database) {
+export async function contentEditor(v: View, data: Data, kind: ContentKind, id: number | null, newLocale: "en" | "ar", db?: D1Database, qaf?: { configured: boolean; canSuggest: boolean }) {
    const { t } = v;
    const writer = isWriter(v);
    if (writer && kind !== "posts") return null;
@@ -466,6 +467,8 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
       picker: t.picker,
       pageList: { ...t.pageList, previewCount: pluralTemplates(t.pageList.previewCount, v.prefs.lang), tagCount: undefined },
       ai: v.ai ? aiClientStrings(v) : undefined,
+      qaf: qaf?.configured ? t.qaf : undefined,
+      qafAi: qaf?.canSuggest ? aiClientStrings(v) : undefined,
       trFlags: flags ? trFlagsClientStrings(v) : undefined,
    };
    return (
@@ -654,6 +657,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                {kind === "pages" ? (
                   <PageTypePanels v={v} type={pageType} id={id} locale={locale} filter={row?.list_filter ?? null} blocks={
                         <BlocksEditor
+                           qaf={qaf?.configured}
                            v={v}
                            locale={locale}
                            blocks={blocks}
@@ -916,6 +920,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                </section>
                {history}
                <AiCard v={v} locale={locale} other={other} saved={!!row} siblingId={translations.data[0] ? Number(translations.data[0].id) : null} />
+               {qaf?.configured ? <QafCard v={v} /> : null}
                {flags ? <TrFlagsCard v={v} canResolve={canResolveFlags} /> : null}
             </aside>
             <div class="actbar" role="group" aria-label={t.content.publishing}>
@@ -931,6 +936,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
          <MediaDialog v={v} />
          {kind === "pages" ? <PostsDialog v={v} locale={locale} /> : null}
          <AiDialogs v={v} locale={locale} other={other} kind={kind} />
+         {qaf?.configured ? <QafDialog v={v} canSuggest={qaf.canSuggest} /> : null}
          {flags ? (
             <>
                <TrFlagsDialogs v={v} locale={locale} other={other} />

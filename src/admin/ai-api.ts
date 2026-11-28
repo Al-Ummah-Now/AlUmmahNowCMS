@@ -13,6 +13,9 @@
  *   POST /slug                     { kind, locale, title, id?, fresh? } → { slug, base, source } (src/lib/slug-suggest.ts)
  */
 import { Hono } from "hono";
+import { aiBinding } from "../lib/ai/config.ts";
+import { qafConfigured } from "../lib/qaf/settings.ts";
+import { isTestAccount } from "../lib/slug-suggest.ts";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
 import { budgetState } from "../lib/ai/budget.ts";
 import { aiReady, buildProvider } from "../lib/ai/router.ts";
@@ -64,16 +67,17 @@ export function publicJob(j: Job) {
 function readBody(raw: unknown): { ok: true; job: Omit<NewJob, "userId"> } | { ok: false; status: 400 | 413; error: string } {
    if (!raw || typeof raw !== "object") return { ok: false, status: 400, error: "bad_request" };
    const b = raw as Record<string, unknown>;
-   const feature = b.feature as Feature;
+   const feature = b.feature as NewJob["feature"];
    const kind = b.kind as ContentKind;
    const locale = b.locale as Locale;
    const ui = (b.ui === "ar" ? "ar" : "en") as Locale;
-   if (!FEATURES.includes(feature) || (kind !== "pages" && kind !== "posts") || (locale !== "en" && locale !== "ar")) return { ok: false, status: 400, error: "bad_request" };
+   if (!(feature === "source-query" || FEATURES.includes(feature as Feature)) || (kind !== "pages" && kind !== "posts") || (locale !== "en" && locale !== "ar")) return { ok: false, status: 400, error: "bad_request" };
    const id = b.id == null || b.id === "" ? null : Number(b.id);
    if (id !== null && (!Number.isInteger(id) || id <= 0)) return { ok: false, status: 400, error: "bad_request" };
    const f = (b.fields ?? {}) as Record<string, unknown>;
    const str = (v: unknown) => (typeof v === "string" ? v.replace(/\r\n?/g, "\n") : "");
    const fields = { title: str(f.title).trim(), summary: str(f.summary).trim(), body: str(f.body) };
+   if (feature === "source-query" && (fields.title || fields.summary || !fields.body.trim())) return { ok: false, status: 400, error: "bad_request" };
    if (fields.title.length > 200 || fields.summary.length > 500) return { ok: false, status: 400, error: "bad_request" };
    if (fields.body.length > LIMITS.bodyMax[feature]) return { ok: false, status: 413, error: "too_long" };
    if (!fields.title && !fields.summary && !fields.body.trim()) return { ok: false, status: 400, error: "empty" };
@@ -92,10 +96,16 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
 
    r.post("/jobs", async (c) => {
       if (!(c.req.header("content-type") ?? "").includes("application/json")) return c.json({ error: "bad_request", message: "JSON body required" }, 415);
-      if (!(await aiReady(c.env))) return c.json({ error: "ai_not_configured" }, 503);
-      const parsed = readBody(await c.req.json().catch(() => null));
+      const raw = await c.req.json<{ feature?: unknown }>().catch(() => null);
+      if (raw?.feature !== "source-query" && !(await aiReady(c.env))) return c.json({ error: "ai_not_configured" }, 503);
+      const parsed = readBody(raw);
       if (!parsed.ok) return c.json({ error: parsed.error }, parsed.status);
       const user = c.get("user");
+      if (parsed.job.feature === "source-query") {
+         if (user.role !== "admin" && user.role !== "editor") return c.json({ error: "forbidden" }, 403);
+         if (!c.env.AI_JOBS || !aiBinding(c.env) || !(await qafConfigured(c.env.DB)) ||
+             (c.env.ENVIRONMENT !== "local" && isTestAccount(user.email))) return c.json({ error: "ai_not_configured" }, 503);
+      }
       if (user.role === "writer") {
          if (parsed.job.kind !== "posts") return c.json({ error: "forbidden" }, 403);
          if (parsed.job.rowId !== null && (await postAuthor(c.env.DB, parsed.job.rowId)) !== (await subOfUser(c.env.DB, user.id))) return c.json({ error: "not_found" }, 404);

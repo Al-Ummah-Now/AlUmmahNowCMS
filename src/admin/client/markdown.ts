@@ -3,6 +3,8 @@
  * small markdown subset — headings, bold, italic, links, lists, quotes, paragraphs — and shows
  * `::video[ID]` lines as a video card, matching www's rule (AlUmmahNowUI src/lib/markdown.ts).
  */
+import { QAF_QUOTE_OPEN } from "../../lib/qaf/model.ts";
+
 export const VIDEO_LINE = /^::video\[([^\]\n]{1,80})\]\s*$/;
 const INLINE = /\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|\[([^\]\n]+)\]\(((?:https:\/\/|\/(?!\/))[^\s)]*)\)/g;
 
@@ -44,7 +46,22 @@ export function renderMarkdownInto(target: HTMLElement, src: string, videoLabel:
       para = [];
       list = [];
    };
-   for (const line of src.replace(/\r\n?/g, "\n").split("\n")) {
+   const lines = src.replace(/\r\n?/g, "\n").split("\n");
+   for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
+      const fence = QAF_QUOTE_OPEN.exec(line);
+      if (fence) {
+         flush();
+         const quote: string[] = [];
+         while (++index < lines.length && lines[index] !== fence[1]) quote.push(lines[index]);
+         const block = document.createElement("blockquote");
+         block.dir = "rtl";
+         block.lang = "ar";
+         block.className = "qaf-excerpt";
+         block.textContent = quote.join("\n");
+         target.append(block);
+         continue;
+      }
       const video = VIDEO_LINE.exec(line);
       if (video) {
          flush();

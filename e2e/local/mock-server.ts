@@ -16,6 +16,9 @@ import { createServer } from "node:http";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { defaultReply, parseInputs, replyResponse } from "../../test/support/workers-ai-mock.ts";
 
+import { fakeQaf } from "../../test/support/qaf-mock.ts";
+
+const qaf = fakeQaf();
 const PORT = Number(process.env.MOCK_PORT ?? 8798);
 const ISSUER = `http://127.0.0.1:${PORT}`;
 const CLIENT_ID = process.env.MOCK_CLIENT_ID ?? "e2e-local";
@@ -75,6 +78,9 @@ createServer(async (req, res) => {
          return toResponse(res, Response.json({ access_token: token, refresh_token: "r", expires_in: 600 }));
       }
       if (url.pathname === "/.well-known/jwks.json") return toResponse(res, Response.json({ keys: [jwk] }));
+      if (url.pathname.startsWith("/qaf/v1/")) {
+         return toResponse(res, qaf.fetch(url, req.headers.authorization ?? null, body ? JSON.parse(body) : null));
+      }
       if (url.pathname.startsWith("/ai/run/") && req.method === "POST") {
          const parsed = parseInputs(decodeURIComponent(url.pathname.slice("/ai/run/".length)), JSON.parse(body));
          if (parsed.user.includes("E2E-DECLINE")) return toResponse(res, replyResponse({ kind: "json", data: {}, refusal: "I can't help with that." }));

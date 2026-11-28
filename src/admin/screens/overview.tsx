@@ -1,12 +1,14 @@
 /** @jsxImportSource hono/jsx */
 /** Overview: counts, recent edits, quick actions, the active theme. */
+import { QafFailureCard } from "../ui/qaf.tsx";
+import type { QafStatus } from "../../lib/qaf/settings.ts";
 import { AiFailuresCard } from "../ui/ai.tsx";
 import { raw } from "hono/html";
 import type { Data, Row } from "../data.ts";
 import { relative } from "../format.ts";
 import { formatNumber } from "../../lib/format.ts";
 import { publishState } from "../../lib/schedule.ts";
-import { LocalTime, StateBadge } from "../ui/parts.tsx";
+import { I18nScript, LocalTime, StateBadge } from "../ui/parts.tsx";
 import { THEMES } from "../theme/vendor.generated.ts";
 import { Icon, type IconName } from "../ui/icons.tsx";
 import { Empty, isAdmin, withParam, type View } from "../ui/layout.tsx";
@@ -113,7 +115,7 @@ function CommunityFlag({ v, dead }: { v: View; dead: DeadCommunityLink[] }) {
    );
 }
 
-export async function overviewScreen(v: View, data: Data, db?: D1Database, aiFailures: Parameters<typeof AiFailuresCard>[0]["failures"] = null) {
+export async function overviewScreen(v: View, data: Data, db?: D1Database, aiFailures: Parameters<typeof AiFailuresCard>[0]["failures"] = null, qaf: QafStatus | null = null) {
    const { t } = v;
    const [dead, feed, community] = await Promise.all([
       db ? deadSnapshots(db).catch(() => ({ items: [], total: 0 })) : { items: [], total: 0 },
@@ -231,7 +233,9 @@ export async function overviewScreen(v: View, data: Data, db?: D1Database, aiFai
             ))}
          </div>
 
+         {qaf?.issue ? <I18nScript nonce={v.nonce} strings={{ qaf: t.qaf }} id="i18n-qaf-error" /> : null}
          <AiFailuresCard v={v} failures={aiFailures} />
+         <QafFailureCard v={v} status={qaf} />
          <div class="grid2" style="margin-top:32px">
             <section class="card" aria-labelledby="recent-h">
                <h2 id="recent-h">{t.overview.recent}</h2>

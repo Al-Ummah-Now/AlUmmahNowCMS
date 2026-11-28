@@ -54,7 +54,7 @@ interface Check {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function runJob(payload: Record<string, unknown>): Promise<Job> {
+export async function runJob(payload: Record<string, unknown>): Promise<Job> {
    let { job } = await api<{ job: Job }>("POST", "/admin/api/ai/jobs", payload);
    const started = Date.now();
    while (job.status === "queued" || job.status === "running") {

@@ -7,6 +7,8 @@
  * No key is ever in this page: providers name an AI_KEY_* secret, and the list of bound names is
  * offered as an autocomplete.
  */
+import { qafStatus } from "../../lib/qaf/settings.ts";
+import { QafSettingsCard, QafFailureCard } from "../ui/qaf.tsx";
 import { raw } from "hono/html";
 import type { Child } from "hono/jsx";
 import { budgetState } from "../../lib/ai/budget.ts";
@@ -212,16 +214,18 @@ export async function aiSettingsScreen(v: View, env: Env) {
    const stored = await loadSettings(env.DB, { local: env.ENVIRONMENT === "local" });
    const now = Date.now();
    const budget = await budgetState(env.DB, env.ENVIRONMENT, stored.settings, now);
-   const audit = await recentAudit(env.DB);
+   const [audit, qaf] = await Promise.all([recentAudit(env.DB), qafStatus(env.DB)]);
    const data = { settings: stored.settings, version: stored.version, secrets: boundSecretNames(env), budget, audit, blank: blankHttpProvider("") };
    const json = JSON.stringify(data).replace(/</g, "\\u003c");
    return (
       <>
-         <I18nScript nonce={v.nonce} strings={{ a: clientStrings(a), lang: v.prefs.lang }} />
+         <I18nScript nonce={v.nonce} strings={{ a: clientStrings(a), lang: v.prefs.lang, qaf: v.t.qaf }} />
          <script type="application/json" id="ai-settings-data" nonce={v.nonce}>
             {raw(json)}
          </script>
          <PageHead title={a.title} intro={a.intro} />
+         <QafFailureCard v={v} status={qaf} />
+         <QafSettingsCard v={v} status={qaf} />
          <form class="stack" data-ai-settings novalidate style="gap:24px">
             <div data-ai-errors role="alert" tabindex={-1} hidden class="card flat" />
             <section class="card stack" aria-labelledby="ai-budget-h">
