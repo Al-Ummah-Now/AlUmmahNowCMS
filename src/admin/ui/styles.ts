@@ -518,6 +518,11 @@ html.seq-dragging,html.seq-dragging *{cursor:grabbing!important;user-select:none
 .badge.sev-high{background:var(--fanous-color-error-fill);color:var(--fanous-color-on-error-fill)}
 /* Qaf research dialog */
 .qaf-dialog{inline-size:min(720px,calc(100% - 32px))}
+.qaf-query{display:flex;align-items:center;padding:0}
+.qaf-query:focus-within{border-color:var(--fanous-c-form-focus-ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--fanous-c-form-focus-ring) 45%,transparent)}
+.qaf-query input{flex:1;min-inline-size:0;min-block-size:44px;padding:10px 14px;border:0;outline:0;background:transparent;color:inherit;font:inherit}
+.qaf-query input::-webkit-search-cancel-button{display:none}
+.qaf-query .ic{color:inherit}
 .qaf-filters>summary,.qaf-context>summary{cursor:pointer;min-block-size:44px;line-height:44px}
 .qaf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .qaf-lookup{display:flex;align-items:stretch;gap:6px}

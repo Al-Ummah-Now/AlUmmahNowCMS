@@ -55,6 +55,17 @@ for (const lang of ["en", "ar"] as const) {
          await expect(query).toHaveValue(draft);
          await dialog.getByRole("button", { name: t.suggest }).click();
          await expect(query).toHaveValue(QAF_AI_QUERY);
+         const clear = dialog.getByRole("button", { name: t.clear });
+         const [queryBox, clearBox] = await Promise.all([query.boundingBox(), clear.boundingBox()]);
+         expect(queryBox).not.toBeNull();
+         expect(clearBox).not.toBeNull();
+         if (lang === "ar") expect(clearBox!.x).toBeLessThan(queryBox!.x);
+         else expect(clearBox!.x).toBeGreaterThan(queryBox!.x);
+         await clear.click();
+         await expect(query).toHaveValue("");
+         await expect(query).toBeFocused();
+         await expect(clear).toBeHidden();
+         await query.fill(QAF_AI_QUERY);
          await dialog.getByText(t.filters, { exact: true }).click();
          await dialog.getByLabel(t.genre).selectOption("hanbali-fiqh");
          await dialog.getByLabel(t.author, { exact: true }).fill("Munawi");
@@ -65,6 +76,11 @@ for (const lang of ["en", "ar"] as const) {
          await dialog.getByLabel(t.chooseBook).selectOption("31f522f9-b85c-5c78-a8ff-dc48ebce183c");
          await dialog.getByLabel(t.fromYear).fill(lang === "ar" ? "١٠٠٠" : "1000");
          await dialog.getByLabel(t.toYear).fill("1100");
+         if (lang === "ar") {
+            await editor.route(`**${endpoint}/search`, (route) => route.fulfill({ status: 429, json: { error: "minute", retryAfter: 5 } }), { times: 1 });
+            await dialog.getByRole("button", { name: t.search }).click();
+            await expect(dialog.locator("[data-qaf-message]")).toHaveText("يتلقى قاف طلبات كثيرة. أعد المحاولة بعد ٥ ثوانٍ.");
+         }
          const request = editor.waitForRequest((req) => req.url().endsWith("/search") && req.method() === "POST");
          await dialog.getByRole("button", { name: t.search }).click();
          expect((await request).postDataJSON()).toMatchObject({
@@ -74,6 +90,8 @@ for (const lang of ["en", "ar"] as const) {
          const result = dialog.locator(".qaf-result");
          const quotation = result.locator(".qaf-excerpt").first();
          await expect(quotation).toHaveAttribute("dir", "rtl");
+         await expect(result.getByRole("button", { name: t.insert })).toHaveClass(/\bprimary\b/);
+         await expect(result.getByRole("link", { name: t.turath })).not.toHaveClass(/\bprimary\b/);
          expect(await quotation.textContent()).toBe(QAF_PASSAGE.text);
          await expect(result.getByRole("link").first()).toHaveAttribute("rel", "noopener noreferrer nofollow");
          await expect(result.getByRole("link").first()).toContainText(lang === "ar" ? "ص ١٢٣٤" : "p. 1234");
@@ -82,12 +100,12 @@ for (const lang of ["en", "ar"] as const) {
          await dialog.getByRole("button", { name: t.search }).click();
          expect((await hit).headers()["x-qaf-cache"]).toBe("hit");
          await expect(result).toBeVisible();
+         await page.reload();
+         await expect(settings).toContainText(lang === "ar" ? "٢٤٩٩" : "2,499");
          if (capture) {
             await editor.locator(".qaf-filters summary").click();
             await dialog.locator(".dlg-b").evaluate((body) => body.scrollTo(0, 0));
             await dialog.screenshot({ path: `e2e-artifacts/qaf-panel-${lang}-dark.png`, animations: "disabled" });
-            await page.reload();
-            await expect(settings).toContainText(lang === "ar" ? "٢٤٩٩" : "2499");
             await settings.screenshot({ path: `e2e-artifacts/qaf-settings-${lang}-dark.png`, animations: "disabled" });
          }
          await result.getByText(t.context, { exact: true }).click();
@@ -127,7 +145,7 @@ test("shows rate-limit errors and provider incidents without echoing upstream da
       await search("fixture-minute", 200);
       await expect(dialog.locator(".qaf-result")).toBeVisible();
       await search("fixture-minute-always", 429);
-      await expect(message).toContainText(t.errors.minute.split("{n}")[0]);
+      await expect(message).toHaveText(`${t.errors.minute} Try again in 1 second.`);
       await search("fixture-week", 429);
       await expect(message).toContainText(t.errors.week);
       await page.goto(`${ON}/?lang=en`);

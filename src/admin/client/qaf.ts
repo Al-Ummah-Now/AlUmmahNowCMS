@@ -1,6 +1,6 @@
 import type { ADMIN_STRINGS } from "../i18n.ts";
 import { MAX_BLOCKS } from "../../lib/blocks.ts";
-import { formatDateTime } from "../../lib/format.ts";
+import { fill, formatDateTime, pickPlural } from "../../lib/format.ts";
 import { citation, citedQuotation, pageDigits, readerUrl, withoutQafQuotes, type Candidate, type CatalogType, type ContextPassage, type Passage, type QafLocale } from "../../lib/qaf/model.ts";
 import { runJob } from "./ai.ts";
 import { aiErrorText, type AiErrorStrings } from "./ai-errors.ts";
@@ -17,7 +17,11 @@ function errorText(t: QafStrings, e: unknown): string {
    const code = body?.error;
    const wait = body?.retryAfter;
    const text = code && Object.hasOwn(t.errors, code) ? t.errors[code as keyof QafStrings["errors"]] : t.errors.unavailable;
-   if (code === "minute") return text.replace("{n}", pageDigits(wait ?? 60, locale()));
+   if (code === "minute") {
+      const lang = locale();
+      const duration = pickPlural(t.retrySeconds, wait ?? 60, lang);
+      return `${text} ${fill(t.retryIn, { duration }, lang)}`;
+   }
    if (code === "week" && wait) return `${text} ${t.retryAt.replace("{time}", formatDateTime(Date.now() + wait * 1000, locale()))}`;
    return text;
 }
@@ -124,6 +128,14 @@ export function initQafEditor(): void {
    const lang = locale();
    const { qaf: t, qafAi } = strings<{ qaf: QafStrings; qafAi: AiErrorStrings }>();
    const query = $<HTMLInputElement>("#qaf-query", dialog)!;
+   const clear = $<HTMLButtonElement>("[data-qaf-clear]", dialog)!;
+   const syncClear = () => { clear.hidden = !query.value; };
+   query.addEventListener("input", syncClear);
+   clear.addEventListener("click", () => {
+      query.value = "";
+      syncClear();
+      query.focus();
+   });
    const message = $("[data-qaf-message]", dialog)!;
    const results = $("[data-qaf-results]", dialog)!;
    const search = $<HTMLFormElement>("[data-qaf-search]", dialog)!;
@@ -156,6 +168,7 @@ export function initQafEditor(): void {
          insertionTarget = target ?? body;
          offset = target?.selectionEnd ?? null;
          if (selected) query.value = selected.slice(0, 2000);
+         syncClear();
          dialog.showModal();
       });
    }
@@ -209,12 +222,12 @@ export function initQafEditor(): void {
             contextContent.replaceChildren(el("p", { class: "err", role: "status" }, errorText(t, e)));
          }
       });
-      const btn = el("button", { class: "btn", type: "button" }, t.insert);
+      const btn = el("button", { class: "btn primary", type: "button" }, t.insert);
       btn.disabled = !readerUrl(p.url, "qaf");
       btn.addEventListener("click", () => insert(p, btn));
       const turath = readerUrl(p.turathUrl, "turath");
       const actions = el("div", { class: "ph-actions" }, btn);
-      if (turath) actions.append(el("a", { class: "btn ghost", href: turath, target: "_blank", rel: "noopener noreferrer nofollow" }, t.turath));
+      if (turath) actions.append(el("a", { class: "btn", href: turath, target: "_blank", rel: "noopener noreferrer nofollow" }, t.turath));
       return el("article", { class: "card stack qaf-result" }, sourceLink(p, lang), excerpt(p.text), actions, context);
    }
 
@@ -265,6 +278,7 @@ export function initQafEditor(): void {
             ui: lang, fields: { body: selected },
          });
          if (query.value.trim() === selected) query.value = (job.result as { query: string }).query;
+         syncClear();
          message.textContent = "";
       } catch (e) {
          message.textContent = aiErrorText(qafAi, e);

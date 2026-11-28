@@ -1,7 +1,6 @@
 /** @jsxImportSource hono/jsx */
-import { formatDateTime } from "../../lib/format.ts";
+import { fill, formatDateTime, formatNumber } from "../../lib/format.ts";
 import { QAF_GENRES } from "../../lib/qaf/genres.ts";
-import { pageDigits } from "../../lib/qaf/model.ts";
 import type { QafStatus } from "../../lib/qaf/settings.ts";
 import { Icon } from "./icons.tsx";
 import type { View } from "./layout.tsx";
@@ -14,7 +13,7 @@ export function QafSettingsCard({ v, status }: { v: View; status: QafStatus }) {
          <p class="help">{t.settingsHelp}</p>
          <div><span class="badge loc">{status.configured ? t.connected : t.notSet}</span></div>
          {status.configured ? (
-            <p>{t.remaining.replace("{n}", pageDigits(status.remaining, v.prefs.lang))}{" "}
+            <p>{fill(t.remaining, { n: formatNumber(status.remaining, v.prefs.lang, { useGrouping: v.prefs.lang !== "ar" }) }, v.prefs.lang)}{" "}
                <a href="https://qaf.ai/settings/usage" target="_blank" rel="noopener noreferrer nofollow">{t.accountUsage}</a>
             </p>
          ) : null}
@@ -71,7 +70,10 @@ export function QafDialog({ v, canSuggest }: { v: View; canSuggest: boolean }) {
             <form class="stack" data-qaf-search>
                <div class="field">
                   <label for="qaf-query">{t.topic}</label>
-                  <input id="qaf-query" class="input" type="search" dir="auto" maxlength={2000} required autofocus />
+                  <div class="input qaf-query">
+                     <input id="qaf-query" type="search" dir="auto" maxlength={2000} required autofocus />
+                     <button class="ic" type="button" data-qaf-clear aria-label={t.clear} hidden><Icon name="x" size={18} /></button>
+                  </div>
                </div>
                <details class="qaf-filters">
                   <summary>{t.filters}</summary>
