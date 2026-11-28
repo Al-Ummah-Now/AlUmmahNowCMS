@@ -1,3 +1,4 @@
+import { cardsApi } from "./cards-api.ts";
 /** @jsxImportSource hono/jsx */
 /**
  * Staff screens (docs/ADMIN_UI_SPEC.md §2). Mounted at the root behind the session gate in
@@ -187,6 +188,7 @@ export function adminRoutes(deps: Deps): Hono<AppEnv> {
    r.route("/admin/api/lists", listsApi(deps));
    r.route("/admin/api/library", libraryApi(deps));
    r.route("/admin/api/scholars", scholarsApi(deps));
+   r.route("/admin/api/cards", cardsApi(deps));
    r.route("/admin/api/featuring", featuringApi());
    r.route("/admin/api/suggest", suggestApi(deps));
    r.route("/admin/api/ai", aiRoutes(deps));

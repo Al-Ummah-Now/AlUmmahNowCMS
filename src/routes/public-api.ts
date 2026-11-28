@@ -630,7 +630,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       const post = await postOf(c.env, row);
       // A ref whose community post is gone or no longer public (the outbox drafts the ref soon)
       if (!post) throw new HttpError(404);
-      return json(c, post);
+      return json(c, post, post.community?.designedCard ? 'private, no-store' : CACHE);
    });
 
    // A renamed post's or page's old address (migration 0018, owner decision D-SEO-7): the current

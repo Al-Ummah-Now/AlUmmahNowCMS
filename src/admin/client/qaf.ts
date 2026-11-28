@@ -154,12 +154,14 @@ export function initQafEditor(): void {
    let lastField: HTMLInputElement | HTMLTextAreaElement | null = null;
    let insertionTarget: HTMLTextAreaElement | null = null;
    let offset: number | null = null;
+   let cardTarget: HTMLElement | null = null;
    editor.addEventListener("focusin", (e) => {
       const field = e.target;
       if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement && field.type === "text") lastField = field;
    });
    for (const button of $$("[data-qaf-open]", editor)) {
       button.addEventListener("click", () => {
+         cardTarget = button.hasAttribute("data-card-pick") ? button.closest("[data-designed-cards]") : null;
          const selected = lastField?.isConnected && lastField.selectionStart != null && lastField.selectionEnd != null
             ? withoutQafQuotes(lastField.value, lastField.selectionStart, lastField.selectionEnd).trim() : "";
          const target = lastField instanceof HTMLTextAreaElement && lastField.isConnected &&
@@ -174,6 +176,11 @@ export function initQafEditor(): void {
    }
 
    function insert(passage: Passage, button: HTMLButtonElement) {
+      if (cardTarget) {
+         cardTarget.dispatchEvent(new CustomEvent("card-passage", { detail: { id: passage.id, title: citation(passage, lang) } }));
+         dialog!.close();
+         return;
+      }
       const value = citedQuotation(passage, editor!.dataset.locale === "ar" ? "ar" : "en");
       if (!value) return;
       let target = insertionTarget?.isConnected ? insertionTarget : null;
