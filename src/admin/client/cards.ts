@@ -1,4 +1,5 @@
 import { $, $$, api } from "./dom.ts";
+import { formatNumber } from "../../lib/format.ts";
 
 type Job = { id: string; status: string };
 type CardDocument = { html: string; width: number; height: number };
@@ -71,7 +72,7 @@ export function initDesignedCards() {
       const result = await response.json();
       if (!response.ok) {
          if (result?.error === "card_slide_limit" && Number.isInteger(result.limit)) {
-            const count = new Intl.NumberFormat(lang === "ar" ? "ar-u-nu-arab" : "en", { useGrouping: false }).format(result.limit);
+            const count = formatNumber(result.limit, lang, { useGrouping: false });
             throw new RangeError(translate(`This passage needs more than ${count} cards. Choose a shorter passage.`, `يحتاج هذا المقطع إلى أكثر من ${count} بطاقة. اختر مقطعًا أقصر.`));
          }
          throw new Error("Card request failed");
