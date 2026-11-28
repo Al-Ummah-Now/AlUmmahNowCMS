@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 /** Pages and posts: list (search, filters, sort, paging) and editor (docs/ADMIN_UI_SPEC.md E1–E16, A1–A12). */
+import { DesignedCardsPanel } from "../ui/cards.tsx";
 import { QafCard, QafDialog } from "../ui/qaf.tsx";
 import { AiCard, AiCheckButton, AiDialogs, AiSeoButton, AiSeoPanel, aiClientStrings } from "../ui/ai.tsx";
 import { TrFlagsCard, TrFlagsDialogs, TrFlagsPopover, trFlagsClientStrings } from "../ui/translation-flags.tsx";
@@ -920,6 +921,7 @@ export async function contentEditor(v: View, data: Data, kind: ContentKind, id: 
                </section>
                {history}
                <AiCard v={v} locale={locale} other={other} saved={!!row} siblingId={translations.data[0] ? Number(translations.data[0].id) : null} />
+               {scholarPost ? <DesignedCardsPanel v={v} qaf={!!qaf?.configured} /> : null}
                {qaf?.configured ? <QafCard v={v} /> : null}
                {flags ? <TrFlagsCard v={v} canResolve={canResolveFlags} /> : null}
             </aside>

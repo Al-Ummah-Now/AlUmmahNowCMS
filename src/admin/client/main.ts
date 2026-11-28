@@ -1,3 +1,4 @@
+import { initDesignedCards } from "./cards.ts";
 /**
  * The staff screens' one client script (built by scripts/build-admin-client.ts into
  * src/admin/client.generated.ts). Pages work without it for reading; it adds the drawer, menus,
@@ -44,6 +45,7 @@ initTrash();
 initAiSettings();
 initQafSettings();
 initQafEditor();
+initDesignedCards();
 initScholars();
 initLibrary();
 initPageType();

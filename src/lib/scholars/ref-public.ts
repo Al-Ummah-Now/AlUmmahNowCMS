@@ -48,7 +48,7 @@ export function refInfo(env: Env, row: Row) {
 
 /** The fields of a community post www may show (never viewer state or moderation fields). */
 export function publicCommunity(p: CommunityPostJson): Record<string, unknown> {
-   const pick = ["id", "channelId", "type", "content", "images", "videoId", "gif", "poll", "quiz", "article", "slides", "link", "title", "locale", "translationKey", "likes", "comments", "commentsEnabled", "createdAt", "updatedAt", "channelName", "channelNameLocalized", "channelAvatar"];
+   const pick = ["id", "channelId", "type", "designedCard", "content", "images", "videoId", "gif", "poll", "quiz", "article", "slides", "link", "title", "locale", "translationKey", "likes", "comments", "commentsEnabled", "createdAt", "updatedAt", "channelName", "channelNameLocalized", "channelAvatar"];
    const out: Record<string, unknown> = {};
    for (const k of pick) if (p[k] !== undefined) out[k] = p[k];
    // A quiz's answer is revealed on the videos site after answering, never in www's HTML.
@@ -80,7 +80,7 @@ export async function loadRefPost(env: Env, row: Row, fetchImpl: typeof fetch = 
    } catch {
       return "unavailable";
    }
-   if (cache) {
+   if (cache && !post?.designedCard) {
       const res = new Response(JSON.stringify({ post }), { headers: { "content-type": "application/json", "cache-control": `max-age=${REF_POST_CACHE_SECONDS}` } });
       await cache.put(key, res).catch(() => undefined);
    }
