@@ -209,7 +209,7 @@ function clientStrings(a: View["t"]["aiSettings"]) {
 
 export async function aiSettingsScreen(v: View, env: Env) {
    const a = v.t.aiSettings;
-   const stored = await loadSettings(env.DB);
+   const stored = await loadSettings(env.DB, { local: env.ENVIRONMENT === "local" });
    const now = Date.now();
    const budget = await budgetState(env.DB, env.ENVIRONMENT, stored.settings, now);
    const audit = await recentAudit(env.DB);
