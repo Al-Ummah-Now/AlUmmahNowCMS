@@ -22,9 +22,10 @@
 import { budgetState } from "./ai/budget.ts";
 import type { AiEnv } from "./ai/config.ts";
 import { recordUsage } from "./ai/jobs.ts";
+import { escapePromptXml } from "./ai/prompts.ts";
 import { createRouter, type ProviderDeps } from "./ai/router.ts";
 import { loadSettings } from "./ai/settings.ts";
-import { log } from "./log.ts";
+import { errText, log } from "./log.ts";
 import { hasArabic, slugify, trimSlug, SLUG_TARGET } from "./slug.ts";
 
 export const SLUG_PROMPT_VERSION = "2026-11-11.1";
@@ -125,7 +126,7 @@ export async function suggestSlug(env: AiEnv & { DB: D1Database }, o: SuggestOpt
       if (base) return { base, source: "translated" };
    }
    try {
-      const { settings } = await loadSettings(env.DB);
+      const { settings } = await loadSettings(env.DB, { local: env.ENVIRONMENT === "local" });
       if ((await budgetState(env.DB, env.ENVIRONMENT, settings, now())).reached) return fallback("budget_reached");
       const router = createRouter(settings, env, o.deps);
       const userId = o.user?.id == null ? null : Number(o.user.id) || null;
@@ -133,7 +134,7 @@ export async function suggestSlug(env: AiEnv & { DB: D1Database }, o: SuggestOpt
       const timeout = new Promise<"timeout">((r) => (timer = setTimeout(() => r("timeout"), o.timeoutMs ?? SUGGEST_TIMEOUT_MS)));
       const call = router.complete(
          "translate",
-         { system: SLUG_SYSTEM, messages: [{ role: "user", content: `<title>\n${title}\n</title>` }], schema: SLUG_SCHEMA as unknown as Record<string, unknown>, reasoning: "none", maxTokens: 120 },
+         { system: SLUG_SYSTEM, messages: [{ role: "user", content: `<title>\n${escapePromptXml(title)}\n</title>` }], schema: SLUG_SCHEMA as unknown as Record<string, unknown>, reasoning: "none", maxTokens: 120 },
          async ({ result }) => {
             await recordUsage(env.DB, { env: env.ENVIRONMENT, job: { id: null, user_id: userId, feature: "slug" }, result, now: now() }).catch(() => undefined);
          },
@@ -146,7 +147,7 @@ export async function suggestSlug(env: AiEnv & { DB: D1Database }, o: SuggestOpt
       await cache?.put(key, new Response(base, { headers: { "Cache-Control": `max-age=${CACHE_TTL_S}` } })).catch(() => undefined);
       return { base, source: "translated" };
    } catch (error) {
-      log.warn("slug suggestion failed", { error: String(error) });
+      log.warn("slug suggestion failed", { error: errText(error) });
       return fallback("error");
    }
 }

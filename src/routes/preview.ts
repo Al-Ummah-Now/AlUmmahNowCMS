@@ -12,6 +12,7 @@ import { isStaffPost } from "../lib/staff-writer.ts";
 import { postAuthor, subOfUser } from "../lib/scholars/ownership.ts";
 import { Hono, type Context } from "hono";
 import { ConfigError, runtimeConfig, type Env } from "../env.ts";
+import { errText, log } from "../lib/log.ts";
 import { bearer, isPreviewKind, mintPreviewToken, verifyPreviewToken, type PreviewKind } from "../lib/preview.ts";
 import type { AppEnv } from "../types.ts";
 import { publishState } from "../lib/schedule.ts";
@@ -72,7 +73,7 @@ export function previewApi(): Hono<{ Bindings: Env }> {
 
    api.all("*", (c) => fail(c, 404, "not_found"));
    api.onError((err, c) => {
-      console.error("preview api error", err instanceof Error ? err.message : String(err));
+      log.error("preview api error", { error: errText(err) });
       return c.json({ error: "internal_error" }, 500, PRIVATE_JSON);
    });
    return api;

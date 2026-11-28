@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import { applyRules, ContentRuleError } from "../lib/content-rules.ts";
 import { embedUrl } from "../lib/embeds.ts";
+import { errText, log } from "../lib/log.ts";
 import { snapshotOf } from "../lib/snapshots.ts";
 import { putSnapshot } from "../lib/video-snapshots.ts";
 import { browseVideos, lookupItem, searchVideos, VIDEO_KINDS, type PickerItem, type VideoKind } from "../lib/videos.ts";
@@ -53,7 +54,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
             const { items, nextCursor } = await browseVideos(cfg.videosApiUrl, kind, cursor, deps.fetch);
             return c.json({ items: items.map((it) => pickerItemOf(cfg.videosWebUrl, it)), next_cursor: nextCursor });
          } catch (error) {
-            console.warn("picker browse failed", (error as Error).message);
+            log.warn("picker browse failed", { error: errText(error) });
             return c.json({ error: "upstream_error" }, 502);
          }
       }
@@ -64,7 +65,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
             items: items.map((it) => pickerItemOf(cfg.videosWebUrl, it)),
          });
       } catch (error) {
-         console.warn("picker search failed", (error as Error).message);
+         log.warn("picker search failed", { error: errText(error) });
          return c.json({ error: "upstream_error" }, 502);
       }
    });
@@ -98,7 +99,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       try {
          item = await lookupItem(cfg.videosApiUrl, kind, refId, deps.fetch);
       } catch (error) {
-         console.warn("picker lookup failed", (error as Error).message);
+         log.warn("picker lookup failed", { error: errText(error) });
          return c.json({ error: "upstream_error" }, 502);
       }
       if (!item) return c.json({ error: "not_found", message: "not found or not public" }, 404);
@@ -153,7 +154,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       try {
          item = await lookupItem(cfg.videosApiUrl, kind, refId, deps.fetch);
       } catch (error) {
-         console.warn("picker lookup failed", (error as Error).message);
+         log.warn("picker lookup failed", { error: errText(error) });
          return c.json({ error: "upstream_error" }, 502);
       }
       if (!item) return c.json({ error: "not_found", message: "not found or not public" }, 404);
@@ -191,7 +192,7 @@ export function pickerRoutes(deps: Deps): Hono<AppEnv> {
       try {
          item = await lookupItem(cfg.videosApiUrl, kind, refId, deps.fetch);
       } catch (error) {
-         console.warn("snapshot lookup failed", (error as Error).message);
+         log.warn("snapshot lookup failed", { error: errText(error) });
          return c.json({ error: "upstream_error" }, 502);
       }
       if (!item) return c.json({ error: "not_found", message: "not found or not public" }, 404);

@@ -4,8 +4,13 @@
  */
 type Fields = Record<string, unknown>;
 
+const LOG_CTRL = /[\r\n\u0000-\u001f\u007f]+/g;
+
+/** Strips CR/LF and ASCII control chars so untrusted text cannot forge log lines or inject terminal escapes. */
+export const sanitizeLogText = (text: string, max = 500): string => text.replace(LOG_CTRL, " ").trim().slice(0, max);
+
 function line(level: "info" | "warn" | "error", msg: string, fields?: Fields): string {
-   return JSON.stringify({ level, msg, ...(fields ?? {}) });
+   return JSON.stringify({ level, msg: sanitizeLogText(msg, 300), ...(fields ?? {}) });
 }
 
 export const log = {
@@ -14,5 +19,5 @@ export const log = {
    error: (msg: string, fields?: Fields) => console.error(line("error", msg, fields)),
 };
 
-/** An error as a short loggable string (never a stack with request data). */
-export const errText = (error: unknown): string => (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 500);
+/** An error as a short loggable string (never a stack with request data, never raw control chars). */
+export const errText = (error: unknown): string => sanitizeLogText(error instanceof Error ? `${error.name}: ${error.message}` : String(error), 500);

@@ -7,6 +7,8 @@
  */
 import { isStaffPost } from "../lib/staff-writer.ts";
 import { Hono } from "hono";
+import { errText, log } from "../lib/log.ts";
+import { validMediaKey } from "../lib/paths.ts";
 import { postAuthor, subOfUser } from "../lib/scholars/ownership.ts";
 import { retryVariants } from "../lib/variants/jobs.ts";
 import { getRevision, RESTORABLE, withActor } from "../lib/revisions.ts";
@@ -73,7 +75,7 @@ export function mediaAltRoute(deps: Deps): Hono<AppEnv> {
       const role = c.get("user")?.role;
       if (role !== "admin" && role !== "editor") return c.json({ error: "forbidden" }, 403);
       const body = (await c.req.json().catch(() => null)) as { path?: unknown } | null;
-      if (!body || typeof body.path !== "string" || !body.path || body.path.length > 512) return c.json({ error: "bad_request", message: "path required" }, 400);
+      if (!body || typeof body.path !== "string" || !validMediaKey(body.path)) return c.json({ error: "bad_request", message: "valid path required" }, 400);
       if (!c.env.VARIANTS) return c.json({ error: "unavailable", message: "image processing is not configured" }, 503);
       if (!(await retryVariants(c.env, body.path))) return c.json({ error: "not_found" }, 404);
       return c.json({ data: { path: body.path, status: "queued" } });
@@ -121,7 +123,7 @@ export function mediaAltRoute(deps: Deps): Hono<AppEnv> {
          if (name === "StaleWriteError") return c.json({ error: "conflict" }, 409);
          if (name === "SlugTakenError" || /UNIQUE/i.test(text)) return c.json({ error: "slug_taken" }, 409);
          if (name === "ContentRuleError") return c.json({ error: "invalid" }, 400);
-         console.error("restore failed", rev.id, text);
+         log.error("restore failed", { revId: rev.id, error: errText(error) });
          return c.json({ error: "internal_error" }, 500);
       }
    });

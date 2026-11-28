@@ -9,6 +9,7 @@ import { MODEL_ID, MODELS, FEATURES, type Feature } from "./prompts.ts";
 import { HTTP_METHODS, type HttpProviderConfig, type SecretReader } from "./providers/http.ts";
 import { BODY_PLACEHOLDERS, parsePath, placeholdersIn, renderBody, URL_PLACEHOLDERS } from "./providers/shared.ts";
 import { WORKERS_AI_ID } from "./providers/workers-ai.ts";
+import { hasPlaceholderInAuthority, isBlockedProviderHost, isLoopbackHostname, MODEL_ID_RE } from "./url-guard.ts";
 import { log } from "../log.ts";
 
 export interface WorkersAiProviderConfig {
@@ -120,9 +121,10 @@ export interface SettingsError {
 }
 
 const PROVIDER_ID = /^[a-z0-9][a-z0-9-]{1,31}$/;
-const MODEL = /^[\w@.:/+-]{1,128}$/;
+export const MODEL = MODEL_ID_RE;
 const HEADER = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
 const PARAM = /^[A-Za-z0-9_.-]{1,64}$/;
+const CTRL = /[\u0000-\u001f\u007f]/;
 const BANNED_HEADERS = new Set(["host", "content-length", "cookie", "connection", "transfer-encoding", "content-type", "accept"]);
 /** Header names that carry credentials: they must come from `auth` (a secret), never a static value. */
 const AUTHY_HEADER = /authorization|api[-_]?key|token|secret|password|^x-.*key$|^key$/i;
@@ -160,16 +162,25 @@ function validateModels(raw: unknown, path: string, errors: SettingsError[]): st
 function validateUrl(raw: string, path: string, local: boolean, errors: SettingsError[]): void {
    if (!raw) return void errors.push({ path, code: "required" });
    if (raw.length > 500) return void errors.push({ path, code: "too_long" });
+   if (CTRL.test(raw) || /\s/.test(raw)) return void errors.push({ path, code: "invalid" });
    const unknown = placeholdersIn(raw).filter((p) => !(URL_PLACEHOLDERS as readonly string[]).includes(p));
    if (unknown.length) return void errors.push({ path, code: "unknown_placeholder" });
+   if (hasPlaceholderInAuthority(raw)) return void errors.push({ path, code: "invalid" });
    let u: URL;
    try {
       u = new URL(raw.replace(/\{\{\s*model\s*\}\}/g, "m"));
    } catch {
       return void errors.push({ path, code: "invalid" });
    }
-   const loopback = u.hostname === "127.0.0.1" || u.hostname === "localhost";
-   if (u.protocol !== "https:" && !(local && loopback && u.protocol === "http:")) errors.push({ path, code: "not_https" });
+   const loopback = isLoopbackHostname(u.hostname);
+   if (u.protocol !== "https:" && !(local && loopback && u.protocol === "http:")) {
+      errors.push({ path, code: "not_https" });
+      return;
+   }
+   if (isBlockedProviderHost(u.hostname, { local })) {
+      errors.push({ path, code: "invalid" });
+      return;
+   }
    if (u.username || u.password) errors.push({ path, code: "credential" });
    if (looksLikeCredential(u.search + u.pathname)) errors.push({ path, code: "credential" });
 }
@@ -188,12 +199,13 @@ function validateHttp(raw: Record<string, unknown>, path: string, local: boolean
    let auth: HttpProviderConfig["auth"] = { type: "none" };
    if (a.type === "header") {
       const header = str(a.header);
-      const prefix = typeof a.prefix === "string" ? a.prefix.replace(/[\r\n]/g, "") : "";
+      const rawPrefix = typeof a.prefix === "string" ? a.prefix : "";
       const secret = str(a.secret);
-      if (!HEADER.test(header)) errors.push({ path: `${path}.auth.header`, code: "invalid" });
-      if (prefix.length > 20 || looksLikeCredential(prefix)) errors.push({ path: `${path}.auth.prefix`, code: prefix.length > 20 ? "too_long" : "credential" });
+      if (!HEADER.test(header) || BANNED_HEADERS.has(header.toLowerCase())) errors.push({ path: `${path}.auth.header`, code: "invalid" });
+      if (CTRL.test(rawPrefix)) errors.push({ path: `${path}.auth.prefix`, code: "invalid" });
+      else if (rawPrefix.length > 20 || looksLikeCredential(rawPrefix)) errors.push({ path: `${path}.auth.prefix`, code: rawPrefix.length > 20 ? "too_long" : "credential" });
       if (!SECRET_NAME.test(secret)) errors.push({ path: `${path}.auth.secret`, code: "secret_name" });
-      auth = { type: "header", header, prefix, secret };
+      auth = { type: "header", header, prefix: rawPrefix, secret };
    } else if (a.type === "query") {
       const param = str(a.param);
       const secret = str(a.secret);
@@ -211,7 +223,7 @@ function validateHttp(raw: Record<string, unknown>, path: string, local: boolean
       const p = `${path}.headers.${i}`;
       if (!HEADER.test(name) || BANNED_HEADERS.has(name.toLowerCase())) errors.push({ path: `${p}.name`, code: "invalid" });
       else if (AUTHY_HEADER.test(name)) errors.push({ path: `${p}.name`, code: "auth_header" });
-      if (/[\r\n]/.test(value) || value.length > 200) errors.push({ path: `${p}.value`, code: "invalid" });
+      if (CTRL.test(value) || value.length > 200) errors.push({ path: `${p}.value`, code: "invalid" });
       else if (looksLikeCredential(value)) errors.push({ path: `${p}.value`, code: "credential" });
       return { name, value };
    });
@@ -345,7 +357,7 @@ export interface StoredSettings {
    updatedBy: string | null;
 }
 
-export async function loadSettings(db: D1Database): Promise<StoredSettings> {
+export async function loadSettings(db: D1Database, opts: { local?: boolean } = {}): Promise<StoredSettings> {
    const row = await db.prepare("SELECT data, version, updated_at, updated_by FROM ai_settings WHERE id = 1").first<{ data: string; version: number; updated_at: number; updated_by: string | null }>();
    if (!row) return { settings: defaultSettings(), version: 0, updatedAt: null, updatedBy: null };
    let parsed: unknown;
@@ -354,8 +366,8 @@ export async function loadSettings(db: D1Database): Promise<StoredSettings> {
    } catch {
       parsed = null;
    }
-   // Stored rows were validated on save; re-validate (local rules are the loosest) so a bad row can't run.
-   const v = validateSettings(parsed, { local: true });
+   // Re-validate under the current environment's rules so a tampered or copied row can't target internal hosts.
+   const v = validateSettings(parsed, { local: opts.local === true });
    if (!v.ok) {
       log.error("ai settings invalid; using defaults", { version: row.version, errors: v.errors.length });
       return { settings: defaultSettings(), version: row.version, updatedAt: row.updated_at, updatedBy: row.updated_by };
@@ -387,8 +399,15 @@ export interface Actor {
 
 export class SettingsConflict extends Error {}
 
-export async function saveSettings(db: D1Database, next: AiSettings, expectedVersion: number, actor: Actor, now: number): Promise<{ version: number; changed: string[] }> {
-   const current = await loadSettings(db);
+export async function saveSettings(
+   db: D1Database,
+   next: AiSettings,
+   expectedVersion: number,
+   actor: Actor,
+   now: number,
+   opts: { local?: boolean } = {},
+): Promise<{ version: number; changed: string[] }> {
+   const current = await loadSettings(db, opts);
    if (current.version !== expectedVersion) throw new SettingsConflict("version");
    const changed = changedPaths(current.settings, next);
    if (changed.length === 0) return { version: current.version, changed };

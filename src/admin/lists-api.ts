@@ -20,6 +20,7 @@
  */
 import { Hono, type Context } from "hono";
 import { TimelineError, type Actor } from "../lib/feed/admin.ts";
+import { errText, log } from "../lib/log.ts";
 import { addToLibrary, LIBRARY_KINDS, LibraryError, removeFromLibrary, setLibraryLocale } from "../lib/library.ts";
 import { filterItems, ListError, normalizeFilter, TAG_MAX } from "../lib/lists.ts";
 import {
@@ -58,7 +59,7 @@ async function body(c: C): Promise<Record<string, unknown> | null> {
 function fail(c: C, error: unknown) {
    if (error instanceof TimelineError || error instanceof TrashError || error instanceof LibraryError) return c.json({ error: error.code }, error.status);
    if (error instanceof ListError) return c.json({ error: error.code, message: error.message }, 400);
-   console.error("lists api", String(error));
+   log.error("lists api failed", { error: errText(error) });
    return c.json({ error: "internal_error" }, 500);
 }
 
@@ -97,13 +98,14 @@ export function listsApi(deps: Deps): Hono<AppEnv> {
       const l = loc(c.req.query("locale"));
       if (!l) return c.json({ error: "bad_request" }, 400);
       const q = (c.req.query("q") ?? "").trim().toLowerCase().slice(0, TAG_MAX);
+      const like = `%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
       const { results } = await c.env.DB.prepare(
          `SELECT j.value AS tag, count(*) AS n FROM posts p, json_each(CASE WHEN json_valid(p.tags) THEN p.tags ELSE '[]' END) j
           WHERE p.locale = ?1 AND ${LIVE_SQL.replace(/\b(status|publish_at)\b/g, "p.$1")} AND ${mainSiteSql("p")} AND typeof(j.value) = 'text'
-            AND (?2 = '' OR lower(j.value) LIKE '%' || ?2 || '%')
+            AND (?2 = '' OR lower(j.value) LIKE ?3 ESCAPE '\\')
           GROUP BY j.value ORDER BY n DESC, j.value LIMIT 20`,
       )
-         .bind(l, q)
+         .bind(l, q, like)
          .all<{ tag: string; n: number }>();
       return c.json({ data: { items: results.map((x) => ({ tag: x.tag, count: Number(x.n) })) } });
    });
@@ -134,7 +136,7 @@ export function listsApi(deps: Deps): Hono<AppEnv> {
          try {
             item = await snapshot(c, deps, kind, refId);
          } catch (error) {
-            console.warn("list video lookup failed", String(error));
+            log.warn("list video lookup failed", { error: errText(error) });
             return c.json({ error: "upstream_error" }, 502);
          }
          if (!item) return c.json({ error: "not_found" }, 404);
@@ -214,7 +216,7 @@ export function libraryApi(deps: Deps): Hono<AppEnv> {
          try {
             item = await snapshot(c, deps, kind, refId);
          } catch (error) {
-            console.warn("library video lookup failed", String(error));
+            log.warn("library video lookup failed", { error: errText(error) });
             return c.json({ error: "upstream_error" }, 502);
          }
          if (!item) return c.json({ error: "not_found" }, 404);

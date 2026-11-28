@@ -130,12 +130,13 @@ export function suggestApi(deps: Deps): Hono<AppEnv> {
          const t = ADMIN_STRINGS[lang];
          if (kind === "tags") {
             const l = c.req.query("locale") === "ar" ? "ar" : "en";
+            const like = `%${q.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
             const { results } = await c.env.DB.prepare(
                `SELECT j.value AS tag, count(*) AS n FROM posts p, json_each(CASE WHEN json_valid(p.tags) THEN p.tags ELSE '[]' END) j
-                WHERE p.locale = ?1 AND p.status = 'published' AND typeof(j.value) = 'text' AND (?2 = '' OR lower(j.value) LIKE '%' || lower(?2) || '%')
-                GROUP BY j.value ORDER BY n DESC, j.value LIMIT ?3`,
+                WHERE p.locale = ?1 AND p.status = 'published' AND typeof(j.value) = 'text' AND (?2 = '' OR lower(j.value) LIKE ?3 ESCAPE '\\')
+                GROUP BY j.value ORDER BY n DESC, j.value LIMIT ?4`,
             )
-               .bind(l, q, SUGGEST_LIMIT)
+               .bind(l, q, like, SUGGEST_LIMIT)
                .all<{ tag: string; n: number }>();
             return c.json(
                { items: results.map((r) => ({ kind: "tags", id: r.tag, label: r.tag, secondary: t.pageList.tagCount(Number(r.n)), imageUrl: null, href: "", lang: l })) },

@@ -16,7 +16,7 @@ import { Hono } from "hono";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
 import { budgetState } from "../lib/ai/budget.ts";
 import { aiReady, buildProvider } from "../lib/ai/router.ts";
-import { auditTest, boundSecretNames, loadSettings, recentAudit, saveSettings, SettingsConflict, validateProvider, validateSettings, type SettingsError } from "../lib/ai/settings.ts";
+import { auditTest, boundSecretNames, loadSettings, MODEL, recentAudit, saveSettings, SettingsConflict, validateProvider, validateSettings, type SettingsError } from "../lib/ai/settings.ts";
 import { errText, log } from "../lib/log.ts";
 import {
    createJob,
@@ -111,7 +111,7 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
       const key = j.feature === "translate" ? await sha256(`${await dedupeKey(j)}:${await glossaryVersion(c.env.DB, j.locale)}`) : await dedupeKey(j);
       const existing = await findDuplicate(c.env.DB, key, now);
       if (existing) return c.json({ job: publicJob(await failIfStale(c.env.DB, existing, now)), deduped: true }, 200);
-      const { settings } = await loadSettings(c.env.DB);
+      const { settings } = await loadSettings(c.env.DB, { local: c.env.ENVIRONMENT === "local" });
       if ((await budgetState(c.env.DB, c.env.ENVIRONMENT, settings, now)).reached) return c.json({ error: "budget_reached" }, 402);
       const wait = await rateLimitWait(c.env.DB, userId, LIMITS.weight[j.feature], now);
       if (wait > 0) return c.json({ error: "rate_limited", retryAfter: wait }, 429, { "Retry-After": String(wait) });
@@ -188,7 +188,7 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
 
    r.get("/settings", async (c) => {
       if (c.get("user").role !== "admin") return c.json({ error: "forbidden" }, 403);
-      const stored = await loadSettings(c.env.DB);
+      const stored = await loadSettings(c.env.DB, { local: c.env.ENVIRONMENT === "local" });
       const now = Date.now();
       return c.json(
          {
@@ -207,10 +207,11 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
       if (user.role !== "admin") return c.json({ error: "forbidden" }, 403);
       const body = (await c.req.json().catch(() => null)) as { settings?: unknown; version?: unknown } | null;
       if (!body || !Number.isInteger(body.version)) return c.json({ error: "bad_request" }, 400);
-      const v = validateSettings(body.settings, { local: c.env.ENVIRONMENT === "local" });
+      const local = c.env.ENVIRONMENT === "local";
+      const v = validateSettings(body.settings, { local });
       if (!v.ok) return c.json({ error: "invalid", errors: v.errors }, 400);
       try {
-         const saved = await saveSettings(c.env.DB, v.settings, body.version as number, { id: Number(user.id) || null, email: user.email ?? null }, Date.now());
+         const saved = await saveSettings(c.env.DB, v.settings, body.version as number, { id: Number(user.id) || null, email: user.email ?? null }, Date.now(), { local });
          return c.json(saved);
       } catch (e) {
          if (e instanceof SettingsConflict) return c.json({ error: "conflict" }, 409);
@@ -226,7 +227,9 @@ export function aiRoutes(deps?: Pick<Deps, "fetch">): Hono<AppEnv> {
       const errors: SettingsError[] = [];
       const cfg = validateProvider(body?.provider, "provider", { local: c.env.ENVIRONMENT === "local" }, errors);
       const model = typeof body?.model === "string" ? body.model.trim() : "";
-      if (!cfg || errors.length || !model) return c.json({ error: "invalid", errors: model ? errors : [...errors, { path: "model", code: "required" }] }, 400);
+      if (!model) errors.push({ path: "model", code: "required" });
+      else if (!MODEL.test(model)) errors.push({ path: "model", code: "invalid" });
+      if (!cfg || errors.length) return c.json({ error: "invalid", errors }, 400);
       // A disabled provider can still be tested before an admin turns it on.
       const provider = buildProvider({ ...cfg, enabled: true }, c.env, { fetch: deps?.fetch });
       if (!provider) return c.json({ ok: false, code: "not_configured", latencyMs: 0 });

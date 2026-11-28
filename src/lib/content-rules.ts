@@ -172,8 +172,10 @@ export async function claimVersion(db: D1Database, table: string, id: number | s
    // No such row: let bknd answer as it does for any missing id.
 }
 
+const CTRL = /[\u0000-\u001f\u007f]/;
+
 export function validNavUrl(url: unknown): boolean {
-   if (typeof url !== "string" || url.length === 0 || url.length > 2048) return false;
+   if (typeof url !== "string" || url.length === 0 || url.length > 2048 || CTRL.test(url)) return false;
    if (url.startsWith("/")) return !url.startsWith("//") && !/[\\\s]/.test(url);
    try {
       return new URL(url).protocol === "https:";
@@ -184,12 +186,29 @@ export function validNavUrl(url: unknown): boolean {
 
 /** Absolute https URL (social links, thumbnails). */
 export function validHttpsUrl(url: unknown): boolean {
-   if (typeof url !== "string" || url.length === 0 || url.length > 2048) return false;
+   if (typeof url !== "string" || url.length === 0 || url.length > 2048 || CTRL.test(url)) return false;
    try {
       return new URL(url).protocol === "https:";
    } catch {
       return false;
    }
+}
+
+/** Absolute http(s) URL (external link cards). */
+export function validWebUrl(url: unknown): boolean {
+   if (typeof url !== "string" || url.length === 0 || url.length > 2048 || CTRL.test(url)) return false;
+   try {
+      const proto = new URL(url).protocol;
+      return proto === "https:" || proto === "http:";
+   } catch {
+      return false;
+   }
+}
+
+function checkMaxLen(data: Row, field: string, max: number, label = field): void {
+   if (!(field in data) || data[field] == null) return;
+   if (typeof data[field] !== "string") throw new ContentRuleError(`${label} must be a string`);
+   if (data[field].length > max) throw new ContentRuleError(`${label} must be at most ${max} characters`);
 }
 
 export const REF_ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -198,8 +217,21 @@ type Row = Record<string, unknown>;
 
 /** Applies the rules to `data` in place. `current` is the stored row for updates. */
 export function applyRules(entity: string, data: Row, mode: "create" | "update", current?: Row | null, now = new Date()): void {
-   if (entity === "nav_items" && "url" in data && !validNavUrl(data.url)) {
-      throw new ContentRuleError('nav_items.url must be a relative "/…" path or an https:// URL');
+   if (entity === "nav_items") {
+      if ("url" in data && !validNavUrl(data.url)) {
+         throw new ContentRuleError('nav_items.url must be a relative "/…" path or an https:// URL');
+      }
+      checkMaxLen(data, "label", 200, "nav_items.label");
+   }
+   if (PUBLISHABLE.has(entity)) {
+      checkMaxLen(data, "title", 500, `${entity}.title`);
+      checkMaxLen(data, "slug", 120, `${entity}.slug`);
+      checkMaxLen(data, "summary", 2000, `${entity}.summary`);
+      checkMaxLen(data, "excerpt", 2000, `${entity}.excerpt`);
+      checkMaxLen(data, "seo_title", 300, `${entity}.seo_title`);
+      checkMaxLen(data, "seo_description", 600, `${entity}.seo_description`);
+      checkMaxLen(data, "author_name", 200, `${entity}.author_name`);
+      checkMaxLen(data, "body", 400_000, `${entity}.body`);
    }
    if (entity === "pages" && typeof data.slug === "string" && data.slug.trim().toLowerCase() === "home") {
       throw new ContentRuleError('The page slug "home" is reserved');
@@ -249,18 +281,26 @@ export function applyRules(entity: string, data: Row, mode: "create" | "update",
    }
    if (entity === "posts" && "tags" in data && data.tags != null) {
       const tags = data.tags;
-      if (!Array.isArray(tags) || tags.some((t) => typeof t !== "string")) {
-         throw new ContentRuleError("posts.tags must be an array of strings");
+      if (!Array.isArray(tags) || tags.length > 50 || tags.some((t) => typeof t !== "string" || t.length > 80)) {
+         throw new ContentRuleError("posts.tags must be an array of at most 50 strings (each ≤ 80 chars)");
       }
    }
    // bknd 0.21 does not apply an enum's default_value before its required check.
    if (mode === "create" && WITH_STATUS.has(entity) && (data.status === undefined || data.status === null)) data.status = "draft";
-   if (entity === "site_settings" && "social" in data && data.social != null) {
-      const social = data.social;
-      const ok = Array.isArray(social) && social.every((x) => !!x && typeof x === "object" && typeof (x as Row).kind === "string" && validHttpsUrl((x as Row).url));
-      if (!ok) throw new ContentRuleError("site_settings.social must be a list of { kind, url } with https:// URLs");
+   if (entity === "site_settings") {
+      checkMaxLen(data, "site_title", 200, "site_settings.site_title");
+      checkMaxLen(data, "tagline", 500, "site_settings.tagline");
+      if ("social" in data && data.social != null) {
+         const social = data.social;
+         const ok =
+            Array.isArray(social) &&
+            social.length <= 20 &&
+            social.every((x) => !!x && typeof x === "object" && typeof (x as Row).kind === "string" && ((x as Row).kind as string).length <= 40 && validHttpsUrl((x as Row).url));
+         if (!ok) throw new ContentRuleError("site_settings.social must be a list of { kind, url } with https:// URLs");
+      }
    }
    if (entity === "curated_videos") {
+      checkMaxLen(data, "title_override", 300, "curated_videos.title_override");
       // NULL means "all" everywhere; store it as 'all' so the unique (kind, ref_id, placement, locale)
       // index (migrations/0002) also covers it (SQLite treats NULLs as distinct).
       if (mode === "create" ? data.locale == null : "locale" in data && data.locale == null) data.locale = "all";

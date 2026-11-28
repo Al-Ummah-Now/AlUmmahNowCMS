@@ -127,7 +127,7 @@ async function run(x: Ctx): Promise<unknown> {
 export async function runJob(env: RunnerEnv, jobId: string, deps: ProviderDeps, attempts: number, now: () => number = Date.now): Promise<Outcome> {
    const { job, busy } = await claimJob(env.DB, jobId, now());
    if (!job) return busy ? { kind: "retry", delaySeconds: 60, error: "busy" } : { kind: "skip" };
-   const { settings } = await loadSettings(env.DB);
+   const { settings } = await loadSettings(env.DB, { local: env.ENVIRONMENT === "local" });
    const x: Ctx = { env, job, router: createRouter(settings, env, deps), settings, now };
    try {
       const result = await run(x);

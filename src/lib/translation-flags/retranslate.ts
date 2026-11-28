@@ -11,7 +11,7 @@
 import { budgetState } from "../ai/budget.ts";
 import type { AiEnv } from "../ai/config.ts";
 import { recordUsage } from "../ai/jobs.ts";
-import type { Locale } from "../ai/prompts.ts";
+import { escapePromptXml, type Locale } from "../ai/prompts.ts";
 import { createRouter, type ProviderDeps } from "../ai/router.ts";
 import { loadSettings } from "../ai/settings.ts";
 import { paragraphAround, resolveAnchor } from "./anchor.ts";
@@ -49,7 +49,13 @@ export function validAlternatives(v: unknown, quote: string): string[] | null {
    const out: string[] = [];
    for (const x of list) {
       if (typeof x !== "string") continue;
-      const s = x.replace(/[⟦⟧]/g, "").trim().slice(0, 2000);
+      const s = x
+         .replace(/[⟦⟧]/g, "")
+         .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+         .replace(/<(?:script|style|iframe|object|embed)\b[^>]*>[\s\S]*?<\/(?:script|style|iframe|object|embed)\s*>/gi, "")
+         .replace(/<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s+[^<>]*)?\/?>/g, "")
+         .trim()
+         .slice(0, 2000);
       if (!s || seen.has(s)) continue;
       seen.add(s);
       out.push(s);
@@ -73,8 +79,12 @@ export function retranslateUser(flag: Pick<Flag, "quote" | "prefix" | "suffix" |
       const from = Math.max(0, at - CONTEXT_MAX / 2);
       context = context.slice(from, from + CONTEXT_MAX);
    }
-   const parts = [`<source>\n${(flag.source_text ?? "").slice(0, CONTEXT_MAX) || "(not available)"}\n</source>`, `<translation>\n${context}\n</translation>`, `<reason>\n${flag.reason}\n</reason>`];
-   if (flag.note) parts.push(`<note>\n${flag.note}\n</note>`);
+   const parts = [
+      `<source>\n${escapePromptXml((flag.source_text ?? "").slice(0, CONTEXT_MAX)) || "(not available)"}\n</source>`,
+      `<translation>\n${escapePromptXml(context)}\n</translation>`,
+      `<reason>\n${escapePromptXml(flag.reason)}\n</reason>`,
+   ];
+   if (flag.note) parts.push(`<note>\n${escapePromptXml(flag.note)}\n</note>`);
    return parts.join("\n");
 }
 
@@ -102,7 +112,7 @@ export async function retranslate(
    const from: Locale = to === "en" ? "ar" : "en";
    const wait = await rateLimitWait(env.DB, o.userId, now());
    if (wait > 0) return { ok: false, code: "rate_limited", retryAfter: wait };
-   const { settings } = await loadSettings(env.DB);
+   const { settings } = await loadSettings(env.DB, { local: env.ENVIRONMENT === "local" });
    if ((await budgetState(env.DB, env.ENVIRONMENT, settings, now())).reached) return { ok: false, code: "budget_reached" };
    const glossary = glossaryPrompt(await entriesFor(env.DB, from, flag.source_text ?? ""));
    const router = createRouter(settings, env, o.deps);

@@ -10,6 +10,7 @@ import { createApp, registries, StorageR2Adapter, type CloudflareBkndConfig } fr
 import { code } from "bknd/modes";
 import { MEDIA_BINDING, moduleConfig } from "./bknd-config.ts";
 import { contentRulesPlugin } from "./lib/content-rules.ts";
+import { validMediaKey } from "./lib/paths.ts";
 import { revisionsPlugin } from "./lib/revisions.ts";
 import { feedPlugin } from "./lib/feed/plugin.ts";
 import type { Env, RuntimeConfig } from "./env.ts";
@@ -35,7 +36,9 @@ export function registerR2(bucket: R2Bucket): void {
        * one writes; the others fail with 409 before bknd inserts a media row.
        */
       override async putObject(key: string, body: Parameters<StorageR2Adapter["putObject"]>[1]): Promise<string | undefined> {
+         if (!validMediaKey(key)) return undefined;
          const fullKey = this.keyPrefix.length > 0 ? `${this.keyPrefix}/${key}`.replace(/^\/\//, "/") : key;
+         if (!validMediaKey(fullKey)) return undefined;
          let put: R2Object | null;
          try {
             put = await bucket.put(fullKey, body as never, { onlyIf: { etagDoesNotMatch: "*" } });

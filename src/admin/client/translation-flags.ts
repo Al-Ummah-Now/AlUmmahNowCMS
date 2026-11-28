@@ -436,7 +436,8 @@ export function initTranslationFlags(): void {
          }));
       } else if (canResolve) {
          if (f.quran) {
-            const a = el("a", { class: "btn sm primary", href: f.quranUrl ?? "https://quran.com", target: "_blank", rel: "noopener", "data-trf-official": "" }, T.officialText);
+            const href = typeof f.quranUrl === "string" && /^https:\/\/quran\.com(?:\/[^\s]*)?$/.test(f.quranUrl) ? f.quranUrl : "https://quran.com";
+            const a = el("a", { class: "btn sm primary", href, target: "_blank", rel: "noopener noreferrer", "data-trf-official": "" }, T.officialText);
             acts.append(a);
          }
          if (f.suggestion && r) acts.append(btn(T.apply, { "data-trf-apply": "" }, () => apply(f, f.suggestion!, "applied"), "btn sm primary"));
