@@ -1,9 +1,10 @@
 import { $, $$, api } from "./dom.ts";
 
 type Job = { id: string; status: string };
-type Preview = { html: string; width: number; height: number };
+type CardDocument = { html: string; width: number; height: number };
+type Preview = { pages: string[]; width: number; height: number };
 
-function displayPreview(host: HTMLElement, preview: Preview) {
+function displayPreview(host: HTMLElement, preview: CardDocument) {
    const doc = new DOMParser().parseFromString(preview.html, "text/html");
    const style = doc.querySelector("style");
    const main = doc.querySelector("main");
@@ -31,14 +32,7 @@ function displayPreview(host: HTMLElement, preview: Preview) {
       else resize.disconnect();
    });
    resize.observe(host);
-   const text = canvas.querySelector("blockquote");
-   if (!text) return;
-   void Promise.all([document.fonts.load("32px Amiri", "ع"), document.fonts.load("32px SourceSerif", "A")]).then(() => {
-      for (let size = 76; size >= 22; size -= 2) {
-         text.style.fontSize = `${size}px`;
-         if (text.scrollHeight <= text.clientHeight) break;
-      }
-   });
+
 }
 
 export function initDesignedCards() {
@@ -54,7 +48,7 @@ export function initDesignedCards() {
    const preview = $<HTMLButtonElement>("[data-card-action=preview]", panel)!;
    let passageId = "";
    let draft: object | null = null;
-   const reset = () => { draft = null; publish.disabled = true; host.hidden = true; status.textContent = ""; };
+   const reset = () => { draft = null; publish.disabled = true; host.hidden = true; host.style.display = "none"; status.textContent = ""; };
    for (const event of ["change", "input"]) panel.addEventListener(event, reset);
    field("kind").addEventListener("change", () => {
       for (const source of $$<HTMLElement>("[data-card-source]", panel)) source.hidden = source.dataset.cardSource !== field("kind").value;
@@ -91,7 +85,16 @@ export function initDesignedCards() {
       };
       disable(true);
       try {
-         displayPreview(host, await request(`${endpoint}/preview`, payload) as Preview);
+         const result = await request(`${endpoint}/preview`, payload) as Preview;
+         host.style.cssText = "display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory";
+         host.replaceChildren(...result.pages.map((html) => {
+            const tile = document.createElement("div");
+            tile.style.cssText = "position:relative;overflow:hidden;flex:0 0 100%;scroll-snap-align:start";
+            host.append(tile);
+            displayPreview(tile, { html, width: result.width, height: result.height });
+            return tile;
+         }));
+         host.hidden = false;
          draft = payload;
       } catch {
          status.textContent = translate("Could not preview the card. Check the source and try again.", "تعذّرت معاينة البطاقة. تحقّق من المصدر وحاول مجددًا.");
