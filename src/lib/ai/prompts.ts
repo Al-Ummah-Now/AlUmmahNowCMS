@@ -104,27 +104,88 @@ export class InvalidOutput extends Error {}
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const CTRL_KEEP_NL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
-const STRIP_HTML_DANGEROUS = /<(?:script|style|iframe|object|embed)\b[^>]*>[\s\S]*?<\/(?:script|style|iframe|object|embed)\s*>/gi;
-const STRIP_HTML_TAGS = /<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s+[^<>]*)?\/?>/g;
-const DANGEROUS_MD_LINK = /\]\(\s*(?:javascript|vbscript|data\s*:\s*text\/html)\s*:[^)]*\)/gi;
+const CTRL_ANY = /[\u0000-\u001f\u007f]/;
 
-/** Plain-text AI outputs (titles, SEO, summaries, review notes): strip control chars and any raw HTML tags. */
-function cleanPlain(text: string): string {
-   return text.replace(CTRL_KEEP_NL, "").replace(STRIP_HTML_DANGEROUS, "").replace(STRIP_HTML_TAGS, "");
+/**
+ * Plain-text AI outputs (titles, SEO, summaries, review notes, re-translation alternatives):
+ * structurally neutralize HTML/tag syntax by stripping control chars and every `<` / `>`.
+ */
+export function cleanPlainAiText(text: string): string {
+   return text.replace(CTRL_KEEP_NL, "").replace(/[<>]/g, "");
 }
 
-/** Markdown AI outputs (translated body): strip control chars, raw script/iframe/style tags, and dangerous link schemes. */
-function cleanMarkdown(text: string): string {
-   return text
-      .replace(CTRL_KEEP_NL, "")
-      .replace(STRIP_HTML_DANGEROUS, "")
-      .replace(/<\/?(?:script|iframe|object|embed|style|form|base|meta|link)\b[^>]*>/gi, "")
-      .replace(DANGEROUS_MD_LINK, "]()");
+/** Strict URL allowlist for Markdown link/image targets returned by AI: `#fragment`, clean `/path`, or parsed `http:`/`https:`/`mailto:`. */
+export function isSafeAiLinkTarget(raw: string): boolean {
+   if (!raw || raw.length > 2048 || CTRL_ANY.test(raw) || /\s/.test(raw)) return false;
+   if (raw.startsWith("#")) return true;
+   if (raw.startsWith("/")) {
+      if (raw.startsWith("//") || raw.includes("\\") || /^\/%5c/i.test(raw)) return false;
+      try {
+         const base = "https://relative.invalid";
+         const u = new URL(raw, base);
+         return u.origin === base && !u.pathname.startsWith("//");
+      } catch {
+         return false;
+      }
+   }
+   try {
+      const u = new URL(raw);
+      if (u.protocol === "https:" || u.protocol === "http:") return u.hostname.length > 0;
+      if (u.protocol === "mailto:") return raw.length > 7;
+      return false;
+   } catch {
+      return false;
+   }
+}
+
+/** Structurally validates Markdown `](target)` destinations using URL parsing + scheme allowlist. */
+function sanitizeMarkdownLinks(text: string): string {
+   let out = "";
+   let i = 0;
+   while (i < text.length) {
+      const start = text.indexOf("](", i);
+      if (start === -1) {
+         out += text.slice(i);
+         break;
+      }
+      out += text.slice(i, start + 2);
+      let j = start + 2;
+      let depth = 1;
+      while (j < text.length && depth > 0) {
+         const ch = text.charCodeAt(j);
+         if (ch === 92 /* \ */ && j + 1 < text.length) {
+            j += 2;
+            continue;
+         }
+         if (ch === 40 /* ( */) depth++;
+         else if (ch === 41 /* ) */) depth--;
+         j++;
+      }
+      if (depth !== 0) {
+         out += text.slice(start + 2);
+         break;
+      }
+      const rawInner = text.slice(start + 2, j - 1);
+      const trimmed = rawInner.trim();
+      const urlToken = trimmed.split(/\s/, 1)[0] ?? "";
+      out += isSafeAiLinkTarget(urlToken) ? `${rawInner})` : ")";
+      i = j;
+   }
+   return out;
+}
+
+/**
+ * Markdown AI outputs (translated body): strip control chars, structurally escape every `<` as
+ * `&lt;` (preserving Markdown `> ` blockquotes while making any HTML open/close tag impossible),
+ * and validate Markdown link targets via URL parsing + scheme allowlist.
+ */
+export function cleanMarkdownAiText(text: string): string {
+   return sanitizeMarkdownLinks(text.replace(CTRL_KEEP_NL, "").replace(/</g, "&lt;"));
 }
 
 const s = (v: unknown, max: number, field: string, mode: "plain" | "markdown" = "plain"): string => {
    if (typeof v !== "string") throw new InvalidOutput(`${field} is not a string`);
-   const cleaned = mode === "markdown" ? cleanMarkdown(v) : cleanPlain(v);
+   const cleaned = mode === "markdown" ? cleanMarkdownAiText(v) : cleanPlainAiText(v);
    return cleaned.length > max ? cleaned.slice(0, max) : cleaned;
 };
 

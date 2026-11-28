@@ -258,39 +258,63 @@ describe("CMS-8: Prompt injection boundaries and AI output sanitization", () => 
       expect(rt).toContain("<\\/note>");
    });
 
-   it("strips raw HTML, script tags, control chars, and javascript: links from AI outputs", () => {
+   it("structurally neutralizes HTML angle brackets, nested/malformed script tags, control chars, and unsafe links from AI outputs", () => {
       const seo = validateSeo({
-         seo_title: "Good <b>Title</b><script>alert(1)</script>\u0000",
-         seo_description: "<img src=x onerror=alert(1)>Plain description",
+         seo_title: "Good <b>Title</b><script>alert(1)</script\t\n bar>\u0000",
+         seo_description: "<scr<script>ipt>alert(1)</scr</script>ipt>Plain description",
          social_summary: "Summary <iframe src='https://evil.example'></iframe>",
       });
-      expect(seo).toEqual({ seo_title: "Good Title", seo_description: "Plain description", social_summary: "Summary" });
+      for (const v of Object.values(seo)) {
+         expect(v).not.toContain("<");
+         expect(v).not.toContain(">");
+         expect(v).not.toContain("\u0000");
+      }
+      expect(seo.seo_title).toContain("Good");
+      expect(seo.seo_description).toContain("Plain description");
 
       const chk = validateCheck({
-         summary: "Clean <script>x</script> summary",
-         tone: [{ quote: "<b>q</b>", note: "n\u0007", suggestion: "<i>s</i>" }],
+         summary: "Clean <script>x</script\t\n bar> summary",
+         tone: [{ quote: "<scr<script>ipt>q", note: "n\u0007", suggestion: "<i>s</i>" }],
          claims: [],
          policy: [],
       });
-      expect(chk.summary).toBe("Clean  summary");
-      expect(chk.tone[0]).toEqual({ quote: "q", note: "n", suggestion: "s" });
+      expect(chk.summary).not.toMatch(/[<>]/);
+      expect(chk.tone[0]!.quote).not.toMatch(/[<>]/);
+      expect(chk.tone[0]!.note).toBe("n");
+      expect(chk.tone[0]!.suggestion).not.toMatch(/[<>]/);
 
       const tr = validateTranslateChunk(
          {
             title: "<h1>Title</h1>",
-            summary: "<script>x</script>Sum",
-            body: "See [click](javascript:alert(1)) and <script>alert(1)</script> and **bold** [ok](https://alummahnow.net)",
+            summary: "<scr<script>ipt>Sum</script\t\n bar>",
+            body: [
+               "> Quoted wisdom",
+               "See [click](javascript:alert(1)), [vb](vbscript:msgbox(1)), [data](data:text/html,<script>1</script>), [proto](//evil.example/x)",
+               "and <script>alert(1)</script\t\n bar> and <scr<script>ipt>x</scr</script>ipt>",
+               "and **bold** [ok](https://alummahnow.net) [wiki](https://en.wikipedia.org/wiki/Islam_(overview)) [rel](/en/about) [ref](#note-1)",
+            ].join("\n"),
          },
          true,
       );
-      expect(tr.title).toBe("Title");
-      expect(tr.summary).toBe("Sum");
+      expect(tr.title).not.toMatch(/[<>]/);
+      expect(tr.summary).not.toMatch(/[<>]/);
+      expect(tr.body).not.toContain("<");
       expect(tr.body).not.toContain("javascript:");
-      expect(tr.body).not.toContain("<script>");
-      expect(tr.body).toContain("**bold** [ok](https://alummahnow.net)");
+      expect(tr.body).not.toContain("vbscript:");
+      expect(tr.body).not.toContain("data:text/html");
+      expect(tr.body).not.toContain("//evil.example");
+      expect(tr.body).toContain("> Quoted wisdom");
+      expect(tr.body).toContain("**bold** [ok](https://alummahnow.net) [wiki](https://en.wikipedia.org/wiki/Islam_(overview)) [rel](/en/about) [ref](#note-1)");
 
-      const alts = validAlternatives({ alternatives: ["<script>x</script>Better phrasing", "<b>Second</b>\u0000"] }, "old");
-      expect(alts).toEqual(["Better phrasing", "Second"]);
+      const alts = validAlternatives(
+         { alternatives: ["<script>x</script\t\n bar>Better phrasing", "<scr<script>ipt>Second\u0000"] },
+         "old",
+      );
+      expect(alts).not.toBeNull();
+      for (const a of alts!) {
+         expect(a).not.toMatch(/[<>]/);
+         expect(a).not.toContain("\u0000");
+      }
    });
 });
 

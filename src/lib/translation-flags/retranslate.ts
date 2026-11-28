@@ -11,7 +11,7 @@
 import { budgetState } from "../ai/budget.ts";
 import type { AiEnv } from "../ai/config.ts";
 import { recordUsage } from "../ai/jobs.ts";
-import { escapePromptXml, type Locale } from "../ai/prompts.ts";
+import { cleanPlainAiText, escapePromptXml, type Locale } from "../ai/prompts.ts";
 import { createRouter, type ProviderDeps } from "../ai/router.ts";
 import { loadSettings } from "../ai/settings.ts";
 import { paragraphAround, resolveAnchor } from "./anchor.ts";
@@ -49,13 +49,7 @@ export function validAlternatives(v: unknown, quote: string): string[] | null {
    const out: string[] = [];
    for (const x of list) {
       if (typeof x !== "string") continue;
-      const s = x
-         .replace(/[⟦⟧]/g, "")
-         .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
-         .replace(/<(?:script|style|iframe|object|embed)\b[^>]*>[\s\S]*?<\/(?:script|style|iframe|object|embed)\s*>/gi, "")
-         .replace(/<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s+[^<>]*)?\/?>/g, "")
-         .trim()
-         .slice(0, 2000);
+      const s = cleanPlainAiText(x.replace(/[⟦⟧]/g, "")).trim().slice(0, 2000);
       if (!s || seen.has(s)) continue;
       seen.add(s);
       out.push(s);
