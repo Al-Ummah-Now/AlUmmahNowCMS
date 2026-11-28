@@ -1317,7 +1317,7 @@ export interface BuilderInfo {
    mode: "light" | "dark";
 }
 
-export function BlocksEditor(props: { v: View; locale: Locale; blocks: Block[]; refs: Refs; builder: BuilderInfo }) {
+export function BlocksEditor(props: { v: View; locale: Locale; blocks: Block[]; refs: Refs; builder: BuilderInfo; qaf?: boolean }) {
    const c: Ctx = { v: props.v, locale: props.locale, refs: props.refs };
    const tb = props.v.t.blocks;
    const bi = props.builder;
@@ -1394,6 +1394,7 @@ export function BlocksEditor(props: { v: View; locale: Locale; blocks: Block[]; 
                <button type="button" class="btn sm" data-copy-from={bi.other.locale} disabled={!bi.other.id} title={tb.copyFromHelp(otherName)}>
                   <Icon name="languages" size={16} /> <span class="bld-l">{tb.copyFrom(otherName)}</span>
                </button>
+               {props.qaf ? <button type="button" class="btn sm" data-qaf-open><Icon name="search" size={16} /> {props.v.t.qaf.title}</button> : null}
                <button type="button" class="btn sm primary" data-builder-save>
                   <Icon name="check" size={16} /> <span data-builder-save-label>{tb.saveFromBuilder}</span>
                </button>

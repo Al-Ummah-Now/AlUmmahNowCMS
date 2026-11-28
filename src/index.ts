@@ -40,6 +40,7 @@ import { internalRefsApi } from "./routes/internal-refs.ts";
 import { internalGlossaryApi } from "./routes/internal-glossary.ts";
 import { fillPrimaryChannels } from "./lib/scholars/refs.ts";
 import { isReconcileSlot, reconcileRefs } from "./lib/scholars/reconcile.ts";
+import { pruneQaf } from "./lib/qaf/settings.ts";
 import { pruneJobs } from "./lib/ai/jobs.ts";
 import { handleAiQueue, isAiQueue } from "./lib/ai/runner.ts";
 import { ACCOUNT_PAGES } from "./lib/pages.ts";
@@ -517,6 +518,7 @@ export default {
       // Glossary terms deleted 30+ days ago are removed for good (docs/TRANSLATION_FLAGS.md §4).
       ctx.waitUntil(purgeGlossary(env.DB, Date.now()).catch((error) => log.error("glossary purge failed", { error: errText(error) })));
       // AI job rows hold draft text: 30-day retention (docs/AI_ASSIST_SPEC.md §3).
+      ctx.waitUntil(pruneQaf(env.DB, Date.now()).catch(() => log.error("qaf retention cleanup failed")));
       ctx.waitUntil(pruneJobs(env.DB, Date.now()).catch((error) => console.error("ai job prune failed", String(error))));
    },
    // One queue() for every consumer in wrangler.jsonc: home timeline builds and their DLQ, AI assist

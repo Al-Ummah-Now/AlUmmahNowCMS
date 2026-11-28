@@ -8,6 +8,7 @@ import { log } from "../log.ts";
 import { PROMPT_VERSION, type Feature, type Locale } from "./prompts.ts";
 import type { CompletionResult } from "./providers/types.ts";
 
+export type JobFeature = Feature | "source-query";
 export type JobStatus = "queued" | "running" | "done" | "failed";
 export type ContentKind = "pages" | "posts";
 
@@ -24,7 +25,7 @@ export interface Job {
    id: string;
    dedupe_key: string;
    user_id: number;
-   feature: Feature;
+   feature: JobFeature;
    kind: ContentKind;
    row_id: number | null;
    locale: Locale;
@@ -65,8 +66,8 @@ export const LIMITS = {
    windowMs: 10 * 60 * 1000,
    perWindow: 10,
    perDay: 60,
-   weight: { translate: 3, seo: 1, check: 1 } as Record<Feature, number>,
-   bodyMax: { translate: 100_000, seo: 60_000, check: 60_000 } as Record<Feature, number>,
+   weight: { translate: 3, seo: 1, check: 1, "source-query": 1 } as Record<JobFeature, number>,
+   bodyMax: { translate: 100_000, seo: 60_000, check: 60_000, "source-query": 2000 } as Record<JobFeature, number>,
    dedupeMs: 24 * 60 * 60 * 1000,
    leaseMs: 15 * 60 * 1000,
    staleMs: 20 * 60 * 1000,
@@ -80,14 +81,14 @@ export async function sha256(text: string): Promise<string> {
 
 export interface NewJob {
    userId: number;
-   feature: Feature;
+   feature: JobFeature;
    kind: ContentKind;
    rowId: number | null;
    locale: Locale;
    input: JobInput;
 }
 
-export function targetOf(feature: Feature, locale: Locale): Locale | null {
+export function targetOf(feature: JobFeature, locale: Locale): Locale | null {
    return feature === "translate" ? (locale === "en" ? "ar" : "en") : null;
 }
 
@@ -195,7 +196,7 @@ export async function failIfStale(db: D1Database, job: Job, now: number): Promis
 
 export interface FailedJob {
    id: string;
-   feature: Feature;
+   feature: JobFeature;
    kind: ContentKind;
    row_id: number | null;
    error: string | null;
@@ -222,7 +223,7 @@ export async function dismissFailure(db: D1Database, id: string): Promise<boolea
 }
 
 /** `job.id` is null for an admin's "Test connection" call (feature "test"); it still counts toward the budget. */
-export async function recordUsage(db: D1Database, p: { env: string; job: { id: string | null; user_id: number | null; feature: Feature | "test" | "slug" | "retranslate" }; result: CompletionResult; now: number }): Promise<void> {
+export async function recordUsage(db: D1Database, p: { env: string; job: { id: string | null; user_id: number | null; feature: JobFeature | "test" | "slug" | "retranslate" }; result: CompletionResult; now: number }): Promise<void> {
    const r = p.result;
    const u = r.usage ?? { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
    const day = new Date(p.now).toISOString().slice(0, 10);

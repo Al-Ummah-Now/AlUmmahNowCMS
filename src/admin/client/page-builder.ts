@@ -9,6 +9,7 @@
  * never changed from here.
  */
 import { leadsWithHero, normalizePageBlocks as normalizeBlocks, renderPageBlocks, servePageBlocks, type MediaRef, type PageBlock, type PostSummaryLite, type ServeRefs, type VideoSnapshot } from "../../lib/page-blocks.generated.ts";
+import { qafQuoteSpans, QAF_QUOTE_OPEN, readerUrl } from "../../lib/qaf/model.ts";
 import { announce, applyWhen, fmt, listItems, readItem, refresh, reuid, unfold } from "./blocks.ts";
 import { askConfirm } from "./dialogs.ts";
 import { $, $$, api, el, toast } from "./dom.ts";
@@ -28,6 +29,25 @@ interface Snapshot {
    videos: Record<string, { title: string; thumbnail_url: string | null; channel_name: string | null }>;
    posts: Record<string, { title: string; locale: string; status: string }>;
    html: string;
+}
+
+/** Keep literal Qaf text out of the regular Markdown renderer. The preview restores text nodes afterwards. */
+function markQafQuotes(text: string, quotes: Map<string, HTMLElement>): string {
+   let start = 0;
+   let masked = "";
+   for (const { start: quoteStart, end } of qafQuoteSpans(text)) {
+      const raw = text.slice(quoteStart, end);
+      const newline = raw.indexOf("\n");
+      const fence = QAF_QUOTE_OPEN.exec(newline === -1 ? raw : raw.slice(0, newline))?.[1] ?? "";
+      const close = "\n" + fence;
+      const quote = el("blockquote", { class: "pb-qaf-quote", lang: "ar", dir: "rtl" });
+      quote.textContent = newline === -1 ? "" : raw.slice(newline + 1, raw.endsWith(close) ? -close.length : undefined);
+      const marker = `QAFQUOTE-${crypto.randomUUID()}`;
+      quotes.set(marker, quote);
+      masked += text.slice(start, quoteStart) + `\n\n${marker}\n\n`;
+      start = end;
+   }
+   return masked + text.slice(start);
 }
 
 const DESKTOP = 1280;
@@ -232,7 +252,9 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
       }
       // The preview is a document of its own: it names the page for assistive technology (axe document-title).
       d.title = title || tb.preview;
-      const served = servePageBlocks(blocks, refs);
+      const quotes = new Map<string, HTMLElement>();
+      const served = servePageBlocks(blocks, refs).map((block) => block.type === "markdown"
+         ? { ...block, text: markQafQuotes(block.text, quotes) } : block);
       const lang = state.lang;
       const body = renderPageBlocks(served, {
          locale: lang,
@@ -245,6 +267,15 @@ export function initPageBuilder(root: HTMLElement, T: Strings): void {
       const scroll = d.scrollingElement?.scrollTop ?? 0;
       const head = leadsWithHero(served) || !title ? "" : `<header class="pv-head"><h1>${escapeHtml(title)}</h1>${summary ? `<p>${escapeHtml(summary)}</p>` : ""}</header>`;
       main.innerHTML = served.length || head ? `${head}${body}<div class="pv-foot"></div>` : `<p class="pv-empty">${escapeHtml(tb.previewEmpty)}</p>`;
+      if (quotes.size) {
+         for (const paragraph of $$("p", main)) {
+            const quote = quotes.get(paragraph.textContent ?? "");
+            if (quote) paragraph.replaceWith(quote);
+         }
+         for (const link of $$<HTMLAnchorElement>("a[href]", main)) {
+            if (readerUrl(link.href, "qaf") || readerUrl(link.href, "turath")) link.rel = "noopener noreferrer nofollow";
+         }
+      }
       if (d.scrollingElement) d.scrollingElement.scrollTop = scroll;
       if (state.selected) select(state.selected, false);
    }

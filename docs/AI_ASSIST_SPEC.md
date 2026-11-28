@@ -9,7 +9,7 @@ AlUmmahNow `docs/cost-monitoring/README.md` (#266: usage and cost dashboard).
 
 ## 1. What it is
 
-Three helpers inside the page and post editor. Every result is a **suggestion**: the editor accepts it
+Writing helpers inside the page and post editor. Every result is a **suggestion**: the editor accepts it
 (fills the form, unsaved), edits it, or discards it. Nothing is saved, and nothing is ever published, by
 the AI. Publishing stays the editor's Save/Publish button.
 
@@ -18,8 +18,9 @@ the AI. Publishing stays the editor's Save/Publish button.
 | **Translate** en ↔ ar | "AI assist" card in the editor's side panel | title, summary/excerpt and body in the other language, Markdown, links and `::video[ID]` lines kept | `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, reasoning off |
 | **SEO and sharing** | "Search & sharing" card, "Suggest" | SEO title (≤ 60 chars), meta description (≤ 160), social summary (≤ 200) | `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, reasoning off |
 | **Pre-publish check** | Publishing card, "Check before publishing" | tone notes, factual claims to verify, community-policy findings | `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, reasoning `low` |
+| **Find a source** | Editor’s AI assist area and page builder | Arabic passages from classical books, printed volume and page, and a linked citation | Qaf API and optional Workers AI query suggestion |
 
-**Workers AI default; third-party providers pluggable, admin-enabled.** By default all three run on
+**Workers AI default; third-party providers pluggable, admin-enabled.** Translate, SEO and the pre-publish check run by default on
 **Cloudflare Workers AI** through the Worker's `AI` binding: no API key, and the text stays in Cloudflare
 (the same rule as AI-MODERATION §1.4). One model for all three: the best Arabic on the catalogue in our
 tests (§1.5), a 1M-token context, JSON-schema output, and no deprecation date. An admin may add any
@@ -328,6 +329,15 @@ The address (slug) of a new page or post comes from its title (`src/lib/slug-sug
 Qur'an and hadith in a title are rendered literally and neutrally, never interpreted. The answer must slugify to 2–8 plain English words, or the transliteration is used. The editor sees which one it got and can always change it.
 
 E2E accounts (`isTestAccount`) never reach a provider on a deployed env. Worker tests inject a mocked binding, and the local E2E uses the mock server. The data API's own slug fill (content rules) does not call AI.
+
+### 8.2 Find a source
+
+An admin adds a write-only Qaf API key in **AI assist**. When the key is set, admins and editors can
+search from an article or standard page, filter by genre, author, book and Hijri death year, and read
+the surrounding passages and footnotes. **Insert quotation** adds the Qaf text and linked printed
+citation to the current draft. **Suggest a search** is a budgeted Workers AI job that produces a
+short Arabic query. See [Qaf sources](QAF_SOURCES.md) for setup, citation format, quota and error
+handling, and local tests.
 
 ## 9. Tests
 

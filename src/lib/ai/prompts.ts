@@ -6,7 +6,7 @@
 import { POLICY_CATEGORY_IDS, policyText, type PolicyCategory } from "./policy.ts";
 import type { Reasoning } from "./providers/types.ts";
 
-export const PROMPT_VERSION = "2026-11-11.1-glossary";
+export const PROMPT_VERSION = "2026-11-28.1-qaf";
 
 export type Feature = "translate" | "seo" | "check";
 export type Locale = "en" | "ar";

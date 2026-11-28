@@ -40,7 +40,7 @@ urls.js = add("app", "js", CLIENT_JS);
 for (const id of THEME_IDS) urls.theme[id] = add(`theme-${id}`, "css", THEMES[id].css);
 // The page builder's live preview frame: the shared block styles (vendored from the monorepo, the
 // same file www and the videos site use) on a bare page in the chosen theme.
-urls.preview = add("page-preview", "css", PREVIEW_BASE_CSS + PAGE_BLOCKS_CSS);
+urls.preview = add("page-preview", "css", PREVIEW_BASE_CSS + PAGE_BLOCKS_CSS + ".pb-qaf-quote{white-space:pre-wrap;overflow-wrap:anywhere;text-align:start}");
 
 export function assetUrls(theme: ThemeId): { css: string; js: string; theme: string } {
    return { css: urls.css, js: urls.js, theme: urls.theme[theme] };

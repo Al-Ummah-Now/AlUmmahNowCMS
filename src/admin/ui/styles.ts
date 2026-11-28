@@ -516,6 +516,19 @@ html.seq-dragging,html.seq-dragging *{cursor:grabbing!important;user-select:none
 .badge.sev-info{background:color-mix(in srgb,var(--fanous-color-primary) 16%,transparent);color:var(--fanous-color-text-primary)}
 .badge.sev-warn{background:transparent;color:var(--fanous-color-text-primary);box-shadow:inset 0 0 0 1px var(--fanous-color-outline)}
 .badge.sev-high{background:var(--fanous-color-error-fill);color:var(--fanous-color-on-error-fill)}
+/* Qaf research dialog */
+.qaf-dialog{inline-size:min(720px,calc(100% - 32px))}
+.qaf-filters>summary,.qaf-context>summary{cursor:pointer;min-block-size:44px;line-height:44px}
+.qaf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.qaf-lookup{display:flex;align-items:stretch;gap:6px}
+.qaf-lookup input{min-inline-size:0;flex:1}
+.qaf-result{padding:16px;min-inline-size:0}
+.qaf-excerpt{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.85;text-align:start;margin:0}
+.qaf-neighbor{border-inline-start:2px solid var(--fanous-c-divider-line);padding-inline-start:12px}
+[data-qaf-settings-error]:empty,[data-qaf-message]:empty{display:none}
+[data-qaf-failure]{margin-block:20px}
+@media(max-width:540px){.qaf-grid{grid-template-columns:1fr}}
+
 /* AI assist settings (src/admin/screens/ai-settings.tsx) */
 .ai-provider-h{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.ai-provider-h h3{flex:1 1 auto;min-width:0}
 .ai-provider .textarea.code{min-height:0}
