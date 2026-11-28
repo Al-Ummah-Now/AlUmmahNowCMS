@@ -15,11 +15,13 @@ function displayPreview(host: HTMLElement, preview: CardDocument) {
    canvas.append(main);
    const css = document.createElement("style");
    const styles = style.textContent ?? "";
-   if (!document.querySelector("[data-card-fonts]")) {
-      const fonts = document.createElement("style");
-      fonts.dataset.cardFonts = "";
-      fonts.textContent = styles.match(/@font-face[^}]+}/g)?.join("\n") ?? "";
-      document.head.append(fonts);
+   for (const rule of styles.matchAll(/@font-face\s*{\s*font-family:(\w+);[^}]+}/g)) {
+      const family = rule[1];
+      if (document.querySelector(`[data-card-font="${family}"]`)) continue;
+      const font = document.createElement("style");
+      font.dataset.cardFont = family;
+      font.textContent = rule[0];
+      document.head.append(font);
    }
    css.textContent = styles.replace(/@font-face[^}]+}/g, "").replace("html {", ":host {");
    canvas.dir = doc.documentElement.dir;
@@ -66,8 +68,15 @@ export function initDesignedCards() {
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store",
    }).then(async (response) => {
-      if (!response.ok) throw new Error("Card request failed");
-      return response.json();
+      const result = await response.json();
+      if (!response.ok) {
+         if (result?.error === "card_slide_limit" && Number.isInteger(result.limit)) {
+            const count = new Intl.NumberFormat(lang === "ar" ? "ar-u-nu-arab" : "en", { useGrouping: false }).format(result.limit);
+            throw new RangeError(translate(`This passage needs more than ${count} cards. Choose a shorter passage.`, `يحتاج هذا المقطع إلى أكثر من ${count} بطاقة. اختر مقطعًا أقصر.`));
+         }
+         throw new Error("Card request failed");
+      }
+      return result;
    });
 
    const number = (name: string) => Number(field(name).value.replace(/[٠-٩۰-۹]/gu, (digit) => String(digit.charCodeAt(0) & 15)));
@@ -96,8 +105,8 @@ export function initDesignedCards() {
          }));
          host.hidden = false;
          draft = payload;
-      } catch {
-         status.textContent = translate("Could not preview the card. Check the source and try again.", "تعذّرت معاينة البطاقة. تحقّق من المصدر وحاول مجددًا.");
+      } catch (error) {
+         status.textContent = error instanceof RangeError ? error.message : translate("Could not preview the card. Check the source and try again.", "تعذّرت معاينة البطاقة. تحقّق من المصدر وحاول مجددًا.");
       } finally {
          disable(false);
       }
