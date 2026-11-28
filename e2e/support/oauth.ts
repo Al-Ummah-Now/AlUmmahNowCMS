@@ -47,6 +47,24 @@ async function step(jar: CookieJar, url: string, init: RequestInit = {}): Promis
    return response;
 }
 
+/** The optional passkey prompt continues to the same OAuth callback as a redirect. */
+async function passkeyCardCallback(response: Response, authorizeUrl: URL): Promise<string | null> {
+   if (response.status !== 200 || response.headers.get("content-location") !== "/passkeys/card/language") return null;
+   const html = await response.text();
+   const card = html.match(/var C=(\{[^\r\n]+\}),pk=window\.oaPasskey/);
+   if (!card) return null;
+   const { mode, continueUrl } = JSON.parse(card[1]);
+   if (mode !== "card" || typeof continueUrl !== "string") return null;
+
+   const callback = new URL(continueUrl);
+   const expected = new URL(CALLBACK_URL);
+   const state = authorizeUrl.searchParams.get("state");
+   if (callback.origin !== expected.origin || callback.pathname !== expected.pathname) return null;
+   if (callback.username || callback.password || !callback.searchParams.get("code")) return null;
+   if (!state || callback.searchParams.get("state") !== state) return null;
+   return callback.href;
+}
+
 export interface PendingSignIn {
    jar: CookieJar;
    /** The CMS callback URL with code and state (not yet visited). */
@@ -81,6 +99,9 @@ export async function beginSignIn(account: Account, returnPath = "/"): Promise<P
       location = response.headers.get("location");
    }
    if (!location?.startsWith(CALLBACK_URL)) {
+      location = await passkeyCardCallback(response, authorizeUrl);
+   }
+   if (!location) {
       throw new Error(`Login for ${account.email} did not reach the CMS callback (status ${response.status})`);
    }
    return { jar, callbackUrl: location, authorizeUrl };
