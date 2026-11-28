@@ -29,8 +29,12 @@ describe("Qaf request and citation boundaries", () => {
    it("keeps provider text inside a literal fence and rejects unsafe citation URLs", () => {
       const quote = citedQuotation({ ...QAF_PASSAGE, text: QAF_MARKUP, book: { ...QAF_PASSAGE.book, title: QAF_INJECTED_NAME } }, "en");
       expect(quote?.startsWith(`~~~~qaf-quote\n${QAF_MARKUP}\n~~~~\n\n[`)).toBe(true);
-      expect(quote).toContain("\\](javascript:alert(1))");
-      for (const url of ["javascript:alert(1)", "data:text/html,hi", "http://qaf.ai", "https://qaf.ai.evil.test/", "https://qaf.ai@evil.test/", "https://evil.test@qaf.ai/"]) {
+      const link = quote?.split("\n").at(-1);
+      expect(link).toContain("&#93;(javascript:alert(1))");
+      expect(link).toContain("&lt;img");
+      expect(link).not.toContain("<img");
+      expect(link?.endsWith(`](${QAF_PASSAGE.url})`)).toBe(true);
+      for (const url of ["javascript:alert(1)", "data:text/html,hi", "http://qaf.ai", "https://qaf.ai.evil.test/", "https://qaf.ai@evil.test/", "https://evil.test@qaf.ai/", "https://qa\nf.ai/", "https://qaf.ai/quoted passage"]) {
          expect(citedQuotation({ ...QAF_PASSAGE, url }, "en")).toBeNull();
       }
       expect(readerUrl(QAF_PASSAGE.turathUrl, "turath")).toBe(QAF_PASSAGE.turathUrl);

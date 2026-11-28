@@ -1,3 +1,5 @@
+import { cleanMarkdownAiText, isSafeAiLinkTarget } from "../ai/prompts.ts";
+
 export type QafLocale = "en" | "ar";
 
 export interface Passage {
@@ -28,6 +30,7 @@ export const QAF_WEEK_LIMIT = 2500;
 
 /** Only link to the documented HTTPS readers. */
 export function readerUrl(value: string, reader: "qaf" | "turath"): string | null {
+   if (typeof value !== "string" || !isSafeAiLinkTarget(value) || value.includes("\\")) return null;
    try {
       const url = new URL(value);
       const host = reader === "qaf" ? "qaf.ai" : "app.turath.io";
@@ -63,9 +66,12 @@ export function citedQuotation(passage: Passage, locale: QafLocale): string | nu
    let fenceLength = 3;
    for (const match of passage.text.matchAll(/~{3,}/g)) fenceLength = Math.max(fenceLength, match[0].length + 1);
    const fence = "~".repeat(fenceLength);
-   const label = citation(passage, locale).replace(/\s+/gu, " ").replace(/[\\[\]<>!*`_&~]/g, "\\$&");
+   const label = citation(passage, locale).replace(/\s+/gu, " ").replace(/[\\!*`_&~]/g, "\\$&")
+      .replace(/\[/g, "&#91;").replace(/\]/g, "&#93;");
    const safeUrl = url.replace(/[()]/g, (c) => c === "(" ? "%28" : "%29");
-   return `${fence}qaf-quote\n${passage.text}\n${fence}\n\n[${label}](${safeUrl})`;
+   // Validate the Markdown citation; passage bytes stay inside the literal fence.
+   const link = cleanMarkdownAiText(`[${label}](${safeUrl})`);
+   return `${fence}qaf-quote\n${passage.text}\n${fence}\n\n${link}`;
 }
 
 /** Spans include the fence. Treat an unclosed quotation as protected through the end of the draft. */

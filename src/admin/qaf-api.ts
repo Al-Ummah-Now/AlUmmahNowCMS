@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { mockUrl } from "../lib/ai/config.ts";
 import { isTestAccount } from "../lib/slug-suggest.ts";
-import { callQaf, normalQuery, searchBody } from "../lib/qaf/client.ts";
+import { callQaf, normalQuery, QAF_API_BASE, searchBody } from "../lib/qaf/client.ts";
 import { UUID } from "../lib/qaf/model.ts";
-import { qafStatus, saveQafKey, sealQafKey } from "../lib/qaf/settings.ts";
+import { isQafKey, qafStatus, saveQafKey, sealQafKey } from "../lib/qaf/settings.ts";
 import type { AppEnv, Ctx, Deps } from "../types.ts";
 
 export function qafRoutes(deps: Pick<Deps, "fetch">) {
@@ -21,7 +21,8 @@ export function qafRoutes(deps: Pick<Deps, "fetch">) {
       const r = await callQaf({
          db: c.env.DB,
          secret: c.get("cfg").jwtSecret,
-         base: mock ? `${mock}/qaf/v1` : "https://api.qaf.ai/v1",
+         base: mock ? `${mock}/qaf/v1` : QAF_API_BASE,
+         local: c.env.ENVIRONMENT === "local",
          fetch: deps.fetch,
          retryCredential,
       }, op);
@@ -38,7 +39,7 @@ export function qafRoutes(deps: Pick<Deps, "fetch">) {
       if (c.get("user").role !== "admin") return c.json({ error: "forbidden" }, 403);
       const b = await c.req.json<{ key?: unknown }>().catch(() => null);
       const key = b?.key;
-      if (key !== null && (typeof key !== "string" || !/^qaf_sk_[A-Za-z0-9_-]{1,512}$/.test(key))) return c.json({ error: "validation" }, 422);
+      if (key !== null && !isQafKey(key)) return c.json({ error: "validation" }, 422);
       await saveQafKey(c.env.DB, key === null ? null : await sealQafKey(c.get("cfg").jwtSecret, key));
       return c.json(await qafStatus(c.env.DB));
    });

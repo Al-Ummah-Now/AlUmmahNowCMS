@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { createJob, dedupeKey, getJob, type NewJob } from "../../src/lib/ai/jobs.ts";
 import { runJob } from "../../src/lib/ai/runner.ts";
 import { callQaf, searchBody } from "../../src/lib/qaf/client.ts";
@@ -108,6 +108,30 @@ it("retries minute throttling and 5xx with backoff, stops on week and invalid ke
    expect(await search("new query")).toMatchObject({ error: "invalid_keys" });
    expect(mock.requests).toHaveLength(blocked);
    expect(await qafStatus(env.DB)).toMatchObject({ issue: "invalid_keys", requestId: `fake-qaf-${blocked}` });
+});
+
+it("guards credential-bearing destinations and allows the explicit local loopback mock", async () => {
+   await key();
+   const fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({ candidates: [] }));
+   const opts = { db: env.DB, secret: secret(), fetch };
+   const lookup = { path: `/catalog/lookup?${new URLSearchParams({ type: "book", query: "ع".repeat(200) })}` };
+   const mockBase = "http://127.0.0.1:8798/qaf/v1";
+   expect(await callQaf({ ...opts, base: mockBase }, lookup)).toMatchObject({ ok: false });
+   expect(await callQaf({ ...opts, base: "https://example.test/qaf/v1", local: true }, lookup)).toMatchObject({ ok: false });
+   expect(await callQaf({ ...opts, base: "http://127.0.0.1:8798/qaf/v1?unexpected=1", local: true }, lookup)).toMatchObject({ ok: false });
+   expect(fetch).not.toHaveBeenCalled();
+   expect(await callQaf({ ...opts, base: mockBase, local: true }, lookup)).toMatchObject({ ok: true });
+   expect(fetch).toHaveBeenCalledWith(expect.stringContaining(mockBase), expect.objectContaining({ redirect: "manual" }));
+
+   fetch.mockClear();
+   fetch.mockResolvedValueOnce(new Response(null, { status: 302, headers: { Location: "https://example.test" } }));
+   expect(await callQaf({ ...opts, base }, lookup)).toMatchObject({ ok: false, error: "unavailable" });
+   expect(fetch).toHaveBeenCalledTimes(1);
+
+   await key(FAKE_QAF_KEY + "\r\n");
+   fetch.mockClear();
+   expect(await callQaf({ ...opts, base }, lookup)).toMatchObject({ ok: false, error: "sealed_key" });
+   expect(fetch).not.toHaveBeenCalled();
 });
 
 it("uses the existing queue path, logs usage and rejects an injected non-query answer", async () => {
