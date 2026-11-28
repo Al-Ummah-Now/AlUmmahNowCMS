@@ -7,7 +7,7 @@ import { aiBinding, mockUrl } from "../../src/lib/ai/config.ts";
 import { classify, createWorkersAiProvider, readOutput } from "../../src/lib/ai/providers/workers-ai.ts";
 import { anyProviderReady } from "../../src/lib/ai/router.ts";
 import { defaultSettings, SECRET_NAME } from "../../src/lib/ai/settings.ts";
-import { dedupeKey, targetOf } from "../../src/lib/ai/jobs.ts";
+import { dedupeKey, LIMITS, targetOf } from "../../src/lib/ai/jobs.ts";
 import { chunkMarkdown, invariantWarnings, urls, videoIds } from "../../src/lib/ai/markdown.ts";
 import { BASE_CATEGORIES, EXTENSION_CATEGORIES, POLICY_CATEGORY_IDS } from "../../src/lib/ai/policy.ts";
 import { estimateNeurons, neuronsToUsd } from "../../src/lib/ai/pricing.ts";
@@ -52,6 +52,16 @@ describe("invariants", () => {
       expect(invariantWarnings(src, "انظر [س](https://a.org/p).\n\n::video[v1]\n\nhttps://b.org")).toEqual([]);
       expect(invariantWarnings(src, "::video[v2] https://a.org/p https://b.org")).toEqual(["videos_changed"]);
       expect(invariantWarnings(src, "::video[v1]\n\nhttps://a.org/other https://b.org")).toEqual(["links_changed"]);
+   });
+});
+
+describe("AI job labels", () => {
+   it.each(["en", "ar"] as const)("labels every feature on the Overview in %s", (lang) => {
+      const { ai, aiSettings } = ADMIN_STRINGS[lang];
+      for (const feature of Object.keys(LIMITS.weight)) {
+         expect(ai.features[feature], feature).toMatch(/\S/);
+      }
+      expect(ai.features["source-query"]).toBe(aiSettings.features["source-query"]);
    });
 });
 
