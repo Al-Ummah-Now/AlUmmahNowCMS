@@ -10,6 +10,7 @@
  */
 import type { Env } from "../../env.ts";
 import { trimSlash } from "../../env.ts";
+import { validHttpsUrl } from "../content-rules.ts";
 import type { MediaRef } from "../media-ref.ts";
 import type { PublicSlide } from "../blocks-public.ts";
 import type { PostMedia, PostSummaryV2 } from "../post-schema.generated.ts";
@@ -20,7 +21,7 @@ type Row = Record<string, unknown>;
 export const REF_POST_CACHE_SECONDS = 60;
 
 export const mediaOf = (m: PostMedia | null | undefined): MediaRef | null =>
-   m && typeof m.url === "string" ? { url: m.url, alt: m.alt ?? null, width: m.width ?? null, height: m.height ?? null, variants: null } : null;
+   m && validHttpsUrl(m.url) ? { url: m.url, alt: m.alt ?? null, width: m.width ?? null, height: m.height ?? null, variants: null } : null;
 
 export function slidesOf(slides: PostSummaryV2["slides"] | unknown): PublicSlide[] {
    if (!Array.isArray(slides)) return [];

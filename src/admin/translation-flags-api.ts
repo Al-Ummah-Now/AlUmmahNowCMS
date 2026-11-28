@@ -127,6 +127,12 @@ function readSelection(b: Record<string, unknown>): Selection | null {
    return { kind: b.kind, id, field: b.field, text, start, end };
 }
 
+const QURAN_URL_RE = /^https:\/\/quran\.com(?:\/[^\u0000-\u001f\u007f\s]*)?$/;
+
+function safeQuranUrl(url: string | null | undefined): string | null {
+   return typeof url === "string" && QURAN_URL_RE.test(url) ? url : null;
+}
+
 /** What the browser sees of a flag. */
 function publicFlag(f: Flag & { events?: unknown[] }) {
    return {
@@ -143,7 +149,7 @@ function publicFlag(f: Flag & { events?: unknown[] }) {
       suggestion: f.suggestion,
       note: f.note,
       quran: f.quran === 1,
-      quranUrl: f.quran_url,
+      quranUrl: safeQuranUrl(f.quran_url),
       status: f.status,
       resolution: f.resolution,
       createdBy: f.created_by_email,

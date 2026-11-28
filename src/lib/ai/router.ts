@@ -31,7 +31,7 @@ export function buildProvider(cfg: ProviderConfig, env: AiEnv, deps: ProviderDep
       const ai = deps.binding ?? aiBinding(env);
       return ai ? createWorkersAiProvider(ai, { id: cfg.id }) : null;
    }
-   return createHttpProvider(cfg, { readSecret: secretReader(env), fetch: deps.fetch });
+   return createHttpProvider(cfg, { readSecret: secretReader(env), fetch: deps.fetch, local: env.ENVIRONMENT === "local" });
 }
 
 export type Attempt = { route: Route; result: CompletionResult };
@@ -82,7 +82,7 @@ function routeReady(settings: AiSettings, env: AiEnv, deps: ProviderDeps, route:
 export async function aiReady(env: AiEnv & { DB: D1Database }, deps: ProviderDeps = {}): Promise<boolean> {
    if (!env.AI_JOBS) return false;
    try {
-      return anyProviderReady((await loadSettings(env.DB)).settings, env, deps);
+      return anyProviderReady((await loadSettings(env.DB, { local: env.ENVIRONMENT === "local" })).settings, env, deps);
    } catch {
       // No settings table yet (migration not applied): the built-in default.
       return (deps.binding ?? aiBinding(env)) !== null;

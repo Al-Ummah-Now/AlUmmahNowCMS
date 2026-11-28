@@ -30,7 +30,7 @@ export function withQuery(path: string, search: string, key: string, value: stri
  * site; leading slashes and backslashes collapse to one `/`.
  */
 export function samePath(path: string): string {
-   const p = path.replace(/\\/g, "/").replace(/^\/+/, "/");
+   const p = path.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\\/g, "/").replace(/^\/+/, "/");
    return p.startsWith("/") ? p : "/";
 }
 

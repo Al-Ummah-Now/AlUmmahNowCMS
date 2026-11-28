@@ -362,7 +362,7 @@ export function ssoRoutes(deps: Deps): Hono<AppEnv> {
       const headers = await authenticator.getAuthCookieHeader(token, new Headers());
       log.info("sso signed in", { ...who, role });
       for (const cookie of headers.getSetCookie()) c.header("Set-Cookie", cookie, { append: true });
-      return c.redirect(tx.r, 302);
+      return c.redirect(safeReturnPath(tx.r), 302);
    });
 
    sso.get("/logout", async (c) => {

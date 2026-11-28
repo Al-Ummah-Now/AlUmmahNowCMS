@@ -6,6 +6,9 @@
  */
 import { Hono, type Context } from "hono";
 import { trimSlash, type Env } from "../env.ts";
+import { validWebUrl } from "../lib/content-rules.ts";
+import { errText, log } from "../lib/log.ts";
+import { safeDispositionFilename, validMediaKey } from "../lib/paths.ts";
 import { LIVE_SQL } from "../lib/schedule.ts";
 import { stableSnapshot } from "../lib/stable-thumb.ts";
 import { MAIN_SITE_SQL, mainSiteSql } from "../lib/scholars/main-site.ts";
@@ -306,7 +309,7 @@ function postSummaryOf(env: Env, r: Row, cover: MediaRef | null, slides: PublicS
               images: v2.images.map(mediaOf).filter((m): m is MediaRef => m !== null),
               image_count: v2.image_count,
               video_id: v2.video_id,
-              link: v2.link ? { url: v2.link.url, title: v2.link.title, description: v2.link.description, site_name: v2.link.siteName ?? null, image: mediaOf(v2.link.image) } : null,
+               link: v2.link && validWebUrl(v2.link.url) ? { url: v2.link.url, title: v2.link.title, description: v2.link.description, site_name: v2.link.siteName ?? null, image: mediaOf(v2.link.image) } : null,
               poll: v2.poll,
               quiz: v2.quiz,
               gif: mediaOf(v2.gif),
@@ -510,7 +513,7 @@ export function recordAbuse(env: Env, endpoint: string, kind: "rate_limited"): v
    try {
       env.ABUSE_EVENTS?.writeDataPoint({ indexes: ["cms"], blobs: ["cms", endpoint, kind, env.ENVIRONMENT ?? "local"], doubles: [1] });
    } catch (error) {
-      console.warn("abuse counter write failed", String(error));
+      log.warn("abuse counter write failed", { error: errText(error) });
    }
 }
 
@@ -528,7 +531,7 @@ async function cachedSearch(c: Context<{ Bindings: Env }>, key: string, make: ()
    const data = await make();
    if (cache) {
       const put = cache.put(keyReq, new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=60" } }));
-      c.executionCtx.waitUntil(put.catch((e) => console.error("search cache put failed", String(e))));
+      c.executionCtx.waitUntil(put.catch((e) => log.error("search cache put failed", { error: errText(e) })));
    }
    return json(c, data, SEARCH_CACHE);
 }
@@ -783,7 +786,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       } catch {
          throw new HttpError(400, "bad path");
       }
-      if (!path || path.includes("..") || path.startsWith("/") || path.length > 512) throw new HttpError(404);
+      if (!path || !validMediaKey(path)) throw new HttpError(404);
       const variant = parseVariantQuery(new URL(c.req.url).searchParams);
       if (variant === "bad") throw new HttpError(400, "w must be 1–1600 and f one of avif, webp, jpeg, png");
       // Only files bknd's media module knows about (not arbitrary bucket keys).
@@ -800,13 +803,14 @@ export function publicApi(): Hono<{ Bindings: Env }> {
             headers.set("ETag", made.httpEtag);
             headers.set("Cache-Control", MEDIA_CACHE);
             headers.set("Content-Type", VARIANT_TYPES[variant.format]);
+            headers.set("Content-Disposition", `inline; filename="${safeDispositionFilename(path, variant.format)}"`);
             headers.set("X-Content-Type-Options", "nosniff");
             headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
             headers.set("X-Variant", "hit");
             if (c.req.header("If-None-Match") === made.httpEtag) return new Response(null, { status: 304, headers });
             return new Response(c.req.method === "HEAD" ? null : made.body, { headers });
          }
-         c.executionCtx.waitUntil(enqueueVariants(c.env, path).catch((e) => console.error("variant enqueue failed", String(e))));
+         c.executionCtx.waitUntil(enqueueVariants(c.env, path).catch((e) => log.error("variant enqueue failed", { error: errText(e) })));
       }
       const obj = await c.env.MEDIA.get(path);
       if (!obj) throw new HttpError(404);
@@ -819,7 +823,9 @@ export function publicApi(): Hono<{ Bindings: Env }> {
       headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
       // bknd's R2 adapter stores no httpMetadata; serve the type bknd recorded, images only.
       const type = (headers.get("Content-Type") || known.mime_type || "").toLowerCase();
-      headers.set("Content-Type", MEDIA_TYPES.has(type) ? type : "application/octet-stream");
+      const safeType = MEDIA_TYPES.has(type) ? type : "application/octet-stream";
+      headers.set("Content-Type", safeType);
+      headers.set("Content-Disposition", `${safeType === "application/octet-stream" ? "attachment" : "inline"}; filename="${safeDispositionFilename(path)}"`);
       if (c.req.header("If-None-Match") === obj.httpEtag) return new Response(null, { status: 304, headers });
       return new Response(c.req.method === "HEAD" ? null : obj.body, { headers });
    });
@@ -827,7 +833,7 @@ export function publicApi(): Hono<{ Bindings: Env }> {
    api.notFound((c) => errorJson(c, new HttpError(404)));
    api.onError((err, c) => {
       if (err instanceof HttpError) return errorJson(c, err);
-      console.error("public api error", err instanceof Error ? err.message : String(err));
+      log.error("public api error", { error: errText(err) });
       return c.json({ error: "internal_error" }, 500, { "Cache-Control": "no-store", ...corsHeaders(c.env, c.req.header("Origin")) });
    });
    return api;

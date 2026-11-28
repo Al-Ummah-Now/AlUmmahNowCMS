@@ -11,6 +11,7 @@
  *      new post gets their `author_sub`, and an update by a writer of someone else's post is refused.
  */
 import { Exception } from "bknd";
+import { sanitizeScopedWhere } from "../bknd-query.ts";
 import { currentActor } from "../revisions.ts";
 
 /** Set by the Worker only (featuring, the community sync, ownership). Never from a data API write. */
@@ -113,21 +114,19 @@ export function scopeListUrl(url: URL, sub: string): URL {
    return out;
 }
 
-/** A where filter limited to Al Ummah Now's own posts (no scholar author); caller `$or`s dropped. */
+/** A where filter limited to Al Ummah Now's own posts (no scholar author); caller `$or`s and unsafe operators dropped. */
 export function scopeWhereStaff(where: Row): Row {
-   const out: Row = {};
-   for (const [k, v] of Object.entries(where)) if (!k.startsWith("$") && k !== "author_sub") out[k] = v;
+   const out = sanitizeScopedWhere(where, ["author_sub", "ref_post_id"]);
    out.author_sub = { $isnull: true };
    return out;
 }
 
 /**
  * A where filter limited to `author_sub = sub`. bknd joins a top-level `$or` to its siblings with OR,
- * so an `$or` from the caller is dropped rather than trusted to stay inside the scope.
+ * so any `$` logical/unknown operators and prototype keys from the caller are dropped.
  */
 export function scopeWhere(where: Row, sub: string): Row {
-   const out: Row = {};
-   for (const [k, v] of Object.entries(where)) if (!k.startsWith("$")) out[k] = v;
+   const out = sanitizeScopedWhere(where, ["author_sub"]);
    out.author_sub = sub;
    return out;
 }

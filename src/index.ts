@@ -21,7 +21,9 @@ import { Hono } from "hono";
 import { appIconRoutes } from "./lib/app-icons.ts";
 import { getBkndApp, MediaExistsError } from "./app.ts";
 import { MEDIA_MAX_BYTES } from "./bknd-config.ts";
-import { ALLOWED_UPLOAD, blockedApiPath, contentCollectionPath, deleteTarget, isRetiredBkndAdminPath, uploadAllowed, uploadName } from "./lib/paths.ts";
+import { validateBkndEntityRequest } from "./lib/bknd-query.ts";
+import { ALLOWED_UPLOAD, blockedApiPath, contentCollectionPath, deleteTarget, isRetiredBkndAdminPath, sniffImageType, uploadAllowed, uploadName, validMediaKey } from "./lib/paths.ts";
+import { safeReturnPath } from "./lib/return-path.ts";
 import { ConfigError, runtimeConfig, videosUrls, type Env } from "./env.ts";
 import { remoteJwks } from "./lib/oidc.ts";
 import { refreshCuratedSnapshots } from "./lib/snapshots.ts";
@@ -66,16 +68,37 @@ import { passkeyNeededPath, passkeySetupUrl, sessionPasskeyLapsed } from "./lib/
 import type { AppEnv, AuthUser, Ctx, Deps } from "./types.ts";
 
 async function multipartAllowed(request: Request): Promise<boolean> {
-   const form = await request.clone().formData();
+   let form: FormData;
+   try {
+      form = await request.clone().formData();
+   } catch {
+      return false;
+   }
+   let files = 0;
    for (const value of form.values()) {
       if (typeof value === "string") continue;
+      files += 1;
       const file = value as unknown as File;
       const type = (file.type ?? "").toLowerCase();
-      const ext = (file.name ?? "").toLowerCase().split(".").pop() ?? "";
+      const name = file.name ?? "";
+      if (name && !validMediaKey(name)) return false;
+      const ext = name.toLowerCase().split(".").pop() ?? "";
       const exts = ALLOWED_UPLOAD.get(type);
-      if (!exts || !exts.includes(ext) || file.size > MEDIA_MAX_BYTES) return false;
+      if (!exts || !exts.includes(ext) || file.size <= 0 || file.size > MEDIA_MAX_BYTES) return false;
+      const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+      if (sniffImageType(head) !== type) return false;
    }
-   return true;
+   return files > 0;
+}
+
+async function rawUploadBodyAllowed(request: Request): Promise<{ ok: true } | { ok: false; status: 413 | 415; message: string }> {
+   const type = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+   const buf = new Uint8Array(await request.clone().arrayBuffer());
+   if (buf.byteLength > MEDIA_MAX_BYTES) return { ok: false, status: 413, message: "File is larger than 10 MB" };
+   if (buf.byteLength === 0 || sniffImageType(buf) !== type) {
+      return { ok: false, status: 415, message: "Only JPEG, PNG, WebP and AVIF images can be uploaded" };
+   }
+   return { ok: true };
 }
 
 /** A media object or row already uses this name. */
@@ -153,7 +176,9 @@ async function scopeWriterRequest(c: Ctx, user: AuthUser): Promise<Request | Res
       const headers = new Headers(c.req.raw.headers);
       headers.set("content-type", "application/json");
       headers.delete("content-length");
-      return new Request(c.req.url, { method: "POST", headers, body: JSON.stringify(scopeWhere(where, sub)) });
+      const cleanUrl = new URL(c.req.url);
+      cleanUrl.search = "";
+      return new Request(cleanUrl, { method: "POST", headers, body: JSON.stringify(scopeWhere(where, sub)) });
    }
    const owner = await postAuthor(c.env.DB, verdict.id);
    if (owner !== sub) return c.json({ error: "not_found" }, 404);
@@ -181,7 +206,9 @@ async function scopeStaffWriterRequest(c: Ctx): Promise<Request | Response> {
       const headers = new Headers(c.req.raw.headers);
       headers.set("content-type", "application/json");
       headers.delete("content-length");
-      return new Request(c.req.url, { method: "POST", headers, body: JSON.stringify(scopeWhereStaff(where)) });
+      const cleanUrl = new URL(c.req.url);
+      cleanUrl.search = "";
+      return new Request(cleanUrl, { method: "POST", headers, body: JSON.stringify(scopeWhereStaff(where)) });
    }
    if ((await isStaffPost(c.env.DB, verdict.id)) !== true) return c.json({ error: "not_found" }, 404);
    return c.req.raw;
@@ -237,7 +264,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          c.set("cfg", runtimeConfig(c.env));
       } catch (error) {
          if (!(error instanceof ConfigError)) throw error;
-         console.error("config error:", error.message);
+         log.error("config error", { error: errText(error) });
          return withHeaders(renderStatus(c, "error", 503), contentSecurityPolicy({ nonce: n }));
       }
       await next();
@@ -256,7 +283,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    app.route("/sso", ssoRoutes(deps));
 
    // bknd's own login/register/logout UI and endpoints → SSO, or gone.
-   app.get("/auth/login", (c) => c.redirect(`/sso/login?return=${encodeURIComponent(c.req.query("return") ?? "/")}`, 302));
+   app.get("/auth/login", (c) => c.redirect(`/sso/login?return=${encodeURIComponent(safeReturnPath(c.req.query("return")))}`, 302));
    app.all("/auth/register", (c) => renderStatus(c, "not_found", 404));
    app.all("/auth/logout", (c) => c.redirect("/sso/logout", 302));
    app.all("/api/auth/logout", (c) => c.redirect("/sso/logout", 302));
@@ -321,6 +348,12 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       // A lapsed passkey grace session gets nothing from bknd either (bknd reads the same cookie)
       if (session.passkeyLapsed) return passkeyRequired(c);
       const signedIn = session.user;
+      // Validate bknd query filters, sort, select, pagination and forbid relation joins / operator injection (CMS-7).
+      if (p.startsWith("/api/data/entity/")) {
+         const scopedRole = signedIn?.role === "writer" || signedIn?.role === "staff_writer";
+         const qv = await validateBkndEntityRequest(c.req.raw, { scopedRole });
+         if (!qv.ok) return c.json({ error: "bad_request", message: qv.message }, 400);
+      }
       // A writer (auth "Scholar") reaches only their own posts and media (docs/SCHOLARS.md §2).
       let writerRequest: Request | null = null;
       if (signedIn?.role === "writer") {
@@ -340,17 +373,26 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
          const verdict = uploadAllowed(c.req.raw, p);
          if (!verdict.ok) return c.json({ error: "unsupported_media", message: verdict.message }, verdict.status);
          const type = (c.req.header("content-type") ?? "").toLowerCase();
-         if (type.startsWith("multipart/form-data") && !(await multipartAllowed(c.req.raw))) {
-            return c.json({ error: "unsupported_media", message: "Only JPEG, PNG, WebP and AVIF images up to 10 MB" }, 415);
+         if (type.startsWith("multipart/form-data")) {
+            if (!(await multipartAllowed(c.req.raw))) {
+               return c.json({ error: "unsupported_media", message: "Only JPEG, PNG, WebP and AVIF images up to 10 MB" }, 415);
+            }
+         } else {
+            const bodyVerdict = await rawUploadBodyAllowed(c.req.raw);
+            if (!bodyVerdict.ok) return c.json({ error: "unsupported_media", message: bodyVerdict.message }, bodyVerdict.status);
          }
       }
       // A JSON array is bknd's bulk insert, which skips the mutator events (content rules, history).
       if (c.req.method === "POST" && contentCollectionPath(p) && (await c.req.raw.clone().text()).trimStart().startsWith("[")) {
          return c.json({ error: "bad_request", message: "Create one item per request" }, 400);
       }
-      const named = c.req.method === "POST" ? uploadName(p) : null;
+      const hasNamedUpload = c.req.method === "POST" && /^\/api\/media\/upload\/.+$/.test(p);
+      const named = hasNamedUpload ? uploadName(p) : null;
       if (named?.startsWith(VARIANT_ROOT)) {
          return c.json({ error: "bad_request", message: `Names starting with "${VARIANT_ROOT}" are reserved` }, 400);
+      }
+      if (hasNamedUpload && (!named || !validMediaKey(named))) {
+         return c.json({ error: "bad_request", message: "Invalid file name" }, 400);
       }
       if (named && (await mediaExists(c.env, named))) {
          // Fast path before the body is read; the create-only R2 put (src/app.ts) is the atomic guarantee.
@@ -388,7 +430,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
       }
       if (res.ok && c.req.method === "POST" && (p.startsWith("/api/media/upload") || target)) {
          // Image variants for the new original (CMS-10): queue it now instead of waiting for the cron.
-         c.executionCtx.waitUntil(sweepVariants(c.env, 5).catch((e) => console.error("variant enqueue failed", String(e))));
+         c.executionCtx.waitUntil(sweepVariants(c.env, 5).catch((e) => log.error("variant enqueue failed", { error: errText(e) })));
       }
       return res;
    });
@@ -396,7 +438,7 @@ export function createWorker(deps: Deps): Hono<AppEnv> {
    app.all("*", (c) => renderStatus(c, "not_found", 404));
 
    app.onError((err, c) => {
-      console.error("unhandled", err instanceof Error ? `${err.name}: ${err.message}` : String(err));
+      log.error("unhandled error", { error: errText(err) });
       if (c.req.path.startsWith("/api/") || c.req.path.startsWith("/picker/api/") || c.req.path.startsWith("/admin/api/")) {
          return c.json({ error: "internal_error" }, 500);
       }

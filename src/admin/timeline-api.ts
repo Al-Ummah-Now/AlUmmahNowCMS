@@ -17,6 +17,7 @@
  */
 import { Hono, type Context } from "hono";
 import { feedStatus, requestFullRebuild, retryFeed } from "../lib/feed/jobs.ts";
+import { errText, log } from "../lib/log.ts";
 import { addVideo, logRebuild, offTimeline, postCounts, removeVideo, reorderPins, setHidden, setPinned, setPostOnTimeline, setVideoFields, TimelineError, type Actor } from "../lib/feed/admin.ts";
 import { withActor } from "../lib/revisions.ts";
 import { TrashError } from "../lib/trash.ts";
@@ -39,7 +40,7 @@ async function body(c: C): Promise<Record<string, unknown> | null> {
 
 function fail(c: C, error: unknown) {
    if (error instanceof TimelineError || error instanceof TrashError) return c.json({ error: error.code }, error.status);
-   console.error("timeline api", String(error));
+   log.error("timeline api failed", { error: errText(error) });
    return c.json({ error: "internal_error" }, 500);
 }
 
@@ -65,7 +66,7 @@ export function timelineApi(deps: Deps): Hono<AppEnv> {
       try {
          item = await lookupForSnapshot(c.get("cfg").videosApiUrl, kind, refId, deps.fetch);
       } catch (error) {
-         console.warn("timeline video lookup failed", String(error));
+         log.warn("timeline video lookup failed", { error: errText(error) });
          return c.json({ error: "upstream_error" }, 502);
       }
       if (!item) return c.json({ error: "not_found" }, 404);

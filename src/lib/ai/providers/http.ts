@@ -7,6 +7,7 @@
  */
 import { bodyValues, classifyStatus, finishKind, getPath, num, parseJsonAnswer, redact, renderBody, renderUrl } from "./shared.ts";
 import type { AiErrorCode, CompletionRequest, CompletionResult, CompletionUsage, TokenPrice, WritingAssistProvider } from "./types.ts";
+import { hasPlaceholderInAuthority, isAllowedProviderUrl, MODEL_ID_RE } from "../url-guard.ts";
 
 export type HttpMethod = "POST" | "PUT" | "PATCH";
 export const HTTP_METHODS: HttpMethod[] = ["POST", "PUT", "PATCH"];
@@ -105,9 +106,10 @@ function lastOf(events: unknown[], path: string | undefined): unknown {
    return undefined;
 }
 
-export function createHttpProvider(cfg: HttpProviderConfig, deps: { readSecret: SecretReader; fetch?: typeof fetch; now?: () => number }): WritingAssistProvider {
+export function createHttpProvider(cfg: HttpProviderConfig, deps: { readSecret: SecretReader; fetch?: typeof fetch; now?: () => number; local?: boolean }): WritingAssistProvider {
    const doFetch = deps.fetch ?? fetch;
    const now = deps.now ?? Date.now;
+   const local = deps.local === true;
    return {
       id: cfg.id,
       kind: "http",
@@ -116,6 +118,8 @@ export function createHttpProvider(cfg: HttpProviderConfig, deps: { readSecret: 
          const started = now();
          const fail = (c: { retryable: boolean; code: AiErrorCode }, detail: string): CompletionResult => ({ ok: false, ...base, ...c, latencyMs: now() - started, detail });
          if (!cfg.enabled) return fail({ retryable: false, code: "not_configured" }, "provider disabled");
+         if (!MODEL_ID_RE.test(req.model)) return fail({ retryable: false, code: "bad_request" }, "invalid model id");
+         if (hasPlaceholderInAuthority(cfg.url)) return fail({ retryable: false, code: "bad_request" }, "provider URL is not allowed");
          let key: string | null = null;
          if (cfg.auth.type !== "none") {
             key = await deps.readSecret(cfg.auth.secret);
@@ -123,13 +127,20 @@ export function createHttpProvider(cfg: HttpProviderConfig, deps: { readSecret: 
          }
          const secrets = key ? [key, encodeURIComponent(key)] : [];
          const { url, init } = buildHttpRequest(cfg, req, key);
+         if (!isAllowedProviderUrl(url, { local })) {
+            return fail({ retryable: false, code: "bad_request" }, "provider URL is not allowed");
+         }
          const promptChars = init.body ? String(init.body).length : 0;
          let res: Response;
          try {
-            res = await doFetch(url, { ...init, signal: AbortSignal.timeout(cfg.timeoutMs) });
+            // Never follow redirects: a 3xx could pivot to an internal/metadata address and leak AI_KEY_* credentials.
+            res = await doFetch(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(cfg.timeoutMs) });
          } catch (error) {
             const name = error instanceof Error ? error.name : "";
             return fail({ retryable: true, code: "network" }, name === "TimeoutError" || name === "AbortError" ? "timeout" : "network error");
+         }
+         if (res.status >= 300 && res.status < 400) {
+            return fail({ retryable: false, code: "bad_request" }, "provider redirects are not allowed");
          }
          const map = cfg.response;
          let body: unknown;

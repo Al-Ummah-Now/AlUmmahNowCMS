@@ -188,28 +188,39 @@ export interface LiteSelection {
  */
 export async function liteItems(env: Env, l: FeedLocale, sel: LiteSelection = {}): Promise<LiteRow[]> {
    const only = sel.posts || sel.entries;
-   const pf = only ? (sel.posts?.length ? ` AND p.id IN (${sel.posts.map(Number).join(",")})` : " AND 0") : "";
-   const vf = only ? (sel.entries?.length ? ` AND te.id IN (${sel.entries.map(Number).join(",")})` : " AND 0") : "";
-   const filter = (date: string) => {
+   const postIds = (sel.posts ?? []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0);
+   const entryIds = (sel.entries ?? []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0);
+   const filter = (date: string, ids: number[]) => {
       const parts: string[] = [];
-      const binds: unknown[] = [];
+      const binds: unknown[] = [l];
+      if (only) {
+         if (ids.length) {
+            const marks = ids.map((id) => {
+               binds.push(id);
+               return `?${binds.length}`;
+            });
+            parts.push(`${date === POST_DATE ? "p.id" : "te.id"} IN (${marks.join(",")})`);
+         } else {
+            parts.push("0");
+         }
+      }
       if (sel.pinned === true) parts.push("te.pin_rank IS NOT NULL");
       if (sel.pinned === false) parts.push("te.pin_rank IS NULL");
       if (sel.range) {
-         parts.push(`${date} >= ?2 AND ${date} < ?3`);
          binds.push(sel.range[0], sel.range[1]);
+         parts.push(`${date} >= ?${binds.length - 1} AND ${date} < ?${binds.length}`);
       }
       return { sql: parts.map((p) => ` AND ${p}`).join(""), binds };
    };
    const lim = sel.limit ? ` LIMIT ${Math.max(1, Math.min(500, Math.floor(sel.limit)))}` : "";
-   const pfl = filter(POST_DATE);
-   const vfl = filter(VIDEO_DATE);
+   const pfl = filter(POST_DATE, postIds);
+   const vfl = filter(VIDEO_DATE, entryIds);
    const [posts, videos] = await Promise.all([
-      env.DB.prepare(`SELECT p.id, ${POST_DATE} AS d, te.pin_rank, coalesce(p.updated_at, '') || '|' || coalesce(te.updated_at, '') AS ver ${POST_FROM}${pf}${pfl.sql} ORDER BY ${POST_DATE} DESC, p.id DESC${lim}`)
-         .bind(l, ...pfl.binds)
+      env.DB.prepare(`SELECT p.id, ${POST_DATE} AS d, te.pin_rank, coalesce(p.updated_at, '') || '|' || coalesce(te.updated_at, '') AS ver ${POST_FROM}${pfl.sql} ORDER BY ${POST_DATE} DESC, p.id DESC${lim}`)
+         .bind(...pfl.binds)
          .all<{ id: number; d: string; pin_rank: number | null; ver: string }>(),
-      env.DB.prepare(`SELECT te.id, ${VIDEO_DATE} AS d, te.pin_rank, te.updated_at || '|' || coalesce(vs.updated_at, '') AS ver ${VIDEO_FROM}${vf}${vfl.sql} ORDER BY ${VIDEO_DATE} DESC, te.id DESC${lim}`)
-         .bind(l, ...vfl.binds)
+      env.DB.prepare(`SELECT te.id, ${VIDEO_DATE} AS d, te.pin_rank, te.updated_at || '|' || coalesce(vs.updated_at, '') AS ver ${VIDEO_FROM}${vfl.sql} ORDER BY ${VIDEO_DATE} DESC, te.id DESC${lim}`)
+         .bind(...vfl.binds)
          .all<{ id: number; d: string; pin_rank: number | null; ver: string }>(),
    ]);
    const rows: LiteRow[] = [];
